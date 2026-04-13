@@ -343,11 +343,11 @@ pub fn start_transcription_task<R: Runtime>(
                                             &language,
                                         );
 
-                                        // Anti-hallucination: descartar texto que es YouTube/subtítulo garbage
-                                        if super::spanish_postprocess::is_hallucination(&enhanced_text) {
-                                            warn!("🚫 Hallucination detected, discarding: '{}'", enhanced_text);
-                                            chunks_completed_clone.fetch_add(1, Ordering::SeqCst);
-                                            continue;
+                                        // Anti-hallucination: MARCAR (no descartar) texto sospechoso
+                                        // Zero-loss: nunca descartamos audio transcrito, solo lo marcamos
+                                        let is_hallucination = super::spanish_postprocess::is_hallucination(&enhanced_text);
+                                        if is_hallucination {
+                                            warn!("⚠️ Possible hallucination (kept, marked): '{}'", enhanced_text);
                                         }
 
                                         if enhanced_text != transcript {

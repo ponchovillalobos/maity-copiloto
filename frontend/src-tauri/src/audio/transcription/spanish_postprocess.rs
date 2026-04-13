@@ -35,7 +35,9 @@ pub fn enhance(text: &str, language: &str) -> String {
         out = restore_question_marks(&out);
         out = restore_interrogative_accents(&out);
         out = capitalize_sentences(&out);
-        out = trim_leading_fillers(&out);
+        // NOTE: trim_leading_fillers REMOVIDO del pipeline para zero-loss.
+        // Las muletillas ("eh,", "este,") se PRESERVAN en la transcripcion.
+        // El usuario ve EXACTAMENTE lo que se dijo.
     } else {
         out = capitalize_sentences(&out);
     }
@@ -370,16 +372,18 @@ mod tests {
     }
 
     #[test]
-    fn test_quita_muletilla_inicial() {
+    fn test_preserva_muletilla_inicial_zero_loss() {
+        // Zero-loss: muletillas se PRESERVAN (no se eliminan)
         assert_eq!(
             enhance("eh, hola cómo estás", "es"),
-            "Hola cómo estás"
+            "Eh, hola cómo estás"
         );
     }
 
     #[test]
-    fn test_quita_doble_muletilla() {
-        assert_eq!(enhance("eh, este, hola", "es"), "Hola");
+    fn test_preserva_doble_muletilla_zero_loss() {
+        // Zero-loss: muletillas se PRESERVAN (solo se capitaliza)
+        assert_eq!(enhance("eh, este, hola", "es"), "Eh, este, hola");
     }
 
     #[test]

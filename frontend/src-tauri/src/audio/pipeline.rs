@@ -57,7 +57,7 @@ impl AudioMixerRingBuffer {
         // System audio (especially Core Audio on macOS) can have significant jitter
         // due to sample-by-sample streaming → batching → channel transmission
         // Accounts for: RNNoise buffering + Core Audio jitter + processing delays
-        let max_buffer_size = window_size_samples * 8;  // 400ms (was 200ms)
+        let max_buffer_size = window_size_samples * 16;  // 1.6s — zero-loss: tolera jitter Bluetooth/WASAPI
 
         info!("🔊 Ring buffer initialized: window={}ms ({} samples), max={}ms ({} samples)",
               window_ms, window_size_samples,
@@ -1370,9 +1370,9 @@ mod tests {
         let expected_window = (sample_rate as f32 * 100.0 / 1000.0) as usize;
         assert_eq!(buffer.window_size_samples, expected_window, "Window debe ser 100ms");
 
-        // Max buffer must be 400ms = window_size * 8
-        let expected_max = expected_window * 8;
-        assert_eq!(buffer.max_buffer_size, expected_max, "Max buffer debe ser 400ms (window*8)");
+        // Max buffer must be 1.6s = window_size * 16 (zero-loss)
+        let expected_max = expected_window * 16;
+        assert_eq!(buffer.max_buffer_size, expected_max, "Max buffer debe ser 1.6s (window*16)");
     }
 
     #[test]
