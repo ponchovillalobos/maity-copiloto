@@ -276,10 +276,17 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       logger.debug('[Coach] Skip: ya hay request en vuelo');
       return;
     }
-    const window = buildWindow();
+    let window = buildWindow();
     if (!window || window.length < 30) {
       logger.debug('[Coach] Skip: ventana muy corta');
       return;
+    }
+    // Agregar contexto de calidad de servicio al window para que el LLM lo considere
+    const currentScore = scoreHistoryRef.current.slice(-1)[0] ?? 50;
+    if (currentScore <= 30) {
+      window = `[ALERTA: Calidad de servicio MUY BAJA (${currentScore}/100). El usuario necesita mejorar su tono y escucha activa.]\n${window}`;
+    } else if (currentScore <= 50) {
+      window = `[Nota: Calidad de servicio por debajo del promedio (${currentScore}/100). Sugerir mejoras de comunicacion.]\n${window}`;
     }
 
     // Cooldowns estrictos v2.0
@@ -670,11 +677,12 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         ? Math.floor((Date.now() - sessionStartRef.current) / 1000)
         : 0;
 
-      // Connection score algorithm v4.0 — basado en actividad conversacional.
-      // Funciona tanto si habla solo interlocutor como si es bidireccional.
-      // Cambia cada 3s reflejando la dinámica real de la conversación.
+      // Connection score algorithm v5.0 — CALIDAD DE SERVICIO
+      // Evalua si el usuario esta dando buen servicio al cliente.
+      // Frustration tiene peso DOMINANTE — una sola groseria del usuario
+      // puede hundir el score. El termometro refleja calidad, no actividad.
       const minutesSinceStart = Math.max(0.5, durationSec / 60);
-      let score = 0;
+      let score = 50; // Baseline neutral
 
       // Contar cambios de turno (speaker switches)
       let turnChanges = 0;
@@ -684,38 +692,77 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         if (src && src !== prevSource) { turnChanges++; prevSource = src; }
       }
 
-      if (totalWords > 5) {
-        // 30 pts: actividad conversacional (palabras/minuto)
-        const wordsPerMin = totalWords / minutesSinceStart;
-        score += Math.min(30, Math.round(wordsPerMin * 0.25));
+      // Contar groserías del USUARIO separadamente (penalizacion fuerte)
+      let userProfanityCount = 0;
+      const profanityRegex = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche|estúpida|estupida)\b/gi;
+      for (const t of all) {
+        if ((t as any).source_type !== 'interlocutor') {
+          const text = ((t as any).text ?? '');
+          const matches = text.match(profanityRegex);
+          if (matches) userProfanityCount += matches.length;
+        }
+      }
 
-        // 20 pts: balance de participación (ideal: ambos hablan)
+      if (totalWords > 5) {
+        // +15 pts: balance de participacion (ambos hablan, no monologo)
         const minSide = Math.min(userWords, interlocutorWords);
         const balance = totalWords > 0 ? minSide / totalWords : 0;
-        score += Math.round(20 * Math.min(1, balance * 4));
+        score += Math.round(15 * Math.min(1, balance * 4));
 
-        // 15 pts: preguntas (de cualquier lado)
+        // +10 pts: preguntas (escucha activa)
         const totalQ = userQuestions + interlocutorQuestions;
         const qPerMin = totalQ / minutesSinceStart;
-        score += Math.min(15, Math.round(qPerMin * 10));
+        score += Math.min(10, Math.round(qPerMin * 8));
 
-        // 15 pts: variedad de turnos (no monólogo largo)
+        // +10 pts: variedad de turnos (conversacion fluida)
         const turnsPerMin = turnChanges / minutesSinceStart;
-        score += Math.min(15, Math.round(turnsPerMin * 3));
+        score += Math.min(10, Math.round(turnsPerMin * 2));
 
-        // 10 pts: empatía + nombres
-        score += Math.min(5, empathyPhrases * 2);
-        score += Math.min(5, nameUsedCount * 2);
+        // +10 pts: empatia + uso de nombres (profesionalismo)
+        score += Math.min(5, empathyPhrases * 3);
+        score += Math.min(5, nameUsedCount * 3);
 
-        // +10/-10: emoción del cliente
-        if (satisfactionSignals > frustrationSignals) score += Math.min(10, satisfactionSignals * 4);
-        else if (frustrationSignals >= 2) score -= Math.min(15, frustrationSignals * 5);
-        else if (frustrationSignals === 1) score -= 5;
+        // +10/-20: emocion general
+        if (satisfactionSignals > frustrationSignals) {
+          score += Math.min(10, satisfactionSignals * 3);
+        } else if (frustrationSignals > 0) {
+          // Frustracion tiene peso FUERTE
+          score -= Math.min(25, frustrationSignals * 8);
+        }
+
+        // PENALIZACION DOMINANTE: groserías del usuario
+        // Cada grosería resta 15 puntos — 2 groserías = score minimo
+        score -= userProfanityCount * 15;
+
+        // Penalizacion por monologo largo del usuario (habla sin dejar hablar)
+        if (userTalkRatio > 0.75 && totalWords > 50) {
+          score -= 10; // usuario domina >75% = mal servicio
+        }
 
         score = Math.max(5, Math.min(100, score));
       } else {
-        // Warm start: sube con tiempo + turnos (no estático)
-        score = Math.min(50, 25 + Math.round(minutesSinceStart * 8) + turnChanges * 3);
+        // Warm start: neutral, sube solo con interaccion real
+        score = Math.min(50, 40 + turnChanges * 3);
+      }
+
+      // WARNING TIP: si score cae por debajo de 30, generar advertencia
+      if (score <= 30 && totalWords > 20) {
+        const lastWarning = (window as any).__lastScoreWarning || 0;
+        if (Date.now() - lastWarning > 30_000) { // max 1 warning cada 30s
+          (window as any).__lastScoreWarning = Date.now();
+          const warningTip = {
+            tip: score <= 15
+              ? "⚠️ ALERTA: La calidad del servicio es muy baja. Cambia el tono inmediatamente."
+              : "La conexion con el cliente se esta deteriorando. Escucha mas, habla menos, usa empatia.",
+            category: "service",
+            confidence: 0.98,
+            priority: "critical" as const,
+            timestamp: Date.now(),
+            model: "heuristic",
+            latency_ms: 0,
+          };
+          setSuggestions(prev => [warningTip, ...prev].slice(0, 20));
+        }
       }
 
       // Trend: comparar promedio reciente vs anterior (umbral 2 pts)
