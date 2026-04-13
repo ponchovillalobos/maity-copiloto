@@ -37,16 +37,18 @@ export function TranscriptPanel({
   const { checkPermissions, isChecking, hasSystemAudio, hasMicrophone } = usePermissionCheck();
   const isLinux = useIsLinux();
 
-  // Convert transcripts to segments for virtualized view
+  // Convert transcripts to segments for virtualized view — sorted chronologically
   const segments = useMemo(() =>
-    transcripts.map(t => ({
-      id: t.id,
-      timestamp: t.audio_start_time ?? 0,
-      endTime: t.audio_end_time,
-      text: t.text,
-      confidence: t.confidence,
-      source_type: t.source_type,
-    })),
+    transcripts
+      .map(t => ({
+        id: t.id,
+        timestamp: t.audio_start_time ?? 0,
+        endTime: t.audio_end_time,
+        text: t.text,
+        confidence: t.confidence,
+        source_type: t.source_type,
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp),
     [transcripts]
   );
 

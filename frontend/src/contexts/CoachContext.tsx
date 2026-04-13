@@ -745,25 +745,58 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         score = Math.min(50, 40 + turnChanges * 3);
       }
 
-      // WARNING TIP: si score cae por debajo de 30, generar advertencia
-      if (score <= 30 && totalWords > 20) {
-        const lastWarning = (window as any).__lastScoreWarning || 0;
-        if (Date.now() - lastWarning > 30_000) { // max 1 warning cada 30s
-          (window as any).__lastScoreWarning = Date.now();
-          const warningTip = {
-            tip: score <= 15
-              ? "⚠️ ALERTA: La calidad del servicio es muy baja. Cambia el tono inmediatamente."
-              : "La conexion con el cliente se esta deteriorando. Escucha mas, habla menos, usa empatia.",
-            category: "service",
+      // FEEDBACK AUTOMATICO basado en score — escalado por severidad
+      const lastFeedback = (window as any).__lastScoreFeedback || 0;
+      const prevScore = (window as any).__prevConnectionScore || 50;
+      const canFeedback = Date.now() - lastFeedback > 20_000; // max 1 cada 20s
+
+      if (canFeedback && totalWords > 20) {
+        let feedbackTip: { tip: string; category: string; priority: string } | null = null;
+
+        // NIVEL CRITICO: score <= 10 — servicio desastroso
+        if (score <= 10) {
+          feedbackTip = {
+            tip: "🚨 SERVICIO CRITICO. El cliente esta a punto de irse. Detente, respira, y pide disculpas sinceramente.",
+            category: "service", priority: "critical",
+          };
+        // NIVEL ALERTA: score <= 25
+        } else if (score <= 25) {
+          feedbackTip = {
+            tip: "⚠️ La calidad del servicio es muy baja. Cambia el tono, escucha al cliente, usa empatia.",
+            category: "service", priority: "critical",
+          };
+        // NIVEL ADVERTENCIA: score <= 40
+        } else if (score <= 40) {
+          feedbackTip = {
+            tip: "La conexion se esta deteriorando. Intenta preguntar: '¿Como puedo ayudarle mejor?'",
+            category: "rapport", priority: "important",
+          };
+        // FELICITACION: score subio >15 puntos respecto al anterior
+        } else if (score >= 70 && score - prevScore >= 15) {
+          feedbackTip = {
+            tip: "✅ Excelente! La conexion esta mejorando. Sigue con ese tono empático y profesional.",
+            category: "rapport", priority: "soft",
+          };
+        // FELICITACION: score alto sostenido
+        } else if (score >= 85 && prevScore >= 80) {
+          feedbackTip = {
+            tip: "🌟 Comunicacion excepcional. El cliente se siente escuchado y valorado. Asi se hace!",
+            category: "rapport", priority: "soft",
+          };
+        }
+
+        if (feedbackTip) {
+          (window as any).__lastScoreFeedback = Date.now();
+          setSuggestions(prev => [{
+            ...feedbackTip!,
             confidence: 0.98,
-            priority: "critical" as const,
             timestamp: Date.now(),
             model: "heuristic",
             latency_ms: 0,
-          };
-          setSuggestions(prev => [warningTip, ...prev].slice(0, 20));
+          }, ...prev].slice(0, 20));
         }
       }
+      (window as any).__prevConnectionScore = score;
 
       // Trend: comparar promedio reciente vs anterior (umbral 2 pts)
       const history = scoreHistoryRef.current;
