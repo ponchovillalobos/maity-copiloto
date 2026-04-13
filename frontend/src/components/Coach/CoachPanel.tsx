@@ -13,7 +13,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loader2, WifiOff, Send, MessageSquare, Lightbulb, HandCoins, Users2, DollarSign } from 'lucide-react';
+import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loader2, WifiOff, Send, MessageSquare, Lightbulb, HandCoins, Users2, DollarSign, HelpCircle } from 'lucide-react';
 import { useCoach, CoachSuggestion, CoachChatMessage } from '@/contexts/CoachContext';
 import { ConnectionThermometer } from './ConnectionThermometer';
 import { MeetingTypeBadge } from './MeetingTypeBadge';
@@ -251,6 +251,16 @@ export function CoachPanel() {
         >
           <MessageSquare className="w-3 h-3" /> Chat ({chatMessages.length})
         </button>
+        <button
+          onClick={() => setTab('questions' as any)}
+          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition ${
+            (tab as string) === 'questions'
+              ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+        >
+          <HelpCircle className="w-3 h-3" /> Preguntas ({metrics.questionHistory?.length || 0})
+        </button>
       </div>
 
       {/* Status banner */}
@@ -333,6 +343,42 @@ export function CoachPanel() {
               <Send className="w-4 h-4" />
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Tab content: QUESTIONS */}
+      {(tab as string) === 'questions' && (
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+          {(!metrics.questionHistory || metrics.questionHistory.length === 0) ? (
+            <div className="text-center text-gray-500 text-sm mt-8 px-2">
+              Las preguntas detectadas aparecerán aquí.
+              <br />
+              <span className="text-gray-600 text-xs">
+                Se detectan preguntas con signos ¿? de usuario y cliente.
+              </span>
+            </div>
+          ) : (
+            [...metrics.questionHistory].reverse().map((q, idx) => (
+              <div
+                key={`q-${idx}-${q.timestamp}`}
+                className={`rounded-lg px-3 py-2 text-xs border ${
+                  q.speaker === 'user'
+                    ? 'bg-blue-900/20 border-blue-800/40 text-blue-200'
+                    : 'bg-purple-900/20 border-purple-800/40 text-purple-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-semibold text-[10px] uppercase tracking-wider">
+                    {q.speaker === 'user' ? '👤 Tú' : '🗣 Cliente'}
+                  </span>
+                  <span className="text-[9px] text-gray-500">
+                    {Math.floor(q.timestamp / 60000)}:{String(Math.floor((q.timestamp % 60000) / 1000)).padStart(2, '0')}
+                  </span>
+                </div>
+                <p className="text-gray-300 leading-relaxed">{q.text}</p>
+              </div>
+            ))
+          )}
         </div>
       )}
 

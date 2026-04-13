@@ -78,24 +78,25 @@ export type CoachModel =
   | 'gemma4:e4b';
 
 /** Métricas en vivo de la conversación. */
+export interface QuestionEntry {
+  text: string;
+  speaker: 'user' | 'interlocutor';
+  timestamp: number; // ms since session start
+}
+
 export interface CoachMetrics {
   totalWords: number;
   userWords: number;
   interlocutorWords: number;
-  /** 0.0-1.0: qué proporción habla el usuario. */
   userTalkRatio: number;
-  /** Número de preguntas hechas por el usuario (cuenta '¿'). */
   userQuestions: number;
-  /** Número de preguntas hechas por el interlocutor. */
   interlocutorQuestions: number;
-  /** Duración de la sesión en segundos. */
   durationSec: number;
-  /** Número total de turnos (segmentos). */
   turnCount: number;
-  /** v2.0: score gamificado 0-100. */
   connectionScore: number;
-  /** v2.0: tendencia reciente. */
   connectionTrend: 'rising' | 'falling' | 'stable';
+  /** Historial de preguntas detectadas */
+  questionHistory: QuestionEntry[];
 }
 
 interface CoachContextType {
@@ -180,6 +181,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     turnCount: 0,
     connectionScore: 50,
     connectionTrend: 'stable',
+    questionHistory: [],
   });
   const sessionStartRef = useRef<number | null>(null);
   const scoreHistoryRef = useRef<number[]>([]);
@@ -481,18 +483,19 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       const u = event.payload;
       if (
         !u ||
-        u.source_type !== 'interlocutor' ||
         u.is_partial === true ||
         !u.text ||
         u.text.trim().length < 5
       ) {
         return;
       }
+      // Analyze triggers for BOTH user and interlocutor speech
+      const isInterlocutor = u.source_type === 'interlocutor';
 
       try {
         const signals = await invoke<Array<{ category: string; priority: string; signal: string }>>(
           'coach_analyze_trigger',
-          { text: u.text, isInterlocutor: true }
+          { text: u.text, isInterlocutor }
         );
 
         if (signals.length === 0) {
@@ -524,6 +527,12 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         logger.warn(`[Coach] Error en trigger analyze: ${e}`);
+        // Fallback: si trigger falla, intentar tip generico cada 20s
+        const age = Date.now() - lastTipTimestampRef.current;
+        if (age > 20_000) {
+          logger.info('[Coach] Fallback: trigger fallo, intentando tip generico');
+          await triggerNow(undefined);
+        }
       }
     }).then((fn) => {
       unlisten = fn;
@@ -596,13 +605,20 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       let currentUserRun = 0;
       let satisfactionSignals = 0;
       let frustrationSignals = 0;
-      const satisfactionWords = /\b(excelente|perfecto|me encanta|impresionante|genial|increíble|fantástico|maravilloso|muy bien|buenísimo)\b/i;
-      const frustrationWords = /\b(terrible|pésimo|inaceptable|harto|harta|cancelar|demanda|queja|reclamo)\b/i;
+      const questionEntries: QuestionEntry[] = [];
+      const satisfactionWords = /\b(excelente|perfecto|me encanta|impresionante|genial|increíble|fantástico|maravilloso|muy bien|buenísimo|gracias|agradezco)\b/i;
+      const frustrationWords = /\b(terrible|pésimo|inaceptable|harto|harta|cancelar|demanda|queja|reclamo|mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|maldición|maldicion|pinche)\b/i;
       for (const t of all) {
         const text = ((t as any).text ?? '').trim();
         if (!text) continue;
         const wordCount = text.split(/\s+/).filter(Boolean).length;
         const questionCount = (text.match(/¿/g) || []).length;
+        // Track question history
+        if (questionCount > 0 || text.includes('?')) {
+          const speaker = ((t as any).source_type === 'interlocutor') ? 'interlocutor' as const : 'user' as const;
+          const ts = sessionStartRef.current ? (Date.now() - sessionStartRef.current) : 0;
+          questionEntries.push({ text: text.substring(0, 200), speaker, timestamp: ts });
+        }
         if ((t as any).source_type === 'interlocutor') {
           interlocutorWords += wordCount;
           interlocutorQuestions += questionCount;
@@ -709,6 +725,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         turnCount: all.length,
         connectionScore: score,
         connectionTrend: trend,
+        questionHistory: questionEntries.slice(-50), // Keep last 50 questions
       });
     };
     computeMetrics();
