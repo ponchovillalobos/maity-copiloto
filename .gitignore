@@ -83,5 +83,28 @@ Cargo.lock
 # Windows artifact
 nul
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code (editor config, agents, session data)
+.claude/
+
+# Development session memory
+memory/
+
+# Dashboard dev tool (build artifacts)
+dashboard/node_modules/
+dashboard/dist/
+
+# Windows debug symbols (huge, regenerated at build)
+*.pdb
+
+# ML model files (downloaded at runtime, not versioned)
+*.onnx
+*.bin
+*.safetensors
+
+# Build/runtime logs
+build-full.log
+maity-runtime.log
+
+# Stale files
+nul
+*.disabled

@@ -227,40 +227,7 @@ fn restore_question_marks(text: &str) -> String {
     result
 }
 
-/// Atenúa muletillas al INICIO del texto. No las quita en el medio (puede
-/// alterar el sentido). Lista conservadora.
-fn trim_leading_fillers(text: &str) -> String {
-    const FILLERS: &[&str] = &[
-        "eh,", "Eh,", "eh ", "Eh ", "este,", "Este,", "mmm,", "Mmm,", "ehm,", "Ehm,", "ehmm,",
-        "Ehmm,",
-    ];
-    let mut result = text.trim_start().to_string();
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for filler in FILLERS {
-            if result.starts_with(filler) {
-                result = result[filler.len()..].trim_start().to_string();
-                changed = true;
-                break;
-            }
-        }
-    }
-    // Re-capitalizar primera letra después de quitar muletillas
-    if let Some(first_char) = result.chars().next() {
-        if first_char.is_alphabetic() && first_char.is_lowercase() {
-            let mut chars = result.chars();
-            let upper: String = chars
-                .next()
-                .unwrap()
-                .to_uppercase()
-                .chain(chars)
-                .collect();
-            return upper;
-        }
-    }
-    result
-}
+// trim_leading_fillers REMOVED — zero-loss policy: all spoken words preserved.
 
 /// Detecta texto que es probablemente una hallucination de Parakeet.
 /// Retorna true si el texto completo debe descartarse.
