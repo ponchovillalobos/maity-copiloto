@@ -53,27 +53,40 @@ impl TranscriptionEngine {
 
 /// Validate that transcription models are ready before starting recording
 pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    // FAST PATH: Check if any engine already has a model loaded (zero DB/filesystem I/O)
-    // Clone Arc out of MutexGuard before await to satisfy Send requirement
-    let parakeet_engine = crate::parakeet_engine::commands::PARAKEET_ENGINE
-        .lock().ok().and_then(|guard| guard.as_ref().cloned());
-    if let Some(engine) = parakeet_engine {
-        if engine.is_model_loaded().await {
-            info!("FAST: Parakeet model ready (pre-loaded)");
-            return Ok(());
+    // Read configured provider FIRST to validate the RIGHT engine
+    let configured_provider = match crate::api::api::api_get_transcript_config(
+        app.clone(),
+        app.clone().state(),
+        None,
+    ).await {
+        Ok(Some(config)) => config.provider.clone(),
+        _ => "parakeet".to_string(),
+    };
+
+    // FAST PATH: Check if the CONFIGURED engine has a model loaded
+    if configured_provider == "canary" {
+        let canary_engine = crate::canary_engine::commands::CANARY_ENGINE
+            .lock().ok().and_then(|guard| guard.as_ref().cloned());
+        if let Some(engine) = canary_engine {
+            if engine.is_model_loaded().await {
+                info!("FAST: Canary model ready (pre-loaded, matches config)");
+                return Ok(());
+            }
         }
-    }
-    let canary_engine = crate::canary_engine::commands::CANARY_ENGINE
-        .lock().ok().and_then(|guard| guard.as_ref().cloned());
-    if let Some(engine) = canary_engine {
-        if engine.is_model_loaded().await {
-            info!("FAST: Canary model ready (pre-loaded)");
-            return Ok(());
+    } else {
+        // Default: parakeet (also handles localWhisper migration)
+        let parakeet_engine = crate::parakeet_engine::commands::PARAKEET_ENGINE
+            .lock().ok().and_then(|guard| guard.as_ref().cloned());
+        if let Some(engine) = parakeet_engine {
+            if engine.is_model_loaded().await {
+                info!("FAST: Parakeet model ready (pre-loaded, matches config)");
+                return Ok(());
+            }
         }
     }
 
-    // SLOW PATH: No engine has a model loaded (startup pre-load failed or first launch)
-    warn!("No transcription model pre-loaded, running full validation...");
+    // SLOW PATH: Configured engine doesn't have a model loaded
+    warn!("Configured provider '{}' not pre-loaded, running full validation...", configured_provider);
 
     // Check transcript configuration to determine which engine to validate
     let config = match crate::api::api::api_get_transcript_config(

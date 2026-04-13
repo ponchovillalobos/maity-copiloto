@@ -55,6 +55,13 @@ export function TranscriptPanel({
       {/* Title area - Sticky header */}
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 p-4 border-[#e7e7e9] dark:border-gray-700">
         <div className="flex flex-col space-y-3">
+          {/* Active model indicator */}
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              {transcriptModelConfig?.provider === 'canary' ? 'Canary' : 'Parakeet'}: {transcriptModelConfig?.model || 'cargando...'}
+            </span>
+          </div>
           <div className="flex  flex-col space-y-2">
             <div className="flex justify-center  items-center space-x-2">
               <ButtonGroup>
