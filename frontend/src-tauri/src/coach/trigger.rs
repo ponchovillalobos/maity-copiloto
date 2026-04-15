@@ -319,84 +319,134 @@ pub fn detect_low_talk_ratio(ratio: f32) -> bool {
 /// ordenadas por prioridad (critical primero).
 ///
 /// `is_interlocutor` = true si el texto vino del interlocutor (otro speaker).
+///
+/// Genera señales con semántica diferente según la atribución:
+/// - Interlocutor (cliente): señales de oportunidad y venta
+/// - Usuario (vendedor): señales de autorregulación y control
 pub fn analyze_turn(text: &str, is_interlocutor: bool) -> Vec<TriggerSignal> {
     let mut signals = Vec::new();
     let snippet: String = text.chars().take(100).collect();
 
-    // Señales del INTERLOCUTOR (prioridad alta porque son oportunidades de ventana)
-    if is_interlocutor {
-        if detect_frustration(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Service,
-                priority: "critical".into(),
-                signal: "frustration_detected".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_buying_signal(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Closing,
-                priority: "critical".into(),
-                signal: "buying_signal".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_objection(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Objection,
-                priority: "critical".into(),
-                signal: "objection_detected".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_possessive_language(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Closing,
-                priority: "important".into(),
-                signal: "possessive_language".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_price_mention(text) && !detect_objection(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Negotiation,
-                priority: "important".into(),
-                signal: "price_discussion".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_question(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Rapport,
-                priority: "soft".into(),
-                signal: "interlocutor_asking".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_hesitation(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Persuasion,
-                priority: "important".into(),
-                signal: "hesitation".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_satisfaction(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Closing,
-                priority: "important".into(),
-                signal: "satisfaction_detected".into(),
-                snippet: snippet.clone(),
-            });
-        }
-        if detect_enthusiasm(text) {
-            signals.push(TriggerSignal {
-                category: TriggerCategory::Closing,
-                priority: "important".into(),
-                signal: "enthusiasm_detected".into(),
-                snippet,
-            });
-        }
+    // Frustración: cliente frustrado vs usuario perdiendo control
+    if detect_frustration(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Service,
+            priority: "critical".into(),
+            signal: if is_interlocutor {
+                "client_frustrated".into()
+            } else {
+                "user_losing_control".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Señal de compra: oportunidad de cierre vs usuario siendo demasiado presuntivo
+    if detect_buying_signal(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Closing,
+            priority: "critical".into(),
+            signal: if is_interlocutor {
+                "buying_signal".into()
+            } else {
+                "user_assumptive_close".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Objeciones: cliente objeta vs usuario siendo preemptivo
+    if detect_objection(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Objection,
+            priority: "critical".into(),
+            signal: if is_interlocutor {
+                "client_objection".into()
+            } else {
+                "user_preemptive_objection".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Lenguaje posesivo: señal de cierre
+    if detect_possessive_language(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Closing,
+            priority: "important".into(),
+            signal: if is_interlocutor {
+                "client_possessive".into()
+            } else {
+                "user_possessive".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Mención de precio
+    if detect_price_mention(text) && !detect_objection(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Negotiation,
+            priority: "important".into(),
+            signal: if is_interlocutor {
+                "client_asked_price".into()
+            } else {
+                "user_mentioned_price".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Preguntas: oportunidad de Rapport para ambos
+    if detect_question(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Rapport,
+            priority: "soft".into(),
+            signal: "question_detected".into(),
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Hesitación: cliente duda vs usuario uncertain
+    if detect_hesitation(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Persuasion,
+            priority: "important".into(),
+            signal: if is_interlocutor {
+                "client_hesitating".into()
+            } else {
+                "user_uncertain".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Satisfacción: cliente satisfecho vs usuario enthusiastic
+    if detect_satisfaction(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Closing,
+            priority: "important".into(),
+            signal: if is_interlocutor {
+                "client_satisfied".into()
+            } else {
+                "user_enthusiastic".into()
+            },
+            snippet: snippet.clone(),
+        });
+    }
+
+    // Entusiasmo: cliente entusiasta vs usuario over-excited
+    if detect_enthusiasm(text) {
+        signals.push(TriggerSignal {
+            category: TriggerCategory::Closing,
+            priority: "important".into(),
+            signal: if is_interlocutor {
+                "client_enthusiastic".into()
+            } else {
+                "user_over_excited".into()
+            },
+            snippet,
+        });
     }
 
     // Ordenar por prioridad
@@ -482,7 +532,13 @@ mod tests {
     #[test]
     fn test_analyze_turn_buying_signal_from_interlocutor() {
         let signals = analyze_turn("cuándo arrancamos con esto", true);
-        assert!(signals.iter().any(|s| s.category == TriggerCategory::Closing));
+        assert!(signals.iter().any(|s| s.signal == "buying_signal"));
+    }
+
+    #[test]
+    fn test_analyze_turn_buying_signal_from_user() {
+        let signals = analyze_turn("cuándo arrancamos con esto", false);
+        assert!(signals.iter().any(|s| s.signal == "user_assumptive_close"));
     }
 
     #[test]
@@ -490,13 +546,26 @@ mod tests {
         let signals = analyze_turn("es muy caro para nosotros", true);
         let first = signals.first().unwrap();
         assert_eq!(first.priority, "critical");
-        assert_eq!(first.category, TriggerCategory::Objection);
+        assert_eq!(first.signal, "client_objection");
+    }
+
+    #[test]
+    fn test_analyze_turn_objection_from_user() {
+        let signals = analyze_turn("es muy caro para nosotros", false);
+        let first = signals.first().unwrap();
+        assert_eq!(first.signal, "user_preemptive_objection");
     }
 
     #[test]
     fn test_analyze_turn_frustration() {
         let signals = analyze_turn("esto es absolutamente terrible, quiero un supervisor", true);
-        assert_eq!(signals.first().unwrap().category, TriggerCategory::Service);
+        assert_eq!(signals.first().unwrap().signal, "client_frustrated");
+    }
+
+    #[test]
+    fn test_analyze_turn_frustration_from_user() {
+        let signals = analyze_turn("esto es absolutamente terrible, quiero un supervisor", false);
+        assert_eq!(signals.first().unwrap().signal, "user_losing_control");
     }
 
     #[test]
@@ -530,6 +599,12 @@ mod tests {
     #[test]
     fn test_analyze_turn_satisfaction_signal() {
         let signals = analyze_turn("excelente, me encanta esta propuesta", true);
-        assert!(signals.iter().any(|s| s.signal == "satisfaction_detected"));
+        assert!(signals.iter().any(|s| s.signal == "client_satisfied"));
+    }
+
+    #[test]
+    fn test_analyze_turn_satisfaction_from_user() {
+        let signals = analyze_turn("excelente, me encanta esta propuesta", false);
+        assert!(signals.iter().any(|s| s.signal == "user_enthusiastic"));
     }
 }

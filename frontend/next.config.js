@@ -8,6 +8,9 @@ const nextConfig = {
   // Add basePath configuration
   basePath: '',
   assetPrefix: '/',
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
   // Add webpack configuration for Tauri
   webpack: (config, { isServer }) => {

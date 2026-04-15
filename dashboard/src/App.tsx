@@ -12,14 +12,16 @@ import { ArchitectureOverview } from './components/ArchitectureOverview';
 import { PromptsPanel } from './components/PromptsPanel';
 import { ConversationLog } from './components/ConversationLog';
 import { CoachSimulation } from './components/CoachSimulation';
+import { PromptViewer } from './components/PromptViewer';
 
-type View = 'overview' | 'simulations' | 'conversations' | 'prompts' | 'architecture';
+type View = 'overview' | 'simulations' | 'conversations' | 'prompts' | 'prompt-full' | 'architecture';
 
 const navItems: { id: View; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'simulations', label: 'Coach Test', icon: '🧪' },
   { id: 'conversations', label: 'Conversaciones', icon: '💬' },
   { id: 'prompts', label: 'Prompts & Agents', icon: '🤖' },
+  { id: 'prompt-full', label: 'Prompt Completo', icon: '📝' },
   { id: 'architecture', label: 'Arquitectura', icon: '🏗' },
 ];
 
@@ -84,6 +86,12 @@ export default function App() {
                 <ImprovementCandidates />
               </div>
 
+              {/* Key Metrics with Progress Rings */}
+              <MetricsRings />
+
+              {/* Activity Heatmap */}
+              <ActivityHeatmapSection />
+
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
                 <TranscriptionProviders />
                 <SessionLog />
@@ -141,6 +149,19 @@ export default function App() {
             </motion.div>
           )}
 
+          {view === 'prompt-full' && (
+            <motion.div
+              key="prompt-full"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+              className="space-y-6"
+            >
+              <PromptViewer />
+            </motion.div>
+          )}
+
           {view === 'architecture' && (
             <motion.div
               key="architecture"
@@ -179,7 +200,10 @@ export default function App() {
 // ============================================================
 
 import { Card, CardHeader, CardTitle } from './components/Card';
-import { conversations, prompts } from './data/metrics';
+import { ProgressRing } from './components/ProgressRing';
+import { ActivityHeatmap } from './components/ActivityHeatmap';
+import { ShimmerBadge } from './components/ShimmerBadge';
+import { conversations, prompts, totalStats } from './data/metrics';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -318,4 +342,71 @@ function AgentActivityMatrix() {
       </div>
     </Card>
   );
+}
+
+function MetricsRings() {
+  return (
+    <Card delay={0.4}>
+      <CardHeader>
+        <CardTitle>Key Metrics — Enterprise Readiness</CardTitle>
+        <div className="ml-auto">
+          <ShimmerBadge count={totalStats.totalFrameworks} label="Frameworks" color="gold" />
+        </div>
+      </CardHeader>
+      <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+        <ProgressRing
+          percentage={totalStats.testPassRate}
+          label="Test Pass Rate"
+          color="#22c55e"
+          delay={0.45}
+        />
+        <ProgressRing
+          percentage={totalStats.buildSuccessRate}
+          label="Build Success"
+          color="#3b82f6"
+          delay={0.5}
+        />
+        <ProgressRing
+          percentage={totalStats.enterpriseReadinessPct}
+          label="Enterprise %"
+          color="#a855f7"
+          delay={0.55}
+        />
+        <ProgressRing
+          percentage={Math.min(100, (totalStats.totalCycles / 10) * 100)}
+          label="Cycles/Target"
+          color="#06b6d4"
+          delay={0.6}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function ActivityHeatmapSection() {
+  const heatmapData = [];
+  const startDate = new Date('2026-02-01');
+  const today = new Date('2026-04-12');
+  let current = new Date(startDate);
+
+  while (current <= today) {
+    const dateStr = current.toISOString().split('T')[0];
+    const activity = (() => {
+      const day = current.getDate();
+      if (day === 11 || day === 12) return 4;
+      if (day % 3 === 0) return 2;
+      if (day % 5 === 0) return 3;
+      return Math.floor(Math.random() * 3);
+    })();
+
+    heatmapData.push({
+      date: dateStr,
+      activity: Math.min(activity, 4),
+      label: `${current.toLocaleDateString()} — ${activity} activity`,
+    });
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return <ActivityHeatmap data={heatmapData} title="Dev Activity — 12 Weeks" delay={0.65} />;
 }

@@ -14,11 +14,14 @@ export function Card({ children, className, delay = 0 }: CardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay, ease: 'easeOut' }}
       className={clsx(
-        'rounded-xl border border-surface-3 bg-surface-1 p-5 shadow-lg shadow-black/20',
+        'relative rounded-xl border border-surface-3 bg-surface-1 p-5 shadow-lg shadow-black/20 overflow-hidden',
         className
       )}
     >
-      {children}
+      {/* Gradient accent top-right */}
+      <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-gradient-to-br from-brand-500/10 to-accent-purple/10 blur-3xl" />
+
+      <div className="relative z-10">{children}</div>
     </motion.div>
   );
 }

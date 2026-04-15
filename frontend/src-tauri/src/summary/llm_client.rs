@@ -219,10 +219,11 @@ pub async fn generate_summary(
     // Build request body based on provider
     let request_body = if provider != &LLMProvider::Claude {
         // For CustomOpenAI, apply optional parameters if provided
-        let (max_tokens_val, temperature_val, top_p_val) = if provider == &LLMProvider::CustomOpenAI {
-            (max_tokens, temperature, top_p)
-        } else {
-            (None, None, None)
+        // FIX: Aplicar params a Ollama + CustomOpenAI (antes Ollama los ignoraba,
+        // causando latencia por usar num_predict default en lugar del max_tokens pedido).
+        let (max_tokens_val, temperature_val, top_p_val) = match provider {
+            LLMProvider::CustomOpenAI | LLMProvider::Ollama => (max_tokens, temperature, top_p),
+            _ => (None, None, None),
         };
 
         serde_json::json!(ChatRequest {

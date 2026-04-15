@@ -1,5 +1,6 @@
 import { Code2, FlaskConical, Layers, Timer, CheckCircle2, FileCode2 } from 'lucide-react';
 import { Card } from './Card';
+import { AnimatedCounter } from './AnimatedCounter';
 import { totalStats } from '../data/metrics';
 
 interface StatCardProps {
@@ -19,8 +20,19 @@ function StatCard({ icon, label, value, suffix, color, delay }: StatCardProps) {
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
           <p className="mt-1 text-3xl font-bold text-white">
-            {typeof value === 'number' ? value.toLocaleString() : value}
-            {suffix && <span className="ml-1 text-base font-normal text-gray-500">{suffix}</span>}
+            {typeof value === 'number' ? (
+              <AnimatedCounter
+                value={value}
+                duration={1.5}
+                precision={0}
+                suffix={suffix ? ` ${suffix}` : ''}
+              />
+            ) : (
+              <>
+                {value}
+                {suffix && <span className="ml-1 text-base font-normal text-gray-500">{suffix}</span>}
+              </>
+            )}
           </p>
         </div>
         <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${color}`}>

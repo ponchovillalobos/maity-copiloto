@@ -836,6 +836,8 @@ pub fn run() {
                         Ok(model_name) => {
                             let elapsed = preload_start.elapsed();
                             log::info!("Parakeet model '{}' pre-loaded in {:.2}s", model_name, elapsed.as_secs_f64());
+                            // FAST PATH flag: evita I/O a SQLite en cada start_recording.
+                            crate::audio::transcription::engine::mark_preloaded("parakeet", &model_name);
                             let _ = app_handle_for_config.emit("transcription-model-ready",
                                 serde_json::json!({ "provider": "parakeet", "model": model_name }));
                         }
@@ -870,6 +872,8 @@ pub fn run() {
                                 Ok(model_name) => {
                                     let elapsed = preload_start.elapsed();
                                     log::info!("Canary model '{}' pre-loaded in {:.2}s", model_name, elapsed.as_secs_f64());
+                                    // Canary gana prioridad en FAST PATH flag si es el provider configurado.
+                                    crate::audio::transcription::engine::mark_preloaded("canary", &model_name);
                                     let _ = app_handle_for_config.emit("transcription-model-ready",
                                         serde_json::json!({ "provider": "canary", "model": model_name }));
                                 }
@@ -928,24 +932,42 @@ pub fn run() {
                         Ok(c) => c,
                         Err(e) => { log::warn!("Failed to create warm-up client: {}", e); return; }
                     };
+                    // keep_alive: -1 = mantener modelo residente indefinidamente (reduce cold-start
+                    // de tips coach de 3-8s a ~500ms porque el KV cache queda caliente).
                     match client.post("http://localhost:11434/api/generate")
                         .json(&serde_json::json!({
                             "model": model,
                             "prompt": "hello",
                             "stream": false,
+                            "keep_alive": -1,
                             "options": { "num_predict": 1 }
                         }))
                         .send().await {
-                        Ok(_) => log::info!("✅ Ollama warm-up complete: {} is ready", model),
+                        Ok(_) => log::info!("✅ Ollama warm-up complete (keep_alive=-1): {} residente", model),
                         Err(e) => log::warn!("⚠️ Ollama warm-up failed (not running?): {}", e),
                     }
                 });
 
-                // Keep Ollama model warm — ping every 3 minutes
+                // Keep-alive refresher: cada 3min re-afirma keep_alive=-1 (por si Ollama reinició).
                 tauri::async_runtime::spawn(async {
                     loop {
                         tokio::time::sleep(std::time::Duration::from_secs(180)).await;
-                        let _ = reqwest::get("http://localhost:11434/api/tags").await;
+                        let model = crate::coach::commands::get_current_model()
+                            .unwrap_or_else(|_| "gemma4:latest".to_string());
+                        if let Ok(c) = reqwest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(30))
+                            .build()
+                        {
+                            let _ = c.post("http://localhost:11434/api/generate")
+                                .json(&serde_json::json!({
+                                    "model": model,
+                                    "prompt": "",
+                                    "stream": false,
+                                    "keep_alive": -1,
+                                    "options": { "num_predict": 0 }
+                                }))
+                                .send().await;
+                        }
                     }
                 });
             });

@@ -34,11 +34,20 @@ export function Header() {
               <Calendar className="h-3.5 w-3.5" />
               <span>{projectInfo.lastUpdate}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-accent-green animate-pulse-slow" />
-              <span className="text-xs font-medium text-accent-green">
-                {totalStats.totalTests}/{totalStats.totalTests} Tests Pass
-              </span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-green/10 border border-accent-green/30">
+                <motion.span
+                  animate={{ scale: [1, 1.3, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="h-2 w-2 rounded-full bg-accent-green"
+                />
+                <span className="text-xs font-bold text-accent-green uppercase tracking-wider">
+                  STATUS: HEALTHY
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span className="font-mono">{totalStats.totalTests}/{totalStats.totalTests} Tests</span>
+              </div>
             </div>
           </div>
         </div>

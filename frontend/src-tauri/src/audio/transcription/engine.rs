@@ -4,8 +4,25 @@
 
 use super::provider::TranscriptionProvider;
 use log::{info, warn};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock, RwLock};
 use tauri::{AppHandle, Manager, Runtime};
+
+/// Flag global de modelo precargado en memoria.
+/// Set en lib.rs tras pre-load exitoso al startup. Usado por FAST PATH
+/// de `validate_transcription_model_ready` para evitar I/O a SQLite en cada tap.
+///
+/// Contenido: `Some((provider, model_name))` si hay un engine caliente.
+pub static PRELOADED_ENGINE: LazyLock<RwLock<Option<(String, String)>>> =
+    LazyLock::new(|| RwLock::new(None));
+
+/// Marca que un engine fue pre-cargado exitosamente. Llamado desde lib.rs al startup
+/// y desde commands de parakeet/canary cuando el usuario cambia modelo en UI.
+pub fn mark_preloaded(provider: &str, model: &str) {
+    if let Ok(mut guard) = PRELOADED_ENGINE.write() {
+        *guard = Some((provider.to_string(), model.to_string()));
+        info!("PRELOADED_ENGINE set: provider={}, model={}", provider, model);
+    }
+}
 
 // ============================================================================
 // TRANSCRIPTION ENGINE ENUM
@@ -51,42 +68,41 @@ impl TranscriptionEngine {
 // MODEL VALIDATION AND INITIALIZATION
 // ============================================================================
 
-/// Validate that transcription models are ready before starting recording
+/// Validate that transcription models are ready before starting recording.
+///
+/// FAST PATH: si hay un engine marcado como precargado en memoria (PRELOADED_ENGINE)
+/// y el modelo aún está en RAM, retorna en <1ms sin tocar SQLite.
+/// SLOW PATH: lee config de DB y valida el engine configurado (puede tardar 1-3s si
+/// el modelo no estaba cargado o el provider configurado ≠ precargado).
 pub async fn validate_transcription_model_ready<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    // Read configured provider FIRST to validate the RIGHT engine
-    let configured_provider = match crate::api::api::api_get_transcript_config(
-        app.clone(),
-        app.clone().state(),
-        None,
-    ).await {
-        Ok(Some(config)) => config.provider.clone(),
-        _ => "parakeet".to_string(),
-    };
-
-    // FAST PATH: Check if the CONFIGURED engine has a model loaded
-    if configured_provider == "canary" {
-        let canary_engine = crate::canary_engine::commands::CANARY_ENGINE
-            .lock().ok().and_then(|guard| guard.as_ref().cloned());
-        if let Some(engine) = canary_engine {
-            if engine.is_model_loaded().await {
-                info!("FAST: Canary model ready (pre-loaded, matches config)");
-                return Ok(());
+    // FAST PATH sin I/O: consulta el flag en memoria seteado en startup.
+    // Importante: clonamos el Option y soltamos el guard ANTES de await
+    // (RwLockReadGuard no es Send, no cruza await boundary en tauri async).
+    let preloaded: Option<(String, String)> = PRELOADED_ENGINE
+        .read()
+        .ok()
+        .and_then(|g| g.clone());
+    if let Some((provider, _model)) = preloaded {
+        let engine_loaded = match provider.as_str() {
+            "canary" => {
+                let eng = crate::canary_engine::commands::CANARY_ENGINE
+                    .lock().ok().and_then(|g| g.as_ref().cloned());
+                if let Some(e) = eng { e.is_model_loaded().await } else { false }
             }
-        }
-    } else {
-        // Default: parakeet (also handles localWhisper migration)
-        let parakeet_engine = crate::parakeet_engine::commands::PARAKEET_ENGINE
-            .lock().ok().and_then(|guard| guard.as_ref().cloned());
-        if let Some(engine) = parakeet_engine {
-            if engine.is_model_loaded().await {
-                info!("FAST: Parakeet model ready (pre-loaded, matches config)");
-                return Ok(());
+            _ => {
+                let eng = crate::parakeet_engine::commands::PARAKEET_ENGINE
+                    .lock().ok().and_then(|g| g.as_ref().cloned());
+                if let Some(e) = eng { e.is_model_loaded().await } else { false }
             }
+        };
+        if engine_loaded {
+            info!("FAST PATH: {} pre-loaded in memory, skipping DB + validation", provider);
+            return Ok(());
         }
     }
 
-    // SLOW PATH: Configured engine doesn't have a model loaded
-    warn!("Configured provider '{}' not pre-loaded, running full validation...", configured_provider);
+    // SLOW PATH: flag en memoria no disponible, consulta DB para saber qué validar.
+    warn!("FAST PATH miss: PRELOADED_ENGINE empty or engine unloaded, running full validation...");
 
     // Check transcript configuration to determine which engine to validate
     let config = match crate::api::api::api_get_transcript_config(

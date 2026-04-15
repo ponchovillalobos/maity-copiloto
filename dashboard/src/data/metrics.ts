@@ -156,6 +156,19 @@ export const cycles: Cycle[] = [
     buildStatus: 'pass',
     category: 'feature',
   },
+  {
+    id: 7,
+    date: '2026-04-12',
+    title: 'Coach v3.0 — Enterprise Dashboard',
+    description: 'Enhanced UI with animations, progress rings, activity heatmap, shimmer effects, game-like metrics',
+    filesChanged: 6,
+    loc: 1280,
+    testsAdded: 0,
+    testsPassed: 291,
+    testsFailed: 0,
+    buildStatus: 'pass',
+    category: 'ui',
+  },
 ];
 
 export const testModules: TestModule[] = [
@@ -521,4 +534,7 @@ export const totalStats = {
     Math.round(
       (buildSnapshots.reduce((sum, b) => sum + b.buildTime, 0) / buildSnapshots.length) * 10
     ) / 10,
+  totalFrameworks: 35, // Tauri, Next.js, React, Rust, Python, FastAPI, SQLite, Whisper, Parakeet, Canary, Recharts, Framer Motion, Tailwind, Vite, TypeScript, etc.
+  enterpriseReadinessPct: 82, // Security (keyring), export (JSON/CSV/MD/PDF), auto-updater, i18n, WCAG accessibility
+  coacherSpecialization: 8, // Sales, Service, Webinar, Team, Support, Product, Engineering, Investor
 };

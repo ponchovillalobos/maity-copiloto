@@ -15,13 +15,16 @@ use super::audio_processing::{audio_to_mono, LoudnessNormalizer, NoiseSuppressio
 use super::vad::{ContinuousVadProcessor};
 
 // --- Cross-channel echo suppression constants ---
-/// Maximum time overlap to consider echo (seconds)
-const ECHO_TIME_OVERLAP_WINDOW: f64 = 0.5;
-/// Energy ratio threshold - below this, the weaker channel is considered echo
-/// 0.3 means: if mic RMS is less than 30% of system RMS, it's likely echo
-const ECHO_ENERGY_RATIO_THRESHOLD: f32 = 0.3;
-/// Absolute RMS threshold - segments below this are too weak to be direct speech
-const ECHO_ABSOLUTE_RMS_THRESHOLD: f32 = 0.005;
+// Tuned 2026-04-14 tras reporte de bleed bocina→micrófono con altavoces a volumen medio.
+// Antes: 0.5s / 0.3 / 0.005 (muy conservador: solo suprimía ecos débiles).
+// Ahora: ventana más amplia + ratio más permisivo + OR en weak/ratio para capturar bleeds
+// moderados cuando el USER tiene bocinas cerca del mic.
+/// Maximum time overlap to consider echo (seconds). Incluye reverb/delay físico.
+const ECHO_TIME_OVERLAP_WINDOW: f64 = 0.8;
+/// Energy ratio threshold - si mic RMS es menor a 55% del system RMS simultáneo, probable eco.
+const ECHO_ENERGY_RATIO_THRESHOLD: f32 = 0.55;
+/// Absolute RMS threshold - segmentos por debajo son demasiado débiles para ser habla directa.
+const ECHO_ABSOLUTE_RMS_THRESHOLD: f32 = 0.02;
 
 // Global audio level atomics for UI emission (updated by pipeline, read by emitter task)
 // Using AtomicU32 with f32::to_bits/from_bits for lock-free level sharing
@@ -1107,7 +1110,9 @@ impl AudioPipeline {
         let energy_ratio = if other_rms > 0.0001 { segment_rms / other_rms } else { 1.0 };
         let is_weak = segment_rms < ECHO_ABSOLUTE_RMS_THRESHOLD;
 
-        let is_echo = time_overlap && energy_ratio < ECHO_ENERGY_RATIO_THRESHOLD && is_weak;
+        // Antes: AND estricto (time_overlap && ratio < T && is_weak) — fallaba con bocinas a volumen medio.
+        // Ahora: basta que haya solapamiento temporal Y (energía relativamente baja O señal débil absoluta).
+        let is_echo = time_overlap && (energy_ratio < ECHO_ENERGY_RATIO_THRESHOLD || is_weak);
 
         if is_echo {
             info!("Echo suppressed: {:?} segment (RMS={:.4}) likely echo of other channel (RMS={:.4}, ratio={:.2})",

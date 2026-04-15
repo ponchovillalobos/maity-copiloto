@@ -148,7 +148,10 @@ const TIP_COOLDOWN_MS = 15_000; // 15s entre tips — ~4/min máx si hay señal
 const FIRST_MINUTES_COOLDOWN_MS = 30_000; // 30s: permite tips tempranos
 const POST_PRICE_SUPPRESS_MS = 8_000; // 8s sin tips después de precio
 const MIN_CONFIDENCE = 0.3; // era 0.5 — gemma4 es conservador, 0.3 captura más tips útiles
-const MAX_CONTEXT_CHARS = 20_000;
+// Contexto para coach_suggest (tips): reducido a 4k chars para prefill rápido en Ollama.
+// Antes 20k → LLM procesaba 5k+ tokens de transcripción por request (latencia 8-12s).
+// Con 4k + prompt v3 (~2400 tokens), total prefill ~3k tokens → 1-2s.
+const MAX_CONTEXT_CHARS = 4_000;
 // Meeting type detector: correrlo a los 45s de grabación (suficiente contexto).
 const MEETING_TYPE_DETECTOR_DELAY_MS = 45_000;
 
@@ -499,21 +502,38 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       // Analyze triggers for BOTH user and interlocutor speech
       const isInterlocutor = u.source_type === 'interlocutor';
 
-      // Detect user profanity and generate immediate feedback
+      // Profanity detection differentiated by speaker
       const profanityRegex = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche)\b/i;
-      if (!isInterlocutor && profanityRegex.test(u.text)) {
-        const feedbackTip = {
-          tip: "Cuidado con el tono. El lenguaje agresivo reduce la confianza y daña la relacion profesional.",
-          category: "rapport",
-          confidence: 0.95,
-          priority: "critical",
-          timestamp: Date.now(),
-          model: "heuristic",
-          latency_ms: 0,
-        };
-        setSuggestions(prev => [feedbackTip, ...prev].slice(0, MAX_SUGGESTIONS));
-        lastTipTimestampRef.current = Date.now();
-        return; // Don't also trigger LLM tip for this
+      if (profanityRegex.test(u.text)) {
+        if (isInterlocutor) {
+          // CLIENT angry — coach user on how to calm them
+          const calmClientTip = {
+            tip: "Cliente alterado. Usa LATTE: Listen, Acknowledge, Take action. No respondas a groseria, empatiza con su frustracion.",
+            category: "service",
+            confidence: 0.98,
+            priority: "critical" as const,
+            timestamp: Date.now(),
+            model: "heuristic",
+            latency_ms: 0,
+          };
+          setSuggestions(prev => [calmClientTip, ...prev].slice(0, MAX_SUGGESTIONS));
+          lastTipTimestampRef.current = Date.now();
+          // Don't return - still analyze for other triggers
+        } else {
+          // USER losing control — self-regulation tip
+          const selfControlTip = {
+            tip: "⚠️ Estas perdiendo profesionalismo. Respira. Pide disculpas al cliente. Retoma el tono empatico.",
+            category: "self_control",
+            confidence: 0.98,
+            priority: "critical" as const,
+            timestamp: Date.now(),
+            model: "heuristic",
+            latency_ms: 0,
+          };
+          setSuggestions(prev => [selfControlTip, ...prev].slice(0, MAX_SUGGESTIONS));
+          lastTipTimestampRef.current = Date.now();
+          return; // User profanity is urgent, skip LLM tip
+        }
       }
 
       try {
@@ -627,8 +647,10 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       let empathyPhrases = 0;
       let longestUserRun = 0;
       let currentUserRun = 0;
-      let satisfactionSignals = 0;
-      let frustrationSignals = 0;
+      let userFrustrationCount = 0;
+      let interlocutorFrustrationCount = 0;
+      let interlocutorSatisfactionCount = 0;
+      let userEmpathyCount = 0;
       const questionEntries: QuestionEntry[] = [];
       const satisfactionWords = /\b(excelente|perfecto|me encanta|impresionante|genial|increíble|fantástico|maravilloso|muy bien|buenísimo|gracias|agradezco)\b/i;
       const frustrationWords = /\b(terrible|pésimo|inaceptable|harto|harta|cancelar|demanda|queja|reclamo|mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|maldición|maldicion|pinche)\b/i;
@@ -637,16 +659,27 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         if (!text) continue;
         const wordCount = text.split(/\s+/).filter(Boolean).length;
         const questionCount = (text.match(/¿/g) || []).length;
+        const isInt = (t as any).source_type === 'interlocutor';
+
         // Track question history
         if (questionCount > 0 || text.includes('?')) {
-          const speaker = ((t as any).source_type === 'interlocutor') ? 'interlocutor' as const : 'user' as const;
+          const speaker = isInt ? 'interlocutor' as const : 'user' as const;
           const ts = sessionStartRef.current ? (Date.now() - sessionStartRef.current) : 0;
           questionEntries.push({ text: text.substring(0, 200), speaker, timestamp: ts });
         }
-        // Count satisfaction/frustration for BOTH speakers (affects connection score)
-        if (satisfactionWords.test(text)) satisfactionSignals++;
-        if (frustrationWords.test(text)) frustrationSignals++;
-        if ((t as any).source_type === 'interlocutor') {
+
+        // Count frustration differentiated by speaker
+        if (frustrationWords.test(text)) {
+          if (isInt) interlocutorFrustrationCount++;
+          else userFrustrationCount++;
+        }
+
+        // Count interlocutor satisfaction
+        if (satisfactionWords.test(text) && isInt) {
+          interlocutorSatisfactionCount++;
+        }
+
+        if (isInt) {
           interlocutorWords += wordCount;
           interlocutorQuestions += questionCount;
           if (currentUserRun > longestUserRun) longestUserRun = currentUserRun;
@@ -655,11 +688,16 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           userWords += wordCount;
           userQuestions += questionCount;
           currentUserRun += wordCount;
+
           // Empatía: regex con palabras señalizadoras
           const empathyMatch = text
             .toLowerCase()
-            .match(/\b(entiendo|veo|comprendo|tiene sentido|te escucho|imagino)\b/g);
-          if (empathyMatch) empathyPhrases += empathyMatch.length;
+            .match(/\b(entiendo|veo|comprendo|tiene sentido|te escucho|imagino|disculpa|lo siento)\b/g);
+          if (empathyMatch) {
+            empathyPhrases += empathyMatch.length;
+            userEmpathyCount += empathyMatch.length;
+          }
+
           // Uso de nombres propios (heurística: palabra capitalizada en medio de frase)
           const words = text.split(/\s+/);
           for (let i = 1; i < words.length; i++) {
@@ -722,13 +760,17 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         score += Math.min(5, empathyPhrases * 3);
         score += Math.min(5, nameUsedCount * 3);
 
-        // +10/-20: emocion general
-        if (satisfactionSignals > frustrationSignals) {
-          score += Math.min(10, satisfactionSignals * 3);
-        } else if (frustrationSignals > 0) {
-          // Frustracion tiene peso FUERTE
-          score -= Math.min(25, frustrationSignals * 8);
-        }
+        // User frustration → STRONG penalty (user losing control)
+        score -= userFrustrationCount * 12;
+
+        // Interlocutor satisfaction → reward (user achieved client happiness)
+        score += interlocutorSatisfactionCount * 6;
+
+        // User empathy → reward (active listening)
+        score += Math.min(15, userEmpathyCount * 3);
+
+        // Interlocutor frustration → NEUTRAL (client might be frustrated but user handling well)
+        // No penalty for this - it's an opportunity, not a failure
 
         // PENALIZACION DOMINANTE: groserías del usuario
         // Cada grosería resta 15 puntos — 2 groserías = score minimo
@@ -752,6 +794,21 @@ export function CoachProvider({ children }: { children: ReactNode }) {
 
       if (canFeedback && totalWords > 20) {
         let feedbackTip: { tip: string; category: string; priority: string } | null = null;
+
+        // User frustration escalation — detect if user tone is getting aggressive
+        if (userFrustrationCount >= 2) {
+          (window as any).__lastScoreFeedback = Date.now();
+          setSuggestions(prev => [{
+            tip: "Tu tono esta escalando. Respira profundo. El cliente puede sentir tu frustracion.",
+            category: "self_control",
+            priority: "critical",
+            confidence: 0.95,
+            timestamp: Date.now(),
+            model: "heuristic",
+            latency_ms: 0,
+          }, ...prev].slice(0, 20));
+          return; // Skip other feedback when user frustration is critical
+        }
 
         // NIVEL CRITICO: score <= 10 — servicio desastroso
         if (score <= 10) {

@@ -5,7 +5,7 @@
 
 use crate::coach::context::{build_context, ContextMode};
 use crate::coach::prompt::{
-    build_user_prompt_v2, DEFAULT_MODEL, MAITY_COPILOTO_V2_PROMPT, MeetingType,
+    build_user_prompt_v3, DEFAULT_MODEL, MAITY_COPILOTO_V3_PROMPT, MeetingType,
 };
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use crate::validation_helpers;
@@ -85,12 +85,12 @@ struct RawSuggestion {
     confidence: f32,
 }
 
-/// Genera una sugerencia de coaching v2.0 con prompt estratégico y contexto adaptativo.
+/// Genera una sugerencia de coaching v3.0 con 31 frameworks + routing explícito.
 ///
 /// # Argumentos
 /// * `window` - Transcripción en vivo (frontend `buildWindow()`)
-/// * `role` - Rol del usuario (compat, no usado en v2)
-/// * `language` - Idioma (compat, el prompt v2 responde en el idioma del contexto)
+/// * `role` - Rol del usuario (compat, no usado en v3)
+/// * `language` - Idioma (compat, el prompt v3 responde en el idioma del contexto)
 /// * `meeting_id` - Opcional: ID de la reunión activa (lee de DB si existe)
 /// * `meeting_type` - Opcional: "sales" | "service" | "webinar" | "team_meeting" | "auto"
 /// * `minute` - Minuto actual de la sesión (para timing awareness del prompt)
@@ -157,7 +157,7 @@ pub async fn coach_suggest(
 
     let mt = MeetingType::from_str_loose(validated_meeting_type.as_deref().unwrap_or("auto"));
     let prev = previous_tips.unwrap_or_default();
-    let user_prompt = build_user_prompt_v2(
+    let user_prompt = build_user_prompt_v3(
         &effective_window,
         mt,
         minute.unwrap_or(0),
@@ -166,7 +166,7 @@ pub async fn coach_suggest(
     );
 
     log::info!(
-        "[coach_suggest v2] meeting_type={:?}, minute={}, window_chars={}, prev_tips={}, hint={:?}",
+        "[coach_suggest v3] meeting_type={:?}, minute={}, window_chars={}, prev_tips={}, hint={:?}",
         mt,
         minute.unwrap_or(0),
         effective_window.len(),
@@ -183,11 +183,11 @@ pub async fn coach_suggest(
         &LLMProvider::Ollama,
         &model,
         "",
-        MAITY_COPILOTO_V2_PROMPT,
+        MAITY_COPILOTO_V3_PROMPT,
         &user_prompt,
         None,
         None,
-        Some(200), // v2: un poco más para caber subcategory+technique
+        Some(200), // v3: un poco más para caber subcategory+technique
         Some(0.5), // menos temperatura: queremos tips consistentes y basados en frameworks
         Some(0.9),
         None,
