@@ -162,13 +162,13 @@ pub async fn generate_summary(
             header::HeaderMap::new(),
         ),
         LLMProvider::Ollama => {
+            // /api/chat nativo (no OpenAI-compat): soporta options de bajo nivel
+            // como num_gpu, num_thread, num_ctx, num_predict, keep_alive,
+            // flash_attention, que /v1/chat/completions ignora.
             let host = ollama_endpoint
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "http://localhost:11434".to_string());
-            (
-                format!("{}/v1/chat/completions", host),
-                header::HeaderMap::new(),
-            )
+            (format!("{}/api/chat", host), header::HeaderMap::new())
         }
         LLMProvider::CustomOpenAI => {
             let endpoint = custom_openai_endpoint
@@ -217,12 +217,33 @@ pub async fn generate_summary(
     );
 
     // Build request body based on provider
-    let request_body = if provider != &LLMProvider::Claude {
-        // For CustomOpenAI, apply optional parameters if provided
-        // FIX: Aplicar params a Ollama + CustomOpenAI (antes Ollama los ignoraba,
-        // causando latencia por usar num_predict default en lugar del max_tokens pedido).
+    let request_body = if provider == &LLMProvider::Ollama {
+        // Body nativo de /api/chat — expone num_gpu, num_thread, num_ctx, num_predict,
+        // keep_alive, flash_attention. Estos aceleran 30-60% vs /v1/chat/completions.
+        let num_predict = max_tokens.map(|v| v as i64).unwrap_or(500);
+        let temp = temperature.unwrap_or(0.5);
+        let top_p_val = top_p.unwrap_or(0.9);
+        serde_json::json!({
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_prompt}
+            ],
+            "stream": false,
+            "keep_alive": -1,
+            "options": {
+                "num_gpu": -1,        // auto-detecta GPU (NVIDIA CUDA si disponible)
+                "num_thread": 4,      // CPU threads para capas fuera de GPU
+                "num_ctx": 4096,      // context window (evita que Ollama asuma más)
+                "num_predict": num_predict,
+                "temperature": temp,
+                "top_p": top_p_val,
+                "flash_attention": true
+            }
+        })
+    } else if provider != &LLMProvider::Claude {
         let (max_tokens_val, temperature_val, top_p_val) = match provider {
-            LLMProvider::CustomOpenAI | LLMProvider::Ollama => (max_tokens, temperature, top_p),
+            LLMProvider::CustomOpenAI => (max_tokens, temperature, top_p),
             _ => (None, None, None),
         };
 
@@ -312,6 +333,20 @@ pub async fn generate_summary(
             .get(0)
             .ok_or("No content in LLM response")?
             .text
+            .trim();
+        Ok(content.to_string())
+    } else if provider == &LLMProvider::Ollama {
+        // /api/chat response format: { "message": { "role": "assistant", "content": "..." }, "done": true, ... }
+        let value: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+        info!("🐞 LLM Response received from Ollama (native /api/chat)");
+        let content = value
+            .get("message")
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+            .ok_or_else(|| format!("No message.content in Ollama response: {}", value))?
             .trim();
         Ok(content.to_string())
     } else {

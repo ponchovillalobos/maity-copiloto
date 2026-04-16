@@ -22,6 +22,28 @@ pub struct CommunicationObservations {
     pub calls_to_action: Option<String>,
 }
 
+/// Métricas de comunicación calculadas sin LLM (heurísticas sobre el transcript).
+/// V3.1: complementan el scoring del LLM con datos duros.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CommunicationMetrics {
+    /// Conteo total de muletillas del USER (eh, este, o sea, pues...).
+    pub filler_count: usize,
+    /// Muletillas por minuto de habla del USER.
+    pub fillers_per_minute: f32,
+    /// Preguntas abiertas del USER (qué/cómo/cuál/dónde/cuándo).
+    pub open_questions_count: usize,
+    /// Preguntas cerradas del USER (sí/no, verdad, cierto, no?).
+    pub closed_questions_count: usize,
+    /// Conteo de frases de validación del USER (entiendo, comprendo, veo que...).
+    pub validations_given: usize,
+    /// Veces que el USER habló con tono atropellado (turnos rapid_fire).
+    pub rapid_fire_turns: usize,
+    /// Promedio de palabras por turno del USER.
+    pub avg_user_turn_words: f32,
+    /// Talk ratio del USER (0.0-1.0).
+    pub user_talk_ratio: f32,
+}
+
 /// Feedback completo de comunicación con scores 0-10 + análisis.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CommunicationFeedback {
@@ -34,9 +56,109 @@ pub struct CommunicationFeedback {
     pub strengths: Option<Vec<String>>,
     pub areas_to_improve: Option<Vec<String>>,
     pub observations: Option<CommunicationObservations>,
+    /// V3.1: métricas objetivas calculadas localmente (sin LLM).
+    pub metrics: Option<CommunicationMetrics>,
     /// Modelo y latencia para A/B testing
     pub model: Option<String>,
     pub latency_ms: Option<u64>,
+}
+
+/// Calcula métricas objetivas de comunicación sobre la transcripción completa.
+///
+/// `user_text`: concatenación de todos los turnos del USER.
+/// `interlocutor_text`: concatenación de todos los turnos del INTERLOCUTOR.
+pub fn compute_metrics(user_text: &str, interlocutor_text: &str, user_turn_count: usize) -> CommunicationMetrics {
+    let user_words = user_text.split_whitespace().count();
+    let total_words = user_words + interlocutor_text.split_whitespace().count();
+
+    let filler_count = crate::coach::trigger::count_filler_words(user_text);
+
+    // Estimación de minutos de habla del USER: ~130 palabras/min en español conversacional.
+    let user_speech_minutes = (user_words as f32 / 130.0).max(0.01);
+    let fillers_per_minute = filler_count as f32 / user_speech_minutes;
+
+    // Preguntas: contar '?' en user_text y clasificar por palabras cercanas.
+    let (open_q, closed_q) = classify_questions(user_text);
+
+    // Validaciones: contar frases empáticas.
+    const VALIDATIONS: &[&str] = &[
+        "entiendo", "comprendo", "veo que", "escucho", "tiene razon", "tienes razon",
+        "es valido", "lamento", "siento que",
+    ];
+    let norm_user = user_text.to_lowercase();
+    let validations_given = VALIDATIONS.iter().map(|v| norm_user.matches(v).count()).sum();
+
+    // Rapid-fire: estimación — cuenta turnos con >50 palabras (aproximación).
+    // No podemos ver los turnos individuales aquí, así que lo dejamos en 0 como fallback.
+    let rapid_fire_turns = 0;
+
+    let avg_user_turn_words = if user_turn_count > 0 {
+        user_words as f32 / user_turn_count as f32
+    } else {
+        0.0
+    };
+
+    let user_talk_ratio = if total_words > 0 {
+        user_words as f32 / total_words as f32
+    } else {
+        0.0
+    };
+
+    CommunicationMetrics {
+        filler_count,
+        fillers_per_minute,
+        open_questions_count: open_q,
+        closed_questions_count: closed_q,
+        validations_given,
+        rapid_fire_turns,
+        avg_user_turn_words,
+        user_talk_ratio,
+    }
+}
+
+/// Clasifica preguntas del USER en abiertas (qué/cómo/cuál/dónde/cuándo/por qué) vs cerradas.
+///
+/// Segmenta por '?' y analiza si la oración empieza con un interrogativo abierto.
+fn classify_questions(user_text: &str) -> (usize, usize) {
+    const OPEN_STARTERS: &[&str] = &[
+        "que ", "qué ", "como ", "cómo ", "cual ", "cuál ", "donde ", "dónde ",
+        "cuando ", "cuándo ", "por que ", "por qué ", "para que ", "para qué ",
+        "quien ", "quién ",
+    ];
+    let mut open = 0;
+    let mut closed = 0;
+    // Separar oraciones-pregunta cada vez que aparece '?'. Para cada una, mirar
+    // los últimos ~40 chars previos al '?' y buscar el inicio de la oración
+    // (tras '¿', '.', '!', '\n' previo).
+    let bytes: Vec<char> = user_text.chars().collect();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == '?' {
+            // Encontrar el inicio de la oración: backtrack a '¿', '.', '!' o '\n'.
+            let mut start = i;
+            while start > 0 {
+                let c = bytes[start - 1];
+                if c == '¿' || c == '.' || c == '!' || c == '\n' {
+                    break;
+                }
+                start -= 1;
+            }
+            // Saltar espacios y '¿' iniciales.
+            let slice: String = bytes[start..i]
+                .iter()
+                .skip_while(|c| c.is_whitespace() || **c == '¿')
+                .collect();
+            let lower = slice.to_lowercase();
+            let is_open = OPEN_STARTERS.iter().any(|s| lower.starts_with(s));
+            if is_open {
+                open += 1;
+            } else {
+                closed += 1;
+            }
+        }
+        i += 1;
+    }
+    (open, closed)
 }
 
 const EVALUATION_SYSTEM_PROMPT: &str = r#"Eres un coach de comunicación profesional. Analiza la transcripción de una reunión y evalúa las habilidades de comunicación del usuario (identificado como "USUARIO" o "user" — el hablante del micrófono).
@@ -200,5 +322,53 @@ mod tests {
     #[test]
     fn test_parse_invalido() {
         assert!(parse_evaluation_response("texto sin json").is_err());
+    }
+
+    #[test]
+    fn test_compute_metrics_fillers() {
+        let user = "hola eh este o sea pues la reunion digamos va bien";
+        let inter = "claro, perfecto";
+        let m = compute_metrics(user, inter, 1);
+        assert!(m.filler_count >= 4, "filler_count={}", m.filler_count);
+        assert!(m.fillers_per_minute > 0.0);
+        assert!(m.user_talk_ratio > 0.5);
+    }
+
+    #[test]
+    fn test_compute_metrics_validations() {
+        let user = "entiendo tu punto. comprendo la preocupación. veo que esto es importante.";
+        let inter = "si exacto";
+        let m = compute_metrics(user, inter, 3);
+        assert_eq!(m.validations_given, 3);
+    }
+
+    #[test]
+    fn test_compute_metrics_talk_ratio_bajo() {
+        let user = "si claro";
+        let inter = "tenemos un problema muy grande con el servicio y necesitamos una solucion rapida para poder avanzar con el proyecto";
+        let m = compute_metrics(user, inter, 1);
+        assert!(m.user_talk_ratio < 0.2, "ratio={}", m.user_talk_ratio);
+    }
+
+    #[test]
+    fn test_classify_questions_abierta() {
+        let (open, closed) = classify_questions("¿qué te parece? ¿cómo lo ves?");
+        assert_eq!(open, 2);
+        assert_eq!(closed, 0);
+    }
+
+    #[test]
+    fn test_classify_questions_cerrada() {
+        let (open, closed) = classify_questions("¿te parece bien? ¿estás de acuerdo?");
+        assert_eq!(open, 0);
+        assert!(closed >= 2);
+    }
+
+    #[test]
+    fn test_compute_metrics_empty() {
+        let m = compute_metrics("", "", 0);
+        assert_eq!(m.filler_count, 0);
+        assert_eq!(m.avg_user_turn_words, 0.0);
+        assert_eq!(m.user_talk_ratio, 0.0);
     }
 }

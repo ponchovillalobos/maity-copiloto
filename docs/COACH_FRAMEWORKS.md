@@ -811,3 +811,56 @@ Maity Coach v3.0 utiliza **multiclass scoring** para elegir qué framework suger
 **Idioma**: Español neutro
 **Público**: Documentación interna + usuarios avanzados
 
+---
+
+## Apéndice V3.1 (2026-04-15) — Coach Holístico
+
+### Los 4 tipos de tip (rotación anti-repetición)
+
+El coach reparte tips entre 4 tipos, distribución objetivo por cada 10 tips:
+
+| Tipo | Icono | Peso | Priority típica | Ejemplo |
+|---|---|---|---|---|
+| Recognition | 🌟 | 40% | soft | "Excelente validación. El cliente se abrió." |
+| Observation | 💡 | 30% | soft | "Noto que aceleras cuando objeta. Respira." |
+| Corrective | ⚠️ | 20% | important/critical | "Dijiste 'política'. Intenta 'déjame ver opciones'." |
+| Introspective | ❓ | 10% | soft | "¿Notaste cambio de tono al usar su nombre?" |
+
+El frontend pasa los últimos 5 tips con su `tip_type` al LLM → el prompt le dice que rote y no repita el mismo 2 veces seguidas. El mix emerge naturalmente.
+
+### 6 detectores nuevos de comunicación personal (backend)
+
+Todos heurísticas sin LLM (<1ms), solo se ejecutan para el USER:
+
+| Detector | Señal | Priority | Tip esperado |
+|---|---|---|---|
+| `detect_filler_words` | ≥4 muletillas ("eh", "este", "o sea", "pues"...) | important | observation ritmo |
+| `detect_rapid_fire` | >50 palabras, poca puntuación (<1 signo/15 palabras) | soft | observation ritmo |
+| `detect_question_drought` | USER ≥120 palabras sin preguntar + cliente monologó | important | introspective/corrective |
+| `detect_missing_validation` | Cliente emocional + USER no valida | important | corrective empático |
+| `detect_negative_spiral` | ≥3 cierres de puertas ("no puedo", "imposible"...) en 60s | critical | corrective reframe |
+| `detect_empathy_gap` | Cliente frustrado + USER en tono técnico sin empatía | critical | corrective empático |
+
+### Métricas objetivas post-reunión (`compute_metrics`)
+
+Se calculan sin LLM al cerrar la reunión:
+
+- `filler_count`, `fillers_per_minute`
+- `open_questions_count` vs `closed_questions_count`
+- `validations_given` (conteo de "entiendo/comprendo/veo que")
+- `user_talk_ratio`, `avg_user_turn_words`
+
+Complementan el score 0-10 que da el LLM con datos duros.
+
+### Tono "con cariño"
+
+- Jamás regañar; reconocer antes de corregir.
+- Observación curiosa > crítica ("Noto que..." vs "Estás haciendo mal X").
+- Correctivo siempre ofrece alternativa concreta.
+- Preguntas introspectivas en lugar de afirmaciones acusatorias.
+- Máx 15 palabras. Calidez en el tono, no en longitud.
+
+### Español estricto
+
+Dentro del tip están prohibidos anglicismos: `closing`, `pitch`, `framework`, `mindset`, `insight`, `feedback`, `trial`, `pacing`. Los nombres propios de frameworks (SPIN, Chris Voss, Disney HEARD) van solo en el campo `technique`.
+

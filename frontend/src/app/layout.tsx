@@ -25,6 +25,7 @@ import { RecordingPostProcessingProvider } from '@/contexts/RecordingPostProcess
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { MeetingDetectionDialog } from '@/components/MeetingDetectionDialog'
 import { OfflineIndicator } from '@/components/OfflineIndicator'
+import { AutoSetupOverlay } from '@/components/AutoSetupOverlay'
 import { logger } from '@/lib/logger'
 
 const sourceSans3 = Source_Sans_3({
@@ -166,6 +167,7 @@ export default function RootLayout({
         </AnalyticsProvider>
         </ErrorBoundary>
         <Toaster position="bottom-center" richColors closeButton />
+        <AutoSetupOverlay />
         </>
         )}
       </body>

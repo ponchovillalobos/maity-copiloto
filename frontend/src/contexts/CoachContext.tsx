@@ -31,14 +31,19 @@ import { logger } from '@/lib/logger';
 
 /** Mensaje de chat del usuario o respuesta del coach. */
 export interface CoachChatMessage {
+  /** ID estable único (para React keys y stream demux). */
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   /** Solo para assistant: latencia y modelo del LLM */
   latency_ms?: number;
+  first_token_ms?: number;
   model?: string;
   /** Solo para assistant: turnos de contexto incluidos */
   context_turns?: number;
+  /** true mientras el stream está activo (streaming token-por-token). */
+  streaming?: boolean;
 }
 
 export type CoachCategory =
@@ -48,6 +53,8 @@ export type CoachCategory =
   | 'closing'
   | 'pacing'
   | 'rapport';
+
+export type CoachTipType = 'recognition' | 'observation' | 'corrective' | 'introspective';
 
 export interface CoachSuggestion {
   tip: string;
@@ -59,6 +66,8 @@ export interface CoachSuggestion {
   /** v2.0: "critical" | "important" | "soft" */
   priority: 'critical' | 'important' | 'soft' | string;
   confidence: number;
+  /** V3.1: tipo de tip — el coach rota entre 4 para no ser repetitivo. */
+  tip_type?: CoachTipType | string;
   timestamp: number;
   model: string;
   latency_ms: number;
@@ -317,7 +326,12 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       const minute = sessionStartRef.current
         ? Math.floor((now - sessionStartRef.current) / 60_000)
         : 0;
-      const previousTips = suggestionsRef.current.slice(-5).map((s) => s.tip);
+      // V3.1: incluir tip_type en cada entrada previa para que el LLM rote (anti-repetición).
+      // Formato compacto "[tipo] tip" — el prompt V3 LITE entiende la convención.
+      const previousTips = suggestionsRef.current.slice(-5).map((s) => {
+        const tt = s.tip_type ?? 'observation';
+        return `[${tt}] ${s.tip}`;
+      });
 
       const suggestion = await invoke<CoachSuggestion>('coach_suggest', {
         window,
@@ -390,34 +404,31 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Optimistic UI: user msg aparece en <16ms
+    const ts = Date.now();
     const userMsg: CoachChatMessage = {
+      id: `u-${ts}`,
       role: 'user',
       content: message.trim(),
-      timestamp: Math.floor(Date.now() / 1000),
+      timestamp: Math.floor(ts / 1000),
     };
-    setChatMessages((prev) => [...prev, userMsg]);
+    // Placeholder del assistant (streaming=true → renderizará typing indicator + tokens incrementales)
+    const assistantId = `a-${ts}`;
+    const assistantPlaceholder: CoachChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: Math.floor(ts / 1000),
+      streaming: true,
+    };
+    setChatMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
     setChatLoading(true);
 
+    const history = chatMessages.map((m) => ({ role: m.role, content: m.content }));
+    const liveTranscript = buildWindow();
+
     try {
-      // Construir history para el backend (excluyendo el mensaje recién agregado)
-      const history = chatMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      // Fix 2026-04-11: pasar transcript vivo del buffer frontend
-      // porque durante grabación en vivo la DB aún está vacía.
-      const liveTranscript = buildWindow();
-
-      const response = await invoke<{
-        answer: string;
-        model: string;
-        latency_ms: number;
-        context_chars: number;
-        context_turns: number;
-        user_turns: number;
-        interlocutor_turns: number;
-      }>('coach_chat', {
+      const streamId = await invoke<string>('coach_chat_stream', {
         message: message.trim(),
         meetingId: currentMeetingId ?? undefined,
         liveTranscript,
@@ -425,27 +436,74 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         model: null,
       });
 
-      const assistantMsg: CoachChatMessage = {
-        role: 'assistant',
-        content: response.answer,
-        timestamp: Math.floor(Date.now() / 1000),
-        latency_ms: response.latency_ms,
-        model: response.model,
-        context_turns: response.context_turns,
-      };
-      setChatMessages((prev) => [...prev, assistantMsg]);
+      // Listeners del stream — se limpian al recibir complete/error.
+      const unlistenToken = await listen<{ stream_id: string; delta: string; done: boolean }>(
+        'coach-chat-token',
+        (event) => {
+          if (event.payload.stream_id !== streamId) return;
+          if (event.payload.delta.length === 0) return;
+          setChatMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, content: m.content + event.payload.delta } : m,
+            ),
+          );
+        },
+      );
+      const unlistenComplete = await listen<{
+        stream_id: string;
+        model: string;
+        latency_ms: number;
+        first_token_ms: number;
+        total_tokens: number;
+      }>('coach-chat-complete', (event) => {
+        if (event.payload.stream_id !== streamId) return;
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  streaming: false,
+                  latency_ms: event.payload.latency_ms,
+                  first_token_ms: event.payload.first_token_ms,
+                  model: event.payload.model,
+                }
+              : m,
+          ),
+        );
+        setChatLoading(false);
+        unlistenToken();
+        unlistenComplete();
+        unlistenError();
+      });
+      const unlistenError = await listen<{ stream_id: string; error: string }>(
+        'coach-chat-error',
+        (event) => {
+          if (event.payload.stream_id !== streamId) return;
+          setChatMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, streaming: false, content: `Error: ${event.payload.error}. Verifica que Ollama esté corriendo.` }
+                : m,
+            ),
+          );
+          setChatLoading(false);
+          unlistenToken();
+          unlistenComplete();
+          unlistenError();
+        },
+      );
     } catch (e) {
-      logger.error(`[Coach Chat] Error: ${e}`);
-      const errorMsg: CoachChatMessage = {
-        role: 'assistant',
-        content: `Error: ${e}. Verifica que Ollama esté corriendo.`,
-        timestamp: Math.floor(Date.now() / 1000),
-      };
-      setChatMessages((prev) => [...prev, errorMsg]);
-    } finally {
+      logger.error(`[Coach Chat] Error invoke: ${e}`);
+      setChatMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? { ...m, streaming: false, content: `Error: ${e}. Verifica que Ollama esté corriendo.` }
+            : m,
+        ),
+      );
       setChatLoading(false);
     }
-  }, [chatMessages, chatLoading, currentMeetingId]);
+  }, [chatMessages, chatLoading, currentMeetingId, buildWindow]);
 
   const clearChat = useCallback(() => {
     setChatMessages([]);
@@ -563,17 +621,17 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         if (top.priority === 'critical' || top.priority === 'important') {
           await triggerNow(top.category);
         } else if (top.priority === 'soft') {
-          // Soft: disparar si lleva más de 45s sin tip (era 120s)
+          // Soft: respeta ventana 30-40s para no saturar.
           const age = Date.now() - lastTipTimestampRef.current;
-          if (age > 45_000) {
+          if (age > 35_000) {
             await triggerNow(top.category);
           }
         }
       } catch (e) {
         logger.warn(`[Coach] Error en trigger analyze: ${e}`);
-        // Fallback: si trigger falla, intentar tip generico cada 20s
+        // Fallback: respeta ventana 30-40s
         const age = Date.now() - lastTipTimestampRef.current;
-        if (age > 20_000) {
+        if (age > 35_000) {
           logger.info('[Coach] Fallback: trigger fallo, intentando tip generico');
           await triggerNow(undefined);
         }
@@ -889,20 +947,31 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   }, [isRecording, transcriptsRef]);
 
   /**
-   * Effect 5.5: Periodic tips — generate tip every 15s regardless of triggers
+   * Effect 5.5: Periodic tips — cada 30-40s según requisito del usuario.
+   * Si la conversación va bien, el LLM genera un tip de felicitación (ver prompt V3 LITE).
+   * Si va mal, genera corrección. El modelo decide según contexto.
    */
   useEffect(() => {
     if (!enabled || !isRecording) return;
     const timer = setInterval(async () => {
       const age = Date.now() - lastTipTimestampRef.current;
-      if (age >= 15_000) {
+      // Ventana 30-40s: garantiza que aparezca un tip al menos cada 35s,
+      // pero no antes de 30s (evita saturar al usuario).
+      if (age >= 30_000 && age <= 60_000) {
         try {
           await triggerNow(undefined);
         } catch (e) {
           // Silent - periodic tip failed, will retry next interval
         }
+      } else if (age > 60_000) {
+        // Si pasaron >60s sin tip (p.ej. grabación recién arrancó), dispara ahora.
+        try {
+          await triggerNow(undefined);
+        } catch (e) {
+          /* ignore */
+        }
       }
-    }, 10_000);
+    }, 5_000);
     return () => clearInterval(timer);
   }, [enabled, isRecording, triggerNow]);
 

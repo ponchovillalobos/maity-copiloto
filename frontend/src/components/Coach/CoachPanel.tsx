@@ -51,8 +51,18 @@ function relativeTime(timestamp: number): string {
   return `hace ${Math.floor(min / 60)}h`;
 }
 
+// V3.1: metadata visual por tipo de tip
+const TIP_TYPE_META: Record<string, { icon: string; label: string; accent: string }> = {
+  recognition:   { icon: '🌟', label: 'Reconocimiento', accent: 'text-green-300' },
+  observation:   { icon: '💡', label: 'Observación',    accent: 'text-blue-300' },
+  corrective:    { icon: '⚠️', label: 'Sugerencia',     accent: 'text-amber-300' },
+  introspective: { icon: '❓', label: 'Reflexión',      accent: 'text-purple-300' },
+};
+
 function SuggestionCard({ suggestion }: { suggestion: CoachSuggestion }) {
   const style = categoryStyle(suggestion.category);
+  const tipType = (suggestion.tip_type ?? 'observation') as string;
+  const tipMeta = TIP_TYPE_META[tipType] ?? TIP_TYPE_META.observation;
   const borderColor =
     suggestion.priority === 'critical' ? 'border-l-red-500' :
     suggestion.priority === 'important' ? 'border-l-yellow-500' : 'border-l-green-500';
@@ -65,11 +75,13 @@ function SuggestionCard({ suggestion }: { suggestion: CoachSuggestion }) {
       transition={{ duration: 0.15 }}
       className={`rounded-md border border-l-2 ${borderColor} ${style.bg} p-2 shadow-sm group`}
       role={isCritical ? 'alert' : undefined}
-      title={`${relativeTime(suggestion.timestamp)} · conf ${(suggestion.confidence * 100).toFixed(0)}% · ${suggestion.latency_ms}ms`}
+      title={`${tipMeta.label} · ${relativeTime(suggestion.timestamp)} · conf ${(suggestion.confidence * 100).toFixed(0)}% · ${suggestion.latency_ms}ms`}
     >
       <div className="flex items-center gap-1.5 mb-1">
+        <span className="text-sm" aria-hidden="true">{tipMeta.icon}</span>
         <span className={`${style.color}`}>{style.icon}</span>
         <span className={`text-[10px] uppercase tracking-wide font-medium ${style.color}`}>{style.label}</span>
+        <span className={`text-[9px] font-medium ${tipMeta.accent}`}>· {tipMeta.label}</span>
         {suggestion.technique && (
           <span className="text-[9px] text-gray-500 ml-auto">({suggestion.technique})</span>
         )}
@@ -83,8 +95,25 @@ function SuggestionCard({ suggestion }: { suggestion: CoachSuggestion }) {
 
 type CoachTab = 'tips' | 'chat';
 
-function ChatMessageBubble({ msg }: { msg: CoachChatMessage }) {
+const ChatMessageBubble = React.memo(function ChatMessageBubble({ msg }: { msg: CoachChatMessage }) {
   const isUser = msg.role === 'user';
+  // Typing indicator: 3 puntos mientras streaming y aún sin contenido.
+  if (!isUser && msg.streaming && msg.content.length === 0) {
+    return (
+      <div className="flex justify-start mb-2">
+        <div className="bg-gray-800/60 border border-gray-700/40 rounded-lg px-3 py-2 flex gap-1 items-center h-[32px]">
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-blue-300/80"
+              animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
+              transition={{ repeat: Infinity, duration: 0.9, delay: i * 0.15 }}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
       <div
@@ -94,10 +123,16 @@ function ChatMessageBubble({ msg }: { msg: CoachChatMessage }) {
             : 'bg-gray-800/60 border border-gray-700/40 text-gray-100'
         }`}
       >
-        <div>{msg.content}</div>
-        {!isUser && (msg.latency_ms || msg.context_turns !== undefined) && (
+        <div>
+          {msg.content}
+          {!isUser && msg.streaming && (
+            <span className="inline-block w-1.5 h-4 ml-0.5 bg-blue-300/80 align-middle animate-pulse" />
+          )}
+        </div>
+        {!isUser && !msg.streaming && (msg.first_token_ms || msg.latency_ms || msg.context_turns !== undefined) && (
           <div className="mt-1 text-[10px] text-gray-500">
             {msg.context_turns !== undefined && `${msg.context_turns} turnos · `}
+            {msg.first_token_ms && `${msg.first_token_ms}ms→`}
             {msg.latency_ms && `${msg.latency_ms}ms · `}
             {msg.model && msg.model.split(':')[0]}
           </div>
@@ -105,7 +140,7 @@ function ChatMessageBubble({ msg }: { msg: CoachChatMessage }) {
       </div>
     </div>
   );
-}
+});
 
 export function CoachPanel() {
   const {
@@ -128,10 +163,13 @@ export function CoachPanel() {
   const [chatInput, setChatInput] = useState('');
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll cuando llegan nuevos mensajes de chat
+  // Auto-scroll suave sin jank durante streaming.
   useEffect(() => {
     if (tab === 'chat' && chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      const el = chatScrollRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
     }
   }, [chatMessages, tab]);
 
@@ -307,16 +345,10 @@ export function CoachPanel() {
                 </span>
               </div>
             )}
-            {chatMessages.map((m, idx) => (
-              <ChatMessageBubble key={`${m.timestamp}-${idx}`} msg={m} />
+            {chatMessages.map((m) => (
+              <ChatMessageBubble key={m.id ?? `${m.timestamp}-${m.role}`} msg={m} />
             ))}
-            {chatLoading && (
-              <div className="flex justify-start mb-2">
-                <div className="bg-gray-800/60 border border-gray-700/40 rounded-lg px-3 py-2">
-                  <Loader2 className="w-4 h-4 text-blue-300 animate-spin" />
-                </div>
-              </div>
-            )}
+            {/* Typing indicator ahora vive DENTRO del bubble del placeholder assistant (streaming) */}
           </div>
           <form
             className="px-3 py-2 border-t border-gray-800 flex gap-2 flex-shrink-0"
@@ -329,10 +361,9 @@ export function CoachPanel() {
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              disabled={chatLoading}
               placeholder="Pregunta al coach..."
               autoComplete="off"
-              className="flex-1 bg-gray-800/60 border border-gray-700/60 rounded px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500/60 disabled:opacity-50"
+              className="flex-1 bg-gray-800/60 border border-gray-700/60 rounded px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500/60"
             />
             <button
               type="submit"

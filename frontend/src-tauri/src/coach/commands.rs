@@ -5,7 +5,7 @@
 
 use crate::coach::context::{build_context, ContextMode};
 use crate::coach::prompt::{
-    build_user_prompt_v3, DEFAULT_MODEL, MAITY_COPILOTO_V3_PROMPT, MeetingType,
+    build_user_prompt_v3, DEFAULT_MODEL, MAITY_COPILOTO_V3_LITE_PROMPT, MeetingType,
 };
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use crate::validation_helpers;
@@ -24,10 +24,13 @@ pub static CURRENT_MODEL: LazyLock<Mutex<String>> =
 static LAST_LATENCY_MS: AtomicU64 = AtomicU64::new(0);
 
 /// Shared HTTP client for Ollama requests (eliminates cold-start per-request overhead).
-static SHARED_CLIENT: LazyLock<Client> = LazyLock::new(|| {
+/// HTTP client compartido entre coach_suggest y coach_chat.
+/// Timeout 60s para chat (respuestas más largas); pool reutiliza conexiones TCP
+/// a localhost:11434 → elimina 20-50ms de setup por request.
+pub static SHARED_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
-        .timeout(Duration::from_secs(45))
-        .pool_max_idle_per_host(2)
+        .timeout(Duration::from_secs(60))
+        .pool_max_idle_per_host(4)
         .build()
         .expect("Failed to create shared HTTP client for Ollama")
 });
@@ -55,6 +58,10 @@ pub struct CoachSuggestion {
     #[serde(default = "default_priority")]
     pub priority: String,
     pub confidence: f32,
+    /// V3.1: tipo de tip — "recognition"|"observation"|"corrective"|"introspective".
+    /// Se infiere si el LLM no lo provee (fallback).
+    #[serde(default = "default_tip_type")]
+    pub tip_type: String,
     pub timestamp: i64,
     pub model: String,
     pub latency_ms: u64,
@@ -62,6 +69,41 @@ pub struct CoachSuggestion {
 
 fn default_priority() -> String {
     "soft".to_string()
+}
+
+fn default_tip_type() -> String {
+    "observation".to_string()
+}
+
+/// Infiere `tip_type` a partir del tip + priority + confidence cuando el LLM no lo provee.
+///
+/// Heurística:
+/// - Empieza con "Excelente/Bien/Perfecto/Gran/Buen" → recognition
+/// - Empieza con "¿" → introspective
+/// - Empieza con "Noto/He notado/Observo" → observation
+/// - priority in {critical, important} → corrective
+/// - resto → observation
+pub fn infer_tip_type(tip: &str, priority: &str) -> String {
+    let trimmed = tip.trim_start();
+    let lower = trimmed.to_lowercase();
+    const RECOG: &[&str] = &[
+        "excelente", "bien hecho", "perfecto", "gran ", "buen ", "increible",
+        "muy bien", "genial",
+    ];
+    if RECOG.iter().any(|p| lower.starts_with(p)) {
+        return "recognition".to_string();
+    }
+    if trimmed.starts_with('¿') || trimmed.starts_with('?') {
+        return "introspective".to_string();
+    }
+    const OBS: &[&str] = &["noto", "he notado", "observo", "veo que"];
+    if OBS.iter().any(|p| lower.starts_with(p)) {
+        return "observation".to_string();
+    }
+    match priority {
+        "critical" | "important" => "corrective".to_string(),
+        _ => "observation".to_string(),
+    }
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -76,6 +118,9 @@ pub struct CoachStatus {
 struct RawSuggestion {
     tip: String,
     category: String,
+    /// V3.1 nuevo: tipo de tip (opcional, se infiere si falta).
+    #[serde(default)]
+    tip_type: Option<String>,
     #[serde(default)]
     subcategory: Option<String>,
     #[serde(default)]
@@ -183,7 +228,7 @@ pub async fn coach_suggest(
         &LLMProvider::Ollama,
         &model,
         "",
-        MAITY_COPILOTO_V3_PROMPT,
+        MAITY_COPILOTO_V3_LITE_PROMPT,
         &user_prompt,
         None,
         None,
@@ -212,6 +257,12 @@ pub async fn coach_suggest(
         }
     });
 
+    // V3.1: tip_type del LLM o inferido.
+    let tip_type = parsed
+        .tip_type
+        .filter(|t| matches!(t.as_str(), "recognition" | "observation" | "corrective" | "introspective"))
+        .unwrap_or_else(|| infer_tip_type(&parsed.tip, &priority));
+
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -224,6 +275,7 @@ pub async fn coach_suggest(
         technique: parsed.technique,
         priority,
         confidence: parsed.confidence,
+        tip_type,
         timestamp,
         model,
         latency_ms,

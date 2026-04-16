@@ -198,6 +198,7 @@ pub mod validation_helpers {
 pub mod analytics;
 pub mod api;
 pub mod audio;
+pub mod auto_setup;
 pub mod builtin_ai;
 pub mod coach;
 pub mod console_utils;
@@ -923,7 +924,7 @@ pub fn run() {
                 tauri::async_runtime::spawn(async {
                     let model = {
                         crate::coach::commands::get_current_model()
-                            .unwrap_or_else(|_| "gemma4:latest".to_string())
+                            .unwrap_or_else(|_| crate::coach::prompt::DEFAULT_MODEL.to_string())
                     };
                     log::info!("🔥 Warming up Ollama model: {}", model);
                     let client = match reqwest::Client::builder()
@@ -948,27 +949,17 @@ pub fn run() {
                     }
                 });
 
-                // Keep-alive refresher: cada 3min re-afirma keep_alive=-1 (por si Ollama reinició).
-                tauri::async_runtime::spawn(async {
-                    loop {
-                        tokio::time::sleep(std::time::Duration::from_secs(180)).await;
-                        let model = crate::coach::commands::get_current_model()
-                            .unwrap_or_else(|_| "gemma4:latest".to_string());
-                        if let Ok(c) = reqwest::Client::builder()
-                            .timeout(std::time::Duration::from_secs(30))
-                            .build()
-                        {
-                            let _ = c.post("http://localhost:11434/api/generate")
-                                .json(&serde_json::json!({
-                                    "model": model,
-                                    "prompt": "",
-                                    "stream": false,
-                                    "keep_alive": -1,
-                                    "options": { "num_predict": 0 }
-                                }))
-                                .send().await;
-                        }
-                    }
+                // NOTA: eliminado el refresher cada 3min. Con keep_alive=-1 en el
+                // warm-up inicial Y en cada request de coach (/api/chat con keep_alive=-1
+                // embebido), Ollama mantiene el modelo residente indefinidamente.
+                // El loop antiguo añadía overhead impredecible (timeout 30s bloqueante).
+
+                // Auto-setup: verifica + descarga dependencias automáticamente en background
+                // (Ollama LLM model, Parakeet ONNX). Delay 3s para dejar que UI cargue primero.
+                let app_auto_setup = app_handle_for_config.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    crate::auto_setup::run(app_auto_setup).await;
                 });
             });
 
@@ -1243,6 +1234,8 @@ pub fn run() {
             coach::commands::coach_get_status,
             coach::evaluator::coach_evaluate_communication,
             coach::chat::coach_chat,
+            coach::chat::coach_chat_stream,
+            auto_setup::auto_setup_retry,
             coach::trigger::coach_analyze_trigger,
             coach::meeting_type::coach_detect_meeting_type,
             coach::meeting_type::coach_clear_meeting_type_cache,

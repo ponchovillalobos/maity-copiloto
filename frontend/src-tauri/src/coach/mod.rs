@@ -14,6 +14,8 @@ pub mod prompt;
 pub mod trigger;
 #[cfg(test)]
 mod stress_tests;
+#[cfg(test)]
+mod perf_tests;
 
 pub use chat::{coach_chat, ChatResponse};
 pub use commands::{
