@@ -13,10 +13,32 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loader2, WifiOff, Send, MessageSquare, Lightbulb, HandCoins, Users2, DollarSign, HelpCircle } from 'lucide-react';
+import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loader2, WifiOff, Send, MessageSquare, Lightbulb, HandCoins, Users2, DollarSign, HelpCircle, ChevronDown } from 'lucide-react';
 import { useCoach, CoachSuggestion, CoachChatMessage } from '@/contexts/CoachContext';
 import { ConnectionThermometer } from './ConnectionThermometer';
 import { MeetingTypeBadge } from './MeetingTypeBadge';
+
+// Skeleton loader para tips durante carga
+function SkeletonTipCard() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="rounded-md border border-gray-800/50 bg-gray-800/30 p-3 animate-pulse"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-4 h-4 rounded bg-gray-700/50" />
+        <div className="h-3 w-20 rounded bg-gray-700/50" />
+      </div>
+      <div className="space-y-1.5">
+        <div className="h-3.5 w-full rounded bg-gray-700/40" />
+        <div className="h-3.5 w-3/4 rounded bg-gray-700/30" />
+      </div>
+    </motion.div>
+  );
+}
 
 const CATEGORY_STYLE: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
   icebreaker: { color: 'text-yellow-300', bg: 'bg-yellow-500/10 border-yellow-500/40', icon: <Sparkles className="w-4 h-4" />, label: 'Romper hielo' },
@@ -59,7 +81,7 @@ const TIP_TYPE_META: Record<string, { icon: string; label: string; accent: strin
   introspective: { icon: '❓', label: 'Reflexión',      accent: 'text-purple-300' },
 };
 
-function SuggestionCard({ suggestion }: { suggestion: CoachSuggestion }) {
+function SuggestionCard({ suggestion, idx = 0 }: { suggestion: CoachSuggestion; idx?: number }) {
   const style = categoryStyle(suggestion.category);
   const tipType = (suggestion.tip_type ?? 'observation') as string;
   const tipMeta = TIP_TYPE_META[tipType] ?? TIP_TYPE_META.observation;
@@ -72,7 +94,7 @@ function SuggestionCard({ suggestion }: { suggestion: CoachSuggestion }) {
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
+      transition={{ duration: 0.15, delay: idx * 0.04 }}
       className={`rounded-md border border-l-2 ${borderColor} ${style.bg} p-2 shadow-sm group`}
       role={isCritical ? 'alert' : undefined}
       title={`${tipMeta.label} · ${relativeTime(suggestion.timestamp)} · conf ${(suggestion.confidence * 100).toFixed(0)}% · ${suggestion.latency_ms}ms`}
@@ -95,12 +117,85 @@ function SuggestionCard({ suggestion }: { suggestion: CoachSuggestion }) {
 
 type CoachTab = 'tips' | 'chat';
 
-const ChatMessageBubble = React.memo(function ChatMessageBubble({ msg }: { msg: CoachChatMessage }) {
+function HelpMenuButton() {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-1 hover:bg-gray-700/40 rounded transition"
+        title="Ayuda y feedback"
+        aria-label="Menú de ayuda"
+      >
+        <HelpCircle className="w-4 h-4 text-gray-400" />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -2 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="absolute right-0 mt-1 w-48 rounded-md border border-gray-700/60 bg-gray-800/95 backdrop-blur-sm shadow-lg z-50"
+        >
+          <a
+            href="mailto:poncho.robles.villalobos@gmail.com?subject=Maity Bug Report"
+            className="flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-gray-700/60 transition first:rounded-t-md"
+            onClick={() => setOpen(false)}
+          >
+            <span>📋</span> Reportar problema
+          </a>
+          <a
+            href="https://github.com/ponchovillaa/Maity-desktop/releases"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-gray-700/60 transition last:rounded-b-md"
+            onClick={() => setOpen(false)}
+          >
+            <span>📚</span> Ver changelog
+          </a>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function StatusIndicator({ ollama_running }: { ollama_running?: boolean }) {
+  if (!ollama_running) return null;
+  return (
+    <motion.div
+      className="inline-block w-1.5 h-1.5 rounded-full bg-green-400"
+      animate={{ opacity: [1, 0.4, 1] }}
+      transition={{ repeat: Infinity, duration: 2 }}
+      title="Ollama activo"
+    />
+  );
+}
+
+const ChatMessageBubble = React.memo(function ChatMessageBubble({ msg, idx = 0 }: { msg: CoachChatMessage; idx?: number }) {
   const isUser = msg.role === 'user';
   // Typing indicator: 3 puntos mientras streaming y aún sin contenido.
   if (!isUser && msg.streaming && msg.content.length === 0) {
     return (
-      <div className="flex justify-start mb-2">
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.15, delay: idx * 0.04 }}
+        className="flex justify-start mb-2"
+      >
         <div className="bg-gray-800/60 border border-gray-700/40 rounded-lg px-3 py-2 flex gap-1 items-center h-[32px]">
           {[0, 1, 2].map((i) => (
             <motion.span
@@ -111,11 +206,16 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({ msg }: { msg: 
             />
           ))}
         </div>
-      </div>
+      </motion.div>
     );
   }
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}>
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.15, delay: idx * 0.04 }}
+      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-2`}
+    >
       <div
         className={`max-w-[85%] rounded-lg px-3 py-2 text-[14px] leading-snug ${
           isUser
@@ -138,7 +238,7 @@ const ChatMessageBubble = React.memo(function ChatMessageBubble({ msg }: { msg: 
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 });
 
@@ -205,21 +305,25 @@ export function CoachPanel() {
   };
 
   return (
-    <aside className="flex flex-col w-[340px] flex-shrink-0 border-l border-gray-800 bg-gray-900/40 backdrop-blur-sm" role="complementary" aria-label="Copiloto de reuniones">
+    <aside className="flex flex-col w-[340px] flex-shrink-0 border-l border-gray-800 glass-panel" role="complementary" aria-label="Copiloto de reuniones">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700/30 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-blue-300 flex-shrink-0" />
           <h2 className="text-sm font-semibold text-gray-100">Coach IA</h2>
+          <StatusIndicator ollama_running={status?.ollama_running} />
           {(loading || chatLoading) && (
             <Loader2 className="w-3 h-3 text-blue-300 animate-spin" />
           )}
         </div>
-        <MeetingTypeBadge
-          value={meetingType}
-          onChange={setMeetingType}
-          autoDetected={meetingTypeAutoDetected}
-        />
+        <div className="flex items-center gap-1">
+          <HelpMenuButton />
+          <MeetingTypeBadge
+            value={meetingType}
+            onChange={setMeetingType}
+            autoDetected={meetingTypeAutoDetected}
+          />
+        </div>
       </div>
 
       {/* Connection Thermometer (gamificación) */}
@@ -271,7 +375,7 @@ export function CoachPanel() {
       <div className="flex border-b border-gray-800">
         <button
           onClick={() => setTab('tips')}
-          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition ${
+          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
             tab === 'tips'
               ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
               : 'text-gray-500 hover:text-gray-300'
@@ -281,7 +385,7 @@ export function CoachPanel() {
         </button>
         <button
           onClick={() => setTab('chat')}
-          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition ${
+          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
             tab === 'chat'
               ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
               : 'text-gray-500 hover:text-gray-300'
@@ -291,7 +395,7 @@ export function CoachPanel() {
         </button>
         <button
           onClick={() => setTab('questions' as any)}
-          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition ${
+          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
             (tab as string) === 'questions'
               ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
               : 'text-gray-500 hover:text-gray-300'
@@ -322,8 +426,15 @@ export function CoachPanel() {
                 </span>
               </div>
             )}
+            {loading && visible.length === 0 && (
+              <>
+                <SkeletonTipCard />
+                <SkeletonTipCard />
+                <SkeletonTipCard />
+              </>
+            )}
             {visible.map((s, idx) => (
-              <SuggestionCard key={`${s.timestamp}-${idx}`} suggestion={s} />
+              <SuggestionCard key={`${s.timestamp}-${idx}`} suggestion={s} idx={idx} />
             ))}
           </AnimatePresence>
         </div>
@@ -345,8 +456,8 @@ export function CoachPanel() {
                 </span>
               </div>
             )}
-            {chatMessages.map((m) => (
-              <ChatMessageBubble key={m.id ?? `${m.timestamp}-${m.role}`} msg={m} />
+            {chatMessages.map((m, idx) => (
+              <ChatMessageBubble key={m.id ?? `${m.timestamp}-${m.role}`} msg={m} idx={idx} />
             ))}
             {/* Typing indicator ahora vive DENTRO del bubble del placeholder assistant (streaming) */}
           </div>
@@ -368,7 +479,7 @@ export function CoachPanel() {
             <button
               type="submit"
               disabled={chatLoading || !chatInput.trim()}
-              className="px-3 py-2 rounded bg-blue-600/30 border border-blue-500/40 text-blue-100 hover:bg-blue-600/50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="px-3 py-2 rounded bg-blue-600/30 border border-blue-500/40 text-blue-100 hover:bg-blue-600/50 disabled:opacity-40 disabled:cursor-not-allowed transition btn-press"
               title="Enviar (Enter)"
             >
               <Send className="w-4 h-4" />

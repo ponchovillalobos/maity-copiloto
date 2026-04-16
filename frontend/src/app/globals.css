@@ -76,6 +76,18 @@
   animation-delay: 150ms;
 }
 
+@layer utilities {
+  /* Apple-like button press feedback */
+  .btn-press {
+    @apply transition-all duration-150 active:scale-[0.97] active:brightness-90;
+  }
+
+  /* Subtle hover glow for interactive elements */
+  .hover-glow {
+    @apply transition-all duration-200 hover:shadow-[0_0_12px_rgba(72,93,244,0.15)];
+  }
+}
+
 @layer base {
   /* === PALETA MAITY - MODO CLARO === */
   :root {
@@ -108,7 +120,7 @@
   }
 
   /* === PALETA MAITY - MODO OSCURO === */
-  .dark {
+  :root.dark, .dark {
     --background: 0 0% 0%;             /* #000000 - Negro MAITY */
     --foreground: 0 0% 100%;           /* #ffffff - Blanco MAITY */
     --card: 0 0% 5%;                   /* Negro suave */
@@ -134,6 +146,13 @@
     --chart-3: 157 83% 56%;            /* Verde MAITY claro */
     --chart-4: 341 100% 70%;           /* Rosa más claro */
     --chart-5: 233 88% 77%;            /* Azul más claro */
+    /* Elevaciones y glassmorphism */
+    --elevation-0: theme('colors.gray.950');
+    --elevation-1: theme('colors.gray.900');
+    --elevation-2: rgba(31, 41, 55, 0.8);
+    --elevation-3: rgba(55, 65, 81, 0.6);
+    --glass-bg: rgba(17, 24, 39, 0.7);
+    --glass-border: rgba(75, 85, 99, 0.3);
   }
 }
 
@@ -214,5 +233,19 @@
   /* Disable scrolling on any BlockNote wrapper elements */
   [data-node-type] {
     overflow: visible !important;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .elevated-card {
+    @apply rounded-xl shadow-lg shadow-black/20 border border-gray-800/50;
+    background: var(--elevation-1);
   }
 }
