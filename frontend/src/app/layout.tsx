@@ -1,7 +1,7 @@
 'use client'
 
 import './globals.css'
-import { Inter } from 'next/font/google'
+import { Source_Sans_3 } from 'next/font/google'
 import Sidebar from '@/components/Sidebar'
 import { SidebarProvider } from '@/components/Sidebar/SidebarProvider'
 import MainContent from '@/components/MainContent'
@@ -28,10 +28,10 @@ import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { AutoSetupOverlay } from '@/components/AutoSetupOverlay'
 import { logger } from '@/lib/logger'
 
-const inter = Inter({
+const sourceSans3 = Source_Sans_3({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-inter',
+  variable: '--font-source-sans-3',
 })
 
 // export { metadata } from './metadata'
@@ -111,7 +111,7 @@ export default function RootLayout({
 
   return (
     <html lang="es" className="dark">
-      <body className={`${inter.variable} font-sans antialiased bg-white dark:bg-gray-950`}>
+      <body className={`${sourceSans3.variable} font-sans antialiased bg-white dark:bg-gray-950`}>
         {!mounted ? (
           <div className="h-screen w-screen flex items-center justify-center bg-gray-950">
             <div className="text-gray-500 text-sm">Cargando Maity...</div>

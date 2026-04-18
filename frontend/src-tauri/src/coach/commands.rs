@@ -152,6 +152,7 @@ pub async fn coach_suggest(
     minute: Option<u32>,
     previous_tips: Option<Vec<String>>,
     suggested_category: Option<String>,
+    trigger_signal: Option<String>,
 ) -> Result<CoachSuggestion, String> {
     // Validate input parameters
     let _ = validation_helpers::validate_language(&role)?; // Validate role field
@@ -202,12 +203,17 @@ pub async fn coach_suggest(
 
     let mt = MeetingType::from_str_loose(validated_meeting_type.as_deref().unwrap_or("auto"));
     let prev = previous_tips.unwrap_or_default();
+    let validated_signal = trigger_signal
+        .map(|s| validation_helpers::validate_string_length(&s, "trigger_signal", 100))
+        .transpose()?;
+
     let user_prompt = build_user_prompt_v3(
         &effective_window,
         mt,
         minute.unwrap_or(0),
         &prev,
         validated_category.as_deref(),
+        validated_signal.as_deref(),
     );
 
     log::info!(

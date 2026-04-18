@@ -30,13 +30,13 @@ mod tests {
 
         // Warmup
         for _ in 0..10 {
-            let _ = build_user_prompt_v3(&contexto, MeetingType::Sales, 5, &previous_tips, None);
+            let _ = build_user_prompt_v3(&contexto, MeetingType::Sales, 5, &previous_tips, None, None);
         }
 
         let iters = 100;
         let start = Instant::now();
         for _ in 0..iters {
-            let _ = build_user_prompt_v3(&contexto, MeetingType::Sales, 5, &previous_tips, Some("objection"));
+            let _ = build_user_prompt_v3(&contexto, MeetingType::Sales, 5, &previous_tips, Some("objection"), Some("client_objection"));
         }
         let avg_us = start.elapsed().as_micros() / iters;
 

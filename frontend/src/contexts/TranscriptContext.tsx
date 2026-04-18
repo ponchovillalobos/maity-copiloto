@@ -252,13 +252,26 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
 
       if (allNewTranscripts.length > 0) {
         setTranscripts(prev => {
-          // Create a set of existing sequence_ids for deduplication
+          // Dedup layer 1: sequence_id (previene mismo evento procesado 2x)
           const existingSequenceIds = new Set(prev.map(t => t.sequence_id).filter(id => id !== undefined));
 
-          // Filter out any new transcripts that already exist
-          const uniqueNewTranscripts = allNewTranscripts.filter(transcript =>
-            transcript.sequence_id !== undefined && !existingSequenceIds.has(transcript.sequence_id)
+          // Dedup layer 2: (audio_start_time + source_type + text) — previene
+          // mismo audio con sequence_id distinto (ej: VAD jitter re-emite chunk).
+          const existingFingerprints = new Set(
+            prev.map(t => `${t.chunk_start_time != null ? t.chunk_start_time.toFixed(2) : t.sequence_id ?? 'x'}|${t.source_type || ''}|${(t.text || '').slice(0, 120)}`)
           );
+
+          const uniqueNewTranscripts = allNewTranscripts.filter(transcript => {
+            if (transcript.sequence_id !== undefined && existingSequenceIds.has(transcript.sequence_id)) {
+              return false;
+            }
+            const fp = `${transcript.chunk_start_time != null ? transcript.chunk_start_time.toFixed(2) : transcript.sequence_id ?? 'x'}|${transcript.source_type || ''}|${(transcript.text || '').slice(0, 120)}`;
+            if (existingFingerprints.has(fp)) {
+              return false;
+            }
+            existingFingerprints.add(fp);
+            return true;
+          });
 
           // Only combine if we have unique new transcripts
           if (uniqueNewTranscripts.length === 0) {

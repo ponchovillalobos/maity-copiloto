@@ -104,9 +104,7 @@ function SuggestionCard({ suggestion, idx = 0 }: { suggestion: CoachSuggestion; 
         <span className={`${style.color}`}>{style.icon}</span>
         <span className={`text-[10px] uppercase tracking-wide font-medium ${style.color}`}>{style.label}</span>
         <span className={`text-[9px] font-medium ${tipMeta.accent}`}>· {tipMeta.label}</span>
-        {suggestion.technique && (
-          <span className="text-[9px] text-gray-500 ml-auto">({suggestion.technique})</span>
-        )}
+        {/* technique hidden — noise in real-time coaching */}
       </div>
       <p className="text-[13px] leading-snug text-gray-50 font-medium">
         {suggestion.tip}

@@ -283,7 +283,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
    *
    * @param suggestedCategory Pista opcional del trigger detector (categoría de señal detectada)
    */
-  const triggerNow = useCallback(async (suggestedCategory?: string) => {
+  const triggerNow = useCallback(async (suggestedCategory?: string, triggerSignalParam?: string) => {
     if (loadingRef.current) {
       logger.debug('[Coach] Skip: ya hay request en vuelo');
       return;
@@ -342,6 +342,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         minute,
         previousTips,
         suggestedCategory: suggestedCategory ?? null,
+        triggerSignal: triggerSignalParam ?? null,
       });
 
       // Filtro de confianza
@@ -349,6 +350,19 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         logger.debug(
           `[Coach] Sugerencia descartada por baja confianza: ${suggestion.confidence}`
         );
+        return;
+      }
+
+      // Filtro de calidad: tips correctivos/observación DEBEN tener frase concreta
+      const tipText = suggestion.tip || '';
+      const hasQuotedPhrase = tipText.includes("'") || tipText.includes(":");
+      const isVague = /\b(empatiza|conecta|rapport|escucha activa|framework|LATTE|SPIN|HEARD|MEDDPICC)\b/i.test(tipText);
+      if (isVague) {
+        logger.debug(`[Coach] Tip descartado por jerga/vaguedad: ${tipText}`);
+        return;
+      }
+      if (!hasQuotedPhrase && (suggestion.tip_type === 'corrective' || suggestion.tip_type === 'observation')) {
+        logger.debug(`[Coach] Tip ${suggestion.tip_type} descartado por no tener frase concreta: ${tipText}`);
         return;
       }
 
@@ -546,101 +560,109 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!enabled || !isRecording) return;
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
 
-    listen<any>('transcript-update', async (event) => {
-      const u = event.payload;
-      if (
-        !u ||
-        u.is_partial === true ||
-        !u.text ||
-        u.text.trim().length < 5
-      ) {
-        return;
-      }
-      // Analyze triggers for BOTH user and interlocutor speech
-      const isInterlocutor = u.source_type === 'interlocutor';
-
-      // Profanity detection differentiated by speaker
-      const profanityRegex = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche)\b/i;
-      if (profanityRegex.test(u.text)) {
-        if (isInterlocutor) {
-          // CLIENT angry — coach user on how to calm them
-          const calmClientTip = {
-            tip: "Cliente alterado. Usa LATTE: Listen, Acknowledge, Take action. No respondas a groseria, empatiza con su frustracion.",
-            category: "service",
-            confidence: 0.98,
-            priority: "critical" as const,
-            timestamp: Date.now(),
-            model: "heuristic",
-            latency_ms: 0,
-          };
-          setSuggestions(prev => [calmClientTip, ...prev].slice(0, MAX_SUGGESTIONS));
-          lastTipTimestampRef.current = Date.now();
-          // Don't return - still analyze for other triggers
-        } else {
-          // USER losing control — self-regulation tip
-          const selfControlTip = {
-            tip: "⚠️ Estas perdiendo profesionalismo. Respira. Pide disculpas al cliente. Retoma el tono empatico.",
-            category: "self_control",
-            confidence: 0.98,
-            priority: "critical" as const,
-            timestamp: Date.now(),
-            model: "heuristic",
-            latency_ms: 0,
-          };
-          setSuggestions(prev => [selfControlTip, ...prev].slice(0, MAX_SUGGESTIONS));
-          lastTipTimestampRef.current = Date.now();
-          return; // User profanity is urgent, skip LLM tip
-        }
-      }
-
-      try {
-        const signals = await invoke<Array<{ category: string; priority: string; signal: string }>>(
-          'coach_analyze_trigger',
-          { text: u.text, isInterlocutor }
-        );
-
-        if (signals.length === 0) {
-          logger.debug('[Coach] Sin señales en turno, skip');
+    const setup = async () => {
+      const fn = await listen<any>('transcript-update', async (event) => {
+        if (cancelled) return;
+        const u = event.payload;
+        if (
+          !u ||
+          u.is_partial === true ||
+          !u.text ||
+          u.text.trim().length < 5
+        ) {
           return;
         }
+        // Analyze triggers for BOTH user and interlocutor speech
+        const isInterlocutor = u.source_type === 'interlocutor';
 
-        const top = signals[0];
-        logger.info(`[Coach] Señal detectada: ${top.signal} (${top.priority}) → categoría ${top.category}`);
-
-        // Post-precio: activar suppress de 15s
-        if (top.signal === 'price_discussion' || top.signal === 'objection_detected') {
-          const priceDetected = u.text.toLowerCase().match(/precio|cuesta|costo|caro|cara|presupuesto/);
-          if (priceDetected) {
-            suppressUntilRef.current = Date.now() + POST_PRICE_SUPPRESS_MS;
-            logger.info('[Coach] Post-precio: suppress 15s activo');
+        // Profanity detection differentiated by speaker
+        const profanityRegex = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche)\b/i;
+        if (profanityRegex.test(u.text)) {
+          if (isInterlocutor) {
+            // CLIENT angry — coach user on how to calm them
+            const calmClientTip = {
+              tip: "Cliente molesto. Dile: 'Entiendo tu frustración, tienes razón. ¿Cómo puedo solucionarlo?'",
+              category: "service",
+              confidence: 0.98,
+              priority: "critical" as const,
+              timestamp: Date.now(),
+              model: "heuristic",
+              latency_ms: 0,
+            };
+            setSuggestions(prev => [calmClientTip, ...prev].slice(0, MAX_SUGGESTIONS));
+            lastTipTimestampRef.current = Date.now();
+          } else {
+            // USER losing control — self-regulation tip
+            const selfControlTip = {
+              tip: "Cuidado con tu tono. Di: 'Disculpa si sonó brusco, quiero ayudarte. Vamos a resolverlo juntos.'",
+              category: "self_control",
+              confidence: 0.98,
+              priority: "critical" as const,
+              timestamp: Date.now(),
+              model: "heuristic",
+              latency_ms: 0,
+            };
+            setSuggestions(prev => [selfControlTip, ...prev].slice(0, MAX_SUGGESTIONS));
+            lastTipTimestampRef.current = Date.now();
+            return; // User profanity is urgent, skip LLM tip
           }
         }
 
-        // Disparar tip con pista de categoría
-        if (top.priority === 'critical' || top.priority === 'important') {
-          await triggerNow(top.category);
-        } else if (top.priority === 'soft') {
-          // Soft: respeta ventana 30-40s para no saturar.
+        try {
+          const signals = await invoke<Array<{ category: string; priority: string; signal: string }>>(
+            'coach_analyze_trigger',
+            { text: u.text, isInterlocutor }
+          );
+
+          if (signals.length === 0) {
+            logger.debug('[Coach] Sin señales en turno, skip');
+            return;
+          }
+
+          const top = signals[0];
+          logger.info(`[Coach] Señal detectada: ${top.signal} (${top.priority}) → categoría ${top.category}`);
+
+          // Post-precio: activar suppress de 15s
+          if (top.signal === 'price_discussion' || top.signal === 'objection_detected') {
+            const priceDetected = u.text.toLowerCase().match(/precio|cuesta|costo|caro|cara|presupuesto/);
+            if (priceDetected) {
+              suppressUntilRef.current = Date.now() + POST_PRICE_SUPPRESS_MS;
+              logger.info('[Coach] Post-precio: suppress 15s activo');
+            }
+          }
+
+          // Disparar tip con pista de categoría + signal (speaker attribution)
+          if (top.priority === 'critical' || top.priority === 'important') {
+            await triggerNow(top.category, top.signal);
+          } else if (top.priority === 'soft') {
+            const age = Date.now() - lastTipTimestampRef.current;
+            if (age > 35_000) {
+              await triggerNow(top.category, top.signal);
+            }
+          }
+        } catch (e) {
+          logger.warn(`[Coach] Error en trigger analyze: ${e}`);
           const age = Date.now() - lastTipTimestampRef.current;
           if (age > 35_000) {
-            await triggerNow(top.category);
+            logger.info('[Coach] Fallback: trigger fallo, intentando tip generico');
+            await triggerNow(undefined);
           }
         }
-      } catch (e) {
-        logger.warn(`[Coach] Error en trigger analyze: ${e}`);
-        // Fallback: respeta ventana 30-40s
-        const age = Date.now() - lastTipTimestampRef.current;
-        if (age > 35_000) {
-          logger.info('[Coach] Fallback: trigger fallo, intentando tip generico');
-          await triggerNow(undefined);
-        }
+      });
+
+      if (cancelled) {
+        fn();
+      } else {
+        unlisten = fn;
       }
-    }).then((fn) => {
-      unlisten = fn;
-    });
+    };
+
+    setup();
 
     return () => {
+      cancelled = true;
       if (unlisten) unlisten();
     };
   }, [enabled, isRecording, triggerNow]);
@@ -955,21 +977,29 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     if (!enabled || !isRecording) return;
     const timer = setInterval(async () => {
       const age = Date.now() - lastTipTimestampRef.current;
-      // Ventana 30-40s: garantiza que aparezca un tip al menos cada 35s,
-      // pero no antes de 30s (evita saturar al usuario).
-      if (age >= 30_000 && age <= 60_000) {
-        try {
-          await triggerNow(undefined);
-        } catch (e) {
-          // Silent - periodic tip failed, will retry next interval
+      if (age < 30_000) return;
+
+      // Determinar quién habló más reciente para dar contexto al LLM
+      const all = transcriptsRef.current ?? [];
+      const recent = all.slice(-3);
+      let lastSpeaker = 'unknown';
+      for (let i = recent.length - 1; i >= 0; i--) {
+        const st = (recent[i] as any).source_type;
+        if (st === 'user' || st === 'interlocutor') {
+          lastSpeaker = st;
+          break;
         }
-      } else if (age > 60_000) {
-        // Si pasaron >60s sin tip (p.ej. grabación recién arrancó), dispara ahora.
-        try {
-          await triggerNow(undefined);
-        } catch (e) {
-          /* ignore */
-        }
+      }
+      // Signal contextual: indica al LLM que es un chequeo periódico
+      // y quién habló último para que no confunda speakers
+      const periodicSignal = lastSpeaker === 'interlocutor'
+        ? 'periodic_check_last_speaker_interlocutor'
+        : 'periodic_check_last_speaker_user';
+
+      try {
+        await triggerNow(undefined, periodicSignal);
+      } catch (e) {
+        // Silent - periodic tip failed, will retry next interval
       }
     }, 5_000);
     return () => clearInterval(timer);
