@@ -5,6 +5,7 @@
 //!
 //! 100% local: solo proveedor Ollama permitido. Reusa `summary::llm_client`.
 
+pub mod bookmarks;
 pub mod chat;
 pub mod commands;
 pub mod context;
@@ -18,6 +19,7 @@ mod stress_tests;
 #[cfg(test)]
 mod perf_tests;
 
+pub use bookmarks::{coach_add_bookmark, coach_delete_bookmark, coach_get_bookmarks, Bookmark};
 pub use chat::{coach_chat, ChatResponse};
 pub use commands::{
     coach_get_status, coach_set_model, coach_suggest, CoachStatus, CoachSuggestion,

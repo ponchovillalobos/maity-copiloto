@@ -17,6 +17,7 @@ import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loa
 import { useCoach, CoachSuggestion, CoachChatMessage } from '@/contexts/CoachContext';
 import { ConnectionThermometer } from './ConnectionThermometer';
 import { MeetingTypeBadge } from './MeetingTypeBadge';
+import { BookmarkButton } from './BookmarkButton';
 
 // Skeleton loader para tips durante carga
 function SkeletonTipCard() {
@@ -349,17 +350,20 @@ export function CoachPanel() {
         trend={metrics.connectionTrend}
       />
 
-      {/* Acciones secundarias (Tip ahora / Limpiar) */}
+      {/* Acciones secundarias (Tip ahora / Marcar / Limpiar) */}
       <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-b border-gray-800 bg-gray-900/30">
         {tab === 'tips' && (
-          <button
-            onClick={() => triggerNow()}
-            disabled={loading || !!ollamaDown}
-            className="text-[10px] px-2 py-1 rounded bg-blue-600/20 text-blue-200 border border-blue-500/30 hover:bg-blue-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            title="Pedir sugerencia ahora"
-          >
-            Tip ahora
-          </button>
+          <>
+            <BookmarkButton />
+            <button
+              onClick={() => triggerNow()}
+              disabled={loading || !!ollamaDown}
+              className="text-[10px] px-2 py-1 rounded bg-blue-600/20 text-blue-200 border border-blue-500/30 hover:bg-blue-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              title="Pedir sugerencia ahora"
+            >
+              Tip ahora
+            </button>
+          </>
         )}
         {tab === 'chat' && chatMessages.length > 0 && (
           <button

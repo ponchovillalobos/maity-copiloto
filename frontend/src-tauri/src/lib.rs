@@ -1240,6 +1240,10 @@ pub fn run() {
             coach::nudge_engine::coach_evaluate_nudge,
             coach::meeting_type::coach_detect_meeting_type,
             coach::meeting_type::coach_clear_meeting_type_cache,
+            // Coach bookmarks
+            coach::bookmarks::coach_add_bookmark,
+            coach::bookmarks::coach_get_bookmarks,
+            coach::bookmarks::coach_delete_bookmark,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,
