@@ -6,6 +6,7 @@ import { Transcript, Summary, SummaryResponse, TranscriptSegmentData } from '@/t
 import { useSidebar } from '@/components/Sidebar/SidebarProvider';
 import Analytics from '@/lib/analytics';
 import { TranscriptPanel } from '@/components/MeetingDetails/TranscriptPanel';
+import { MeetingTimeline } from '@/components/MeetingDetails/MeetingTimeline';
 
 const SummaryPanel = dynamic(
   () => import('@/components/MeetingDetails/SummaryPanel').then(mod => mod.SummaryPanel),
@@ -157,6 +158,9 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen bg-[#f5f5f6] dark:bg-gray-900"
     >
+      {segments && segments.length > 0 && (
+        <MeetingTimeline segments={segments} />
+      )}
       <div className="flex flex-1 overflow-hidden">
         <TranscriptPanel
           transcripts={meetingData.transcripts}
