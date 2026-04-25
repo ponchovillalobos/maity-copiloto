@@ -12,13 +12,15 @@ import type { SummaryPollingResult } from '@/hooks/meeting-details/types';
 interface SidebarItem {
   id: string;
   title: string;
-  type: 'folder' | 'file';
+  type: 'folder' | 'file' | 'group-header';
   children?: SidebarItem[];
+  createdAt?: string;
 }
 
 export interface CurrentMeeting {
   id: string;
   title: string;
+  createdAt?: string;
 }
 
 // Search result type for transcript search
@@ -88,10 +90,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const fetchMeetings = React.useCallback(async () => {
     if (serverAddress) {
       try {
-        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string }>;
+        const meetings = await invoke('api_get_meetings') as Array<{ id: string, title: string, createdAt?: string }>;
         const transformedMeetings = meetings.map((meeting) => ({
           id: meeting.id,
-          title: meeting.title
+          title: meeting.title,
+          createdAt: meeting.createdAt,
         }));
         setMeetings(transformedMeetings);
         Analytics.trackBackendConnection(true);
@@ -115,16 +118,71 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     fetchSettings();
   }, []);
 
-  const baseItems: SidebarItem[] = useMemo(() => [
-    {
-      id: 'meetings',
-      title: '📋 Notas de Reunión',
-      type: 'folder' as const,
-      children: [
-        ...meetings.map(meeting => ({ id: meeting.id, title: meeting.title, type: 'file' as const }))
-      ]
-    },
-  ], [meetings]);
+  const baseItems: SidebarItem[] = useMemo(() => {
+    const groupChildren: SidebarItem[] = [];
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfYesterday = startOfToday - 24 * 60 * 60 * 1000;
+    const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    const startOfWeek = startOfToday - dayOfWeek * 24 * 60 * 60 * 1000;
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    const buckets: Array<{ key: string; label: string; items: CurrentMeeting[] }> = [
+      { key: 'today', label: 'Hoy', items: [] },
+      { key: 'yesterday', label: 'Ayer', items: [] },
+      { key: 'this-week', label: 'Esta semana', items: [] },
+      { key: 'this-month', label: 'Este mes', items: [] },
+      { key: 'older', label: 'Anteriores', items: [] },
+      { key: 'undated', label: 'Sin fecha', items: [] },
+    ];
+
+    for (const meeting of meetings) {
+      if (!meeting.createdAt) {
+        buckets[5].items.push(meeting);
+        continue;
+      }
+      const ts = Date.parse(meeting.createdAt);
+      if (Number.isNaN(ts)) {
+        buckets[5].items.push(meeting);
+      } else if (ts >= startOfToday) {
+        buckets[0].items.push(meeting);
+      } else if (ts >= startOfYesterday) {
+        buckets[1].items.push(meeting);
+      } else if (ts >= startOfWeek) {
+        buckets[2].items.push(meeting);
+      } else if (ts >= startOfMonth) {
+        buckets[3].items.push(meeting);
+      } else {
+        buckets[4].items.push(meeting);
+      }
+    }
+
+    for (const bucket of buckets) {
+      if (bucket.items.length === 0) continue;
+      groupChildren.push({
+        id: `group-${bucket.key}`,
+        title: bucket.label,
+        type: 'group-header' as const,
+      });
+      for (const meeting of bucket.items) {
+        groupChildren.push({
+          id: meeting.id,
+          title: meeting.title,
+          type: 'file' as const,
+          createdAt: meeting.createdAt,
+        });
+      }
+    }
+
+    return [
+      {
+        id: 'meetings',
+        title: '📋 Notas de Reunión',
+        type: 'folder' as const,
+        children: groupChildren,
+      },
+    ];
+  }, [meetings]);
 
 
   const toggleCollapse = () => {

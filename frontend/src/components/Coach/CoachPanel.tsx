@@ -13,7 +13,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loader2, WifiOff, Send, MessageSquare, Lightbulb, HandCoins, Users2, DollarSign, HelpCircle, ChevronDown } from 'lucide-react';
+import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loader2, WifiOff, Send, MessageSquare, Lightbulb, HandCoins, Users2, DollarSign, HelpCircle, ChevronDown, PictureInPicture2 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { useCoach, CoachSuggestion, CoachChatMessage } from '@/contexts/CoachContext';
 import { useProgressEvents } from '@/hooks/useProgressEvents';
 import { ConnectionThermometer } from './ConnectionThermometer';
@@ -342,6 +343,14 @@ export function CoachPanel() {
           )}
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => invoke('open_floating_coach').catch(console.error)}
+            className="p-1 rounded hover:bg-white/10 text-blue-300/80 hover:text-blue-300"
+            title="Ventana flotante (always-on-top)"
+            aria-label="Abrir ventana flotante"
+          >
+            <PictureInPicture2 className="w-4 h-4" />
+          </button>
           <HelpMenuButton />
           <MeetingTypeBadge
             value={meetingType}

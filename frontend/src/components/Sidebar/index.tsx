@@ -36,8 +36,9 @@ import { QuickActions } from './QuickActions';
 interface SidebarItem {
   id: string;
   title: string;
-  type: 'folder' | 'file';
+  type: 'folder' | 'file' | 'group-header';
   children?: SidebarItem[];
+  createdAt?: string;
 }
 
 const Sidebar: React.FC = () => {
@@ -258,63 +259,28 @@ const Sidebar: React.FC = () => {
   const filteredSidebarItems = useMemo(() => {
     if (!searchQuery.trim()) return sidebarItems;
 
-    // If we have search results, highlight matching meetings
-    if (searchResults.length > 0) {
-      // Get the IDs of meetings that matched in transcripts
-      const matchedMeetingIds = new Set(searchResults.map(result => result.id));
+    const matchedMeetingIds = new Set(searchResults.map(result => result.id));
+    const lowered = searchQuery.toLowerCase();
 
-      return sidebarItems
-        .map(folder => {
-          // Always include folders in the results
-          if (folder.type === 'folder') {
-            if (!folder.children) return folder;
+    const matchesFile = (item: SidebarItem) => {
+      if (matchedMeetingIds.has(item.id)) return true;
+      return item.title.toLowerCase().includes(lowered);
+    };
 
-            // Filter children based on search results or title match
-            const filteredChildren = folder.children.filter(item => {
-              // Include if the meeting ID is in our search results
-              if (matchedMeetingIds.has(item.id)) return true;
-
-              // Or if the title matches the search query
-              return item.title.toLowerCase().includes(searchQuery.toLowerCase());
-            });
-
-            return {
-              ...folder,
-              children: filteredChildren
-            };
-          }
-
-          // For non-folder items, check if they match the search
-          return (matchedMeetingIds.has(folder.id) ||
-            folder.title.toLowerCase().includes(searchQuery.toLowerCase()))
-            ? folder : undefined;
-        })
-        .filter((item): item is SidebarItem => item !== undefined); // Type-safe filter
-    } else {
-      // Fall back to title-only filtering if no transcript results
-      return sidebarItems
-        .map(folder => {
-          // Always include folders in the results
-          if (folder.type === 'folder') {
-            if (!folder.children) return folder;
-
-            // Filter children based on search query
-            const filteredChildren = folder.children.filter(item =>
-              item.title.toLowerCase().includes(searchQuery.toLowerCase())
-            );
-
-            return {
-              ...folder,
-              children: filteredChildren
-            };
-          }
-
-          // For non-folder items, check if they match the search
-          return folder.title.toLowerCase().includes(searchQuery.toLowerCase()) ? folder : undefined;
-        })
-        .filter((item): item is SidebarItem => item !== undefined); // Type-safe filter
-    }
-  }, [sidebarItems, searchQuery, searchResults, expandedFolders]);
+    return sidebarItems
+      .map(folder => {
+        if (folder.type === 'folder') {
+          if (!folder.children) return folder;
+          // Drop group headers entirely when searching; keep only matching files
+          const filteredChildren = folder.children.filter(child =>
+            child.type === 'file' && matchesFile(child)
+          );
+          return { ...folder, children: filteredChildren };
+        }
+        return matchesFile(folder) ? folder : undefined;
+      })
+      .filter((item): item is SidebarItem => item !== undefined);
+  }, [sidebarItems, searchQuery, searchResults]);
 
 
   const handleDelete = async (itemId: string) => {
@@ -524,13 +490,25 @@ const Sidebar: React.FC = () => {
     const isExpanded = expandedFolders.has(item.id);
     const paddingLeft = `${depth * 12 + 12}px`;
     const isActive = item.type === 'file' && currentMeeting?.id === item.id;
-    const isMeetingItem = item.id.includes('-') && !item.id.startsWith('intro-call');
+    const isMeetingItem = item.type === 'file' && item.id.includes('-') && !item.id.startsWith('intro-call') && !item.id.startsWith('group-');
 
     // Check if this item has a matching transcript snippet
     const matchingResult = isMeetingItem ? findMatchingSnippet(item.id) : null;
     const hasTranscriptMatch = !!matchingResult;
 
     if (isCollapsed) return null;
+
+    if (item.type === 'group-header') {
+      return (
+        <div
+          key={item.id}
+          className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[#8a8a8d] dark:text-gray-500 select-none"
+          style={{ paddingLeft }}
+        >
+          {item.title}
+        </div>
+      );
+    }
 
     return (
       <div key={item.id}>

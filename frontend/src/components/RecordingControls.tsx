@@ -357,10 +357,10 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                 <>
                   <button
                     onClick={handleStartRecording}
-                    className="w-10 h-10 flex items-center justify-center bg-[#ff0050] rounded-full text-white hover:bg-[#cc0040] transition-colors"
+                    className="w-14 h-14 flex items-center justify-center bg-[#ff0050] rounded-full text-white hover:bg-[#cc0040] transition-colors shadow-lg"
                     aria-label="Nueva grabación"
                   >
-                    <Mic size={16} />
+                    <Mic size={22} />
                   </button>
 
                   <div className="w-px h-6 bg-[#d0d0d3] dark:bg-gray-600 mx-1" />
@@ -383,11 +383,11 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                   </div>
 
                   <button
-                    className="w-10 h-10 flex items-center justify-center bg-[#b0b0b3] rounded-full text-white cursor-not-allowed"
+                    className="w-14 h-14 flex items-center justify-center bg-[#b0b0b3] rounded-full text-white cursor-not-allowed"
                     disabled
                     aria-label="Reproducir grabación"
                   >
-                    <Play size={16} />
+                    <Play size={22} />
                   </button>
                 </>
               ) : (
@@ -402,14 +402,14 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             handleStartRecording();
                           }}
                           disabled={isStarting || isProcessing || isRecordingDisabled || isValidatingModel}
-                          className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-[#8a8a8d]' : 'bg-[#ff0050] hover:bg-[#cc0040]'
-                            } rounded-full text-white transition-colors relative`}
+                          className={`w-16 h-16 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-[#8a8a8d]' : 'bg-[#ff0050] hover:bg-[#cc0040]'
+                            } rounded-full text-white transition-colors shadow-xl relative`}
                           aria-label="Iniciar grabación"
                         >
                           {isValidatingModel ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
                           ) : (
-                            <Mic size={20} />
+                            <Mic size={28} />
                           )}
                         </button>
                       </TooltipTrigger>
@@ -433,13 +433,13 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                               }
                             }}
                             disabled={isPausing || isResuming || isStopping}
-                            className={`w-10 h-10 flex items-center justify-center ${isPausing || isResuming || isStopping
+                            className={`w-14 h-14 flex items-center justify-center ${isPausing || isResuming || isStopping
                               ? 'bg-[#d0d0d3] dark:bg-gray-600 border-2 border-[#d0d0d3] dark:border-gray-600 text-[#8a8a8d]'
                               : 'bg-white dark:bg-gray-800 border-2 border-[#d0d0d3] dark:border-gray-600 text-[#4a4a4c] dark:text-gray-300 hover:border-gray-400 hover:bg-[#f5f5f6] dark:hover:bg-gray-700'
-                              } rounded-full transition-colors relative`}
+                              } rounded-full transition-colors shadow-md relative`}
                             aria-label={isPaused ? 'Reanudar grabación' : 'Pausar grabación'}
                           >
-                            {isPaused ? <Play size={16} /> : <Pause size={16} />}
+                            {isPaused ? <Play size={22} /> : <Pause size={22} />}
                             {(isPausing || isResuming) && (
                               <div className="absolute -top-8 text-[#4a4a4c] dark:text-gray-300 font-medium text-xs">
                                 {isPausing ? 'Pausando...' : 'Reanudando...'}
@@ -460,11 +460,11 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                               handleStopRecording();
                             }}
                             disabled={isStopping || isPausing || isResuming}
-                            className={`w-10 h-10 flex items-center justify-center ${isStopping || isPausing || isResuming ? 'bg-[#8a8a8d]' : 'bg-[#ff0050] hover:bg-[#cc0040]'
-                              } rounded-full text-white transition-colors relative`}
+                            className={`w-14 h-14 flex items-center justify-center ${isStopping || isPausing || isResuming ? 'bg-[#8a8a8d]' : 'bg-[#ff0050] hover:bg-[#cc0040]'
+                              } rounded-full text-white transition-colors shadow-md relative`}
                             aria-label="Detener grabación"
                           >
-                            <Square size={16} />
+                            <Square size={22} />
                             {isStopping && (
                               <div className="absolute -top-8 text-[#4a4a4c] dark:text-gray-300 font-medium text-xs">
                                 Deteniendo...
@@ -481,13 +481,13 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
                   {/* Audio level meters */}
                   {audioLevels && (
-                    <div className="flex flex-col gap-0.5 mx-3 min-w-[120px]">
+                    <div className="flex flex-col gap-1 mx-3 min-w-[160px]">
                       <AudioLevelMeter
                         rmsLevel={isPaused ? 0 : audioLevels.micRms}
                         peakLevel={isPaused ? 0 : audioLevels.micPeak}
                         isActive={!isPaused && audioLevels.micRms > 0.001}
                         deviceName="Mic"
-                        size="small"
+                        size="medium"
                         variant="mic"
                       />
                       <AudioLevelMeter
@@ -495,7 +495,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                         peakLevel={isPaused ? 0 : audioLevels.sysPeak}
                         isActive={!isPaused && audioLevels.sysRms > 0.001}
                         deviceName="Sistema"
-                        size="small"
+                        size="medium"
                         variant="system"
                       />
                     </div>

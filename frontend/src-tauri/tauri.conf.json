@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "Maity",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "identifier": "com.maity.ai",
     "build": {
         "frontendDist": "../out",
@@ -12,6 +12,7 @@
     "app": {
         "windows": [
             {
+                "label": "main",
                 "title": "Maity",
                 "width": 1100,
                 "height": 700,
@@ -36,6 +37,25 @@
                 ]
             },
             "capabilities": [
+                {
+                    "identifier": "coach-floating",
+                    "description": "Floating coach overlay window permissions",
+                    "windows": [
+                        "coach-floating"
+                    ],
+                    "permissions": [
+                        "core:default",
+                        "core:event:default",
+                        "core:window:default",
+                        "core:window:allow-set-always-on-top",
+                        "core:window:allow-set-size",
+                        "core:window:allow-set-position",
+                        "core:window:allow-show",
+                        "core:window:allow-hide",
+                        "core:window:allow-close",
+                        "core:webview:default"
+                    ]
+                },
                 {
                     "identifier": "main",
                     "description": "Main window capability with file system and media access",

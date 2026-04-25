@@ -8,10 +8,15 @@
 //! adaptado al proyecto: provider FIJO Ollama (privacidad), parser tolerante,
 //! tests unitarios.
 
+use crate::coach::evaluation_types::MeetingEvaluation;
+use crate::coach::prompts::evaluation_v4::{EVALUATION_V4_SYSTEM_PROMPT, PROMPT_VERSION};
+use crate::state::AppState;
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use sqlx::SqlitePool;
 use std::time::Duration;
+use tauri::Manager;
 
 /// Observaciones detalladas por categoría.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -370,5 +375,215 @@ mod tests {
         assert_eq!(m.filler_count, 0);
         assert_eq!(m.avg_user_turn_words, 0.0);
         assert_eq!(m.user_talk_ratio, 0.0);
+    }
+}
+
+// ============================================================================
+// EVALUACIÓN POST-MEETING v4 (Gemma 4) — JSON estructurado completo
+// ============================================================================
+
+/// Resultado persistido de evaluación post-meeting.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostMeetingEvaluationResult {
+    pub meeting_id: String,
+    pub evaluation: MeetingEvaluation,
+    pub model_used: String,
+    pub prompt_version: String,
+    pub latency_ms: u64,
+    pub created_at: String,
+}
+
+/// Modelo Gemma 4 sugerido por defecto. Configurable vía settings o argumento.
+pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:4b";
+
+/// Genera evaluación profunda post-meeting con Gemma 4 (~12k chars JSON).
+/// Persiste en `meeting_evaluations` y devuelve el resultado completo.
+#[tauri::command]
+pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    meeting_id: String,
+    transcript: String,
+    previous_session_id: Option<String>,
+    evaluation_model: Option<String>,
+) -> Result<PostMeetingEvaluationResult, String> {
+    if transcript.trim().len() < 100 {
+        return Err("Transcripción demasiado corta para evaluación profunda (min 100 caracteres)".to_string());
+    }
+
+    let model = evaluation_model.unwrap_or_else(|| DEFAULT_EVALUATION_MODEL.to_string());
+
+    let prev_score: Option<f32> = if let Some(prev_id) = previous_session_id.as_ref() {
+        if let Some(state) = app.try_state::<AppState>() {
+            let pool = state.db_manager.pool();
+            sqlx::query_scalar::<_, Option<f32>>(
+                "SELECT puntuacion_global FROM meeting_evaluations WHERE meeting_id = ?",
+            )
+            .bind(prev_id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let user_prompt = format!(
+        "Analiza la siguiente transcripción de reunión.\n\n\
+         meeting_id: {}\n\
+         sesion_anterior_id: {}\n\
+         puntuacion_anterior: {}\n\n\
+         <transcripcion>\n{}\n</transcripcion>\n\n\
+         Responde SOLO con el JSON completo según la estructura definida.",
+        meeting_id,
+        previous_session_id.as_deref().unwrap_or("null"),
+        prev_score
+            .map(|s| format!("{:.1}", s))
+            .unwrap_or_else(|| "null".to_string()),
+        transcript
+    );
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(180))
+        .build()
+        .map_err(|e| format!("Error creando cliente HTTP: {}", e))?;
+
+    let start = std::time::Instant::now();
+
+    let raw = generate_summary(
+        &client,
+        &LLMProvider::Ollama,
+        &model,
+        "",
+        EVALUATION_V4_SYSTEM_PROMPT,
+        &user_prompt,
+        None,
+        None,
+        Some(4096),
+        Some(0.2),
+        Some(0.9),
+        None,
+        None,
+    )
+    .await
+    .map_err(|e| format!("Error LLM (¿modelo {} no instalado? `ollama pull {}`): {}", model, model, e))?;
+
+    let latency_ms = start.elapsed().as_millis() as u64;
+
+    let json_str = extract_json_from_response(&raw);
+    let mut evaluation: MeetingEvaluation = serde_json::from_str(&json_str)
+        .map_err(|e| format!("JSON inválido del evaluador v4: {} | raw len={}", e, raw.len()))?;
+
+    if evaluation.identificacion.sesion_id.is_none() {
+        evaluation.identificacion.sesion_id = Some(meeting_id.clone());
+    }
+    if evaluation.identificacion.version_prompt.is_empty() {
+        evaluation.identificacion.version_prompt = PROMPT_VERSION.to_string();
+    }
+    if let Some(prev_id) = previous_session_id.as_ref() {
+        evaluation.historico.sesion_anterior_id = Some(prev_id.clone());
+        if let Some(prev) = prev_score {
+            let delta = evaluation.resumen.puntuacion_global - prev;
+            evaluation.historico.tendencia_global = Some(delta);
+        }
+    }
+
+    if let Some(state) = app.try_state::<AppState>() {
+        let pool = state.db_manager.pool();
+        if let Err(e) = persist_evaluation(pool, &meeting_id, &evaluation, &model, previous_session_id.as_deref()).await {
+            log::warn!("No se pudo persistir evaluación: {}", e);
+        }
+    }
+
+    Ok(PostMeetingEvaluationResult {
+        meeting_id,
+        evaluation,
+        model_used: model,
+        prompt_version: PROMPT_VERSION.to_string(),
+        latency_ms,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    })
+}
+
+async fn persist_evaluation(
+    pool: &SqlitePool,
+    meeting_id: &str,
+    evaluation: &MeetingEvaluation,
+    model_used: &str,
+    sesion_anterior_id: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    let json_str = serde_json::to_string(evaluation)
+        .unwrap_or_else(|_| "{}".to_string());
+    let nivel = if evaluation.resumen.nivel.is_empty() {
+        evaluation.calidad_global.nivel.clone()
+    } else {
+        evaluation.resumen.nivel.clone()
+    };
+    let puntuacion = if evaluation.resumen.puntuacion_global > 0.0 {
+        evaluation.resumen.puntuacion_global
+    } else {
+        evaluation.calidad_global.puntaje
+    };
+
+    sqlx::query(
+        "INSERT INTO meeting_evaluations
+            (meeting_id, evaluation_json, model_used, prompt_version,
+             puntuacion_global, nivel, duration_minutes, sesion_anterior_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(meeting_id) DO UPDATE SET
+            evaluation_json = excluded.evaluation_json,
+            model_used = excluded.model_used,
+            prompt_version = excluded.prompt_version,
+            puntuacion_global = excluded.puntuacion_global,
+            nivel = excluded.nivel,
+            duration_minutes = excluded.duration_minutes,
+            sesion_anterior_id = excluded.sesion_anterior_id,
+            created_at = CURRENT_TIMESTAMP",
+    )
+    .bind(meeting_id)
+    .bind(json_str)
+    .bind(model_used)
+    .bind(PROMPT_VERSION)
+    .bind(puntuacion as f64)
+    .bind(nivel)
+    .bind(evaluation.meta.duracion_minutos as i64)
+    .bind(sesion_anterior_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Recupera evaluación previamente persistida (None si no existe aún).
+#[tauri::command]
+pub async fn coach_get_post_meeting_evaluation(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<Option<PostMeetingEvaluationResult>, String> {
+    let pool = state.db_manager.pool();
+    let row: Option<(String, String, String, String)> = sqlx::query_as(
+        "SELECT evaluation_json, model_used, prompt_version, created_at
+         FROM meeting_evaluations WHERE meeting_id = ?",
+    )
+    .bind(&meeting_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| format!("DB error: {}", e))?;
+
+    if let Some((json_str, model_used, prompt_version, created_at)) = row {
+        let evaluation: MeetingEvaluation = serde_json::from_str(&json_str)
+            .map_err(|e| format!("Evaluación corrupta en DB: {}", e))?;
+        Ok(Some(PostMeetingEvaluationResult {
+            meeting_id,
+            evaluation,
+            model_used,
+            prompt_version,
+            latency_ms: 0,
+            created_at,
+        }))
+    } else {
+        Ok(None)
     }
 }

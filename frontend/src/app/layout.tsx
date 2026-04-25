@@ -9,6 +9,7 @@ import AnalyticsProvider from '@/components/AnalyticsProvider'
 import { Toaster, toast } from 'sonner'
 import "sonner/dist/styles.css"
 import { useState, useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -50,6 +51,8 @@ export default function RootLayout({
   const [mounted, setMounted] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)
+  const pathname = usePathname()
+  const isFloating = pathname?.startsWith('/floating') ?? false
 
   // Prevent hydration mismatch: render nothing until client mounts.
   // Tauri desktop apps don't benefit from SSR, so this is safe.
@@ -113,6 +116,16 @@ export default function RootLayout({
     setOnboardingCompleted(true)
     // Optionally reload the window to ensure all state is fresh
     window.location.reload()
+  }
+
+  if (isFloating) {
+    return (
+      <html lang="es" className="dark">
+        <body className={`${sourceSans3.variable} font-sans antialiased bg-transparent`} style={{ background: 'transparent' }}>
+          {children}
+        </body>
+      </html>
+    )
   }
 
   return (

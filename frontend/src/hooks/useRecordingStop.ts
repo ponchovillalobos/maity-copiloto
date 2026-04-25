@@ -277,6 +277,12 @@ export function useRecordingStop(
           // Refetch meetings and set current meeting
           await refetchMeetings();
 
+          // Auto-indexar embeddings (fire-and-forget) para habilitar chat con la reunión.
+          import('@tauri-apps/api/core')
+            .then(({ invoke }) => invoke('semantic_index_meeting', { meetingId }))
+            .then(() => logger.debug('🔎 Semantic index triggered for meeting', meetingId))
+            .catch((err) => logger.warn('Semantic index failed (non-blocking):', err));
+
           try {
             const meetingData = await storageService.getMeeting(meetingId);
             if (meetingData) {

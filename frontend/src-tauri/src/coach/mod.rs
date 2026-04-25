@@ -9,10 +9,14 @@ pub mod bookmarks;
 pub mod chat;
 pub mod commands;
 pub mod context;
+pub mod evaluation_types;
 pub mod evaluator;
+pub mod floating;
+pub mod meeting_chat;
 pub mod meeting_type;
 pub mod nudge_engine;
 pub mod prompt;
+pub mod prompts;
 pub mod trigger;
 #[cfg(test)]
 mod stress_tests;

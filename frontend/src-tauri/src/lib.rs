@@ -1242,6 +1242,8 @@ pub fn run() {
             coach::commands::coach_set_model,
             coach::commands::coach_get_status,
             coach::evaluator::coach_evaluate_communication,
+            coach::evaluator::coach_evaluate_post_meeting,
+            coach::evaluator::coach_get_post_meeting_evaluation,
             coach::chat::coach_chat,
             coach::chat::coach_chat_stream,
             auto_setup::auto_setup_retry,
@@ -1253,6 +1255,12 @@ pub fn run() {
             coach::bookmarks::coach_add_bookmark,
             coach::bookmarks::coach_get_bookmarks,
             coach::bookmarks::coach_delete_bookmark,
+            // Coach floating window
+            coach::floating::open_floating_coach,
+            coach::floating::close_floating_coach,
+            coach::floating::floating_toggle_compact,
+            // Coach chat con reunión específica (semantic search + Gemma 4)
+            coach::meeting_chat::chat_with_meeting,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,

@@ -13,6 +13,16 @@ const SummaryPanel = dynamic(
   { loading: () => <div className="animate-pulse h-64 bg-muted rounded-lg" />, ssr: false }
 );
 
+const EvaluationPanel = dynamic(
+  () => import('@/components/MeetingEvaluation/EvaluationPanel').then(mod => mod.EvaluationPanel),
+  { loading: () => <div className="animate-pulse h-64 bg-muted rounded-lg" />, ssr: false }
+);
+
+const MeetingChatPanel = dynamic(
+  () => import('@/components/MeetingChat/MeetingChatPanel').then(mod => mod.MeetingChatPanel),
+  { loading: () => <div className="animate-pulse h-64 bg-muted rounded-lg" />, ssr: false }
+);
+
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
 import { useSummaryGeneration } from '@/hooks/meeting-details/useSummaryGeneration';
@@ -61,6 +71,7 @@ export default function PageContent({
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
+  const [rightTab, setRightTab] = useState<'summary' | 'evaluation' | 'chat'>('summary');
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -180,6 +191,51 @@ export default function PageContent({
           loadedCount={loadedCount}
           onLoadMore={onLoadMore}
         />
+        <div className="flex flex-col flex-1 min-w-0 border-l border-[#e7e7e9] dark:border-gray-700">
+          <div className="flex-shrink-0 flex items-center gap-1 px-3 pt-3 border-b border-[#e7e7e9] dark:border-gray-700 bg-white dark:bg-gray-900">
+            <button
+              onClick={() => setRightTab('summary')}
+              className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
+                rightTab === 'summary'
+                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+              }`}
+            >
+              Resumen
+            </button>
+            <button
+              onClick={() => setRightTab('evaluation')}
+              className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
+                rightTab === 'evaluation'
+                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+              }`}
+            >
+              Evaluación
+            </button>
+            <button
+              onClick={() => setRightTab('chat')}
+              className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
+                rightTab === 'chat'
+                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+              }`}
+            >
+              Chat
+            </button>
+          </div>
+          {rightTab === 'evaluation' ? (
+            <div className="flex-1 overflow-hidden bg-[#f5f5f6] dark:bg-gray-900">
+              <EvaluationPanel
+                meetingId={meeting.id}
+                transcripts={meetingData.transcripts}
+              />
+            </div>
+          ) : rightTab === 'chat' ? (
+            <div className="flex-1 overflow-hidden">
+              <MeetingChatPanel meetingId={meeting.id} />
+            </div>
+          ) : (
         <SummaryPanel
           meeting={meeting}
           meetingTitle={meetingData.meetingTitle}
@@ -215,6 +271,8 @@ export default function PageContent({
           isModelConfigLoading={false}
           onOpenModelSettings={handleRegisterModalOpen}
         />
+          )}
+        </div>
       </div>
     </motion.div>
   );
