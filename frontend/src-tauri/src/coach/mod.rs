@@ -26,7 +26,8 @@ mod perf_tests;
 pub use bookmarks::{coach_add_bookmark, coach_delete_bookmark, coach_get_bookmarks, Bookmark};
 pub use chat::{coach_chat, ChatResponse};
 pub use commands::{
-    coach_get_status, coach_set_model, coach_suggest, CoachStatus, CoachSuggestion,
+    coach_get_models, coach_get_status, coach_set_model, coach_set_model_for_purpose,
+    coach_suggest, CoachModelsConfig, CoachStatus, CoachSuggestion,
 };
 pub use context::{build_context, CoachContext, ContextMode};
 pub use evaluator::{

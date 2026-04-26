@@ -1240,6 +1240,8 @@ pub fn run() {
             // Coach (copiloto IA en tiempo real)
             coach::commands::coach_suggest,
             coach::commands::coach_set_model,
+            coach::commands::coach_set_model_for_purpose,
+            coach::commands::coach_get_models,
             coach::commands::coach_get_status,
             coach::evaluator::coach_evaluate_communication,
             coach::evaluator::coach_evaluate_post_meeting,

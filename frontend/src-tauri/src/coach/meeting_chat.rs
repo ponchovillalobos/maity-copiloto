@@ -79,7 +79,14 @@ pub async fn chat_with_meeting(
     let pool = state.db_manager.pool();
 
     let embed_model = embed_model.unwrap_or_else(|| DEFAULT_EMBED_MODEL.to_string());
-    let chat_model = chat_model.unwrap_or_else(|| DEFAULT_CHAT_MODEL.to_string());
+    let chat_model = chat_model
+        .or_else(|| {
+            crate::coach::commands::CHAT_MODEL
+                .lock()
+                .ok()
+                .map(|m| m.clone())
+        })
+        .unwrap_or_else(|| DEFAULT_CHAT_MODEL.to_string());
     let k = top_k.unwrap_or(DEFAULT_TOP_K as u32).max(1).min(20) as usize;
 
     let client = &*SHARED_CLIENT;

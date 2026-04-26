@@ -41,8 +41,6 @@ pub struct CommunicationMetrics {
     pub closed_questions_count: usize,
     /// Conteo de frases de validación del USER (entiendo, comprendo, veo que...).
     pub validations_given: usize,
-    /// Veces que el USER habló con tono atropellado (turnos rapid_fire).
-    pub rapid_fire_turns: usize,
     /// Promedio de palabras por turno del USER.
     pub avg_user_turn_words: f32,
     /// Talk ratio del USER (0.0-1.0).
@@ -93,10 +91,6 @@ pub fn compute_metrics(user_text: &str, interlocutor_text: &str, user_turn_count
     let norm_user = user_text.to_lowercase();
     let validations_given = VALIDATIONS.iter().map(|v| norm_user.matches(v).count()).sum();
 
-    // Rapid-fire: estimación — cuenta turnos con >50 palabras (aproximación).
-    // No podemos ver los turnos individuales aquí, así que lo dejamos en 0 como fallback.
-    let rapid_fire_turns = 0;
-
     let avg_user_turn_words = if user_turn_count > 0 {
         user_words as f32 / user_turn_count as f32
     } else {
@@ -115,7 +109,6 @@ pub fn compute_metrics(user_text: &str, interlocutor_text: &str, user_turn_count
         open_questions_count: open_q,
         closed_questions_count: closed_q,
         validations_given,
-        rapid_fire_turns,
         avg_user_turn_words,
         user_talk_ratio,
     }
@@ -410,7 +403,14 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         return Err("Transcripción demasiado corta para evaluación profunda (min 100 caracteres)".to_string());
     }
 
-    let model = evaluation_model.unwrap_or_else(|| DEFAULT_EVALUATION_MODEL.to_string());
+    let model = evaluation_model
+        .or_else(|| {
+            crate::coach::commands::EVALUATION_MODEL
+                .lock()
+                .ok()
+                .map(|m| m.clone())
+        })
+        .unwrap_or_else(|| DEFAULT_EVALUATION_MODEL.to_string());
 
     let prev_score: Option<f32> = if let Some(prev_id) = previous_session_id.as_ref() {
         if let Some(state) = app.try_state::<AppState>() {

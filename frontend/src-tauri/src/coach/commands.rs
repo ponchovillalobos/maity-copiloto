@@ -20,6 +20,15 @@ use tauri::Manager;
 pub static CURRENT_MODEL: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new(DEFAULT_MODEL.to_string()));
 
+/// Modelo activo para evaluación post-meeting (configurable por usuario).
+/// Default `gemma3:4b` para compatibilidad con laptops 8GB RAM.
+pub static EVALUATION_MODEL: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("gemma3:4b".to_string()));
+
+/// Modelo activo para chat con reuniones (configurable por usuario).
+pub static CHAT_MODEL: LazyLock<Mutex<String>> =
+    LazyLock::new(|| Mutex::new("gemma3:4b".to_string()));
+
 /// Latencia del último request (ms). 0 = aún no medido.
 static LAST_LATENCY_MS: AtomicU64 = AtomicU64::new(0);
 
@@ -331,6 +340,56 @@ pub fn coach_set_model(model_id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Configuración de los 3 modelos del coach (tips/evaluación/chat).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoachModelsConfig {
+    pub tips_model: String,
+    pub evaluation_model: String,
+    pub chat_model: String,
+}
+
+/// Devuelve los 3 modelos configurados (tips + evaluación + chat).
+#[tauri::command]
+pub fn coach_get_models() -> Result<CoachModelsConfig, String> {
+    let tips_model = CURRENT_MODEL
+        .lock()
+        .map_err(|e| format!("Mutex envenenado tips: {}", e))?
+        .clone();
+    let evaluation_model = EVALUATION_MODEL
+        .lock()
+        .map_err(|e| format!("Mutex envenenado eval: {}", e))?
+        .clone();
+    let chat_model = CHAT_MODEL
+        .lock()
+        .map_err(|e| format!("Mutex envenenado chat: {}", e))?
+        .clone();
+    Ok(CoachModelsConfig {
+        tips_model,
+        evaluation_model,
+        chat_model,
+    })
+}
+
+/// Cambia el modelo de un propósito específico.
+/// `purpose` debe ser "tips" | "evaluation" | "chat".
+#[tauri::command]
+pub fn coach_set_model_for_purpose(purpose: String, model: String) -> Result<(), String> {
+    if model.trim().is_empty() {
+        return Err("Modelo vacío".to_string());
+    }
+    let target = match purpose.as_str() {
+        "tips" => &CURRENT_MODEL,
+        "evaluation" => &EVALUATION_MODEL,
+        "chat" => &CHAT_MODEL,
+        other => return Err(format!("Propósito inválido: {} (válidos: tips/evaluation/chat)", other)),
+    };
+    let mut current = target
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?;
+    *current = model;
+    Ok(())
+}
+
 /// Devuelve el estado del coach: modelo activo, Ollama corriendo, última latencia.
 #[tauri::command]
 pub async fn coach_get_status() -> Result<CoachStatus, String> {
@@ -431,5 +490,25 @@ mod tests {
         assert!(coach_set_model("custom-model:v2".to_string()).is_ok());
         assert!(coach_set_model("".to_string()).is_err());
         assert!(coach_set_model("   ".to_string()).is_err());
+    }
+
+    #[test]
+    fn test_set_model_for_purpose_valida_proposito() {
+        assert!(coach_set_model_for_purpose("tips".to_string(), "phi3.5:latest".to_string()).is_ok());
+        assert!(coach_set_model_for_purpose("evaluation".to_string(), "gemma3:4b".to_string()).is_ok());
+        assert!(coach_set_model_for_purpose("chat".to_string(), "qwen3:8b".to_string()).is_ok());
+        assert!(coach_set_model_for_purpose("invalido".to_string(), "phi3.5".to_string()).is_err());
+        assert!(coach_set_model_for_purpose("tips".to_string(), "".to_string()).is_err());
+    }
+
+    #[test]
+    fn test_get_models_devuelve_los_tres() {
+        coach_set_model_for_purpose("tips".to_string(), "tips-model".to_string()).unwrap();
+        coach_set_model_for_purpose("evaluation".to_string(), "eval-model".to_string()).unwrap();
+        coach_set_model_for_purpose("chat".to_string(), "chat-model".to_string()).unwrap();
+        let cfg = coach_get_models().unwrap();
+        assert_eq!(cfg.tips_model, "tips-model");
+        assert_eq!(cfg.evaluation_model, "eval-model");
+        assert_eq!(cfg.chat_model, "chat-model");
     }
 }
