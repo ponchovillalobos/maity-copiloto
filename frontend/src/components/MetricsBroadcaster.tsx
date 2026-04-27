@@ -37,14 +37,33 @@ export function MetricsBroadcaster() {
       const durationSec = Math.max(0, (activeDuration ?? 0));
       const minutes = Math.max(0.05, durationSec / 60);
 
-      const userWords = transcripts
-        .filter((t: Transcript) => t.source_type === 'user')
-        .reduce(
-          (acc: number, t: Transcript) =>
-            acc + (t.text || '').trim().split(/\s+/).filter(Boolean).length,
-          0
-        );
+      let userWords = 0;
+      let interlocutorWords = 0;
+      let userSegmentSec = 0;
+      let interlocutorSegmentSec = 0;
+      for (const t of transcripts as Transcript[]) {
+        const words = (t.text || '').trim().split(/\s+/).filter(Boolean).length;
+        const dur = typeof t.duration === 'number' ? t.duration : 0;
+        if (t.source_type === 'user') {
+          userWords += words;
+          userSegmentSec += dur;
+        } else if (t.source_type === 'interlocutor') {
+          interlocutorWords += words;
+          interlocutorSegmentSec += dur;
+        }
+      }
       const wpm = userWords / minutes;
+
+      // Tiempo hablado por persona (segundos): preferir audio_*_time si existe,
+      // sino fallback en suma de palabras→segundos (~0.4s/palabra).
+      const userSec =
+        userSegmentSec > 0 ? userSegmentSec : userWords * 0.4;
+      const interlocutorSec =
+        interlocutorSegmentSec > 0
+          ? interlocutorSegmentSec
+          : interlocutorWords * 0.4;
+      const totalSpeakSec = userSec + interlocutorSec;
+      const userTalkPct = totalSpeakSec > 0 ? (userSec / totalSpeakSec) * 100 : 0;
 
       const health = coachMetrics?.connectionScore ?? 50;
       const tipsCount = suggestions.length;
@@ -54,6 +73,11 @@ export function MetricsBroadcaster() {
         wpm,
         durationSec,
         tipsCount,
+        userTalkSec: userSec,
+        interlocutorTalkSec: interlocutorSec,
+        userTalkPct,
+        userWords,
+        interlocutorWords,
         connectionScore: coachMetrics?.connectionScore ?? 50,
         connectionTrend: coachMetrics?.connectionTrend ?? 'stable',
       }).catch(() => {

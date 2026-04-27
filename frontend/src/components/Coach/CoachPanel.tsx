@@ -360,12 +360,6 @@ export function CoachPanel() {
         </div>
       </div>
 
-      {/* Connection Thermometer (gamificación) */}
-      <ConnectionThermometer
-        score={metrics.connectionScore}
-        trend={metrics.connectionTrend}
-      />
-
       {/* Acciones secundarias (Tip ahora / Marcar / Limpiar) */}
       <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-b border-gray-800 bg-gray-900/30">
         {tab === 'tips' && (
@@ -390,38 +384,6 @@ export function CoachPanel() {
             Limpiar
           </button>
         )}
-      </div>
-
-      {/* Métricas en vivo */}
-      <div className="grid grid-cols-5 gap-0.5 px-2 py-2 border-b border-gray-800 bg-gray-900/60">
-        <div className="flex flex-col items-center">
-          <span className="text-[8px] uppercase text-gray-500 tracking-wide">Duración</span>
-          <span className="text-xs font-mono text-gray-200">{formatDuration(metrics.durationSec)}</span>
-        </div>
-        <div className="flex flex-col items-center border-l border-gray-800">
-          <span className="text-[8px] uppercase text-gray-500 tracking-wide">Tú hablas</span>
-          <span className={`text-xs font-mono ${talkPctColor}`}>{metrics.totalWords > 0 ? `${talkPct}%` : '—'}</span>
-        </div>
-        <div className="flex flex-col items-center border-l border-gray-800">
-          <span className="text-[8px] uppercase text-gray-500 tracking-wide">WPM</span>
-          <span className={`text-xs font-mono ${
-            metrics.userWpm > 180 ? 'text-red-400' :
-            metrics.userWpm > 150 ? 'text-yellow-400' : 'text-gray-200'
-          }`}>{metrics.userWpm || '—'}</span>
-        </div>
-        <div className="flex flex-col items-center border-l border-gray-800">
-          <span className="text-[8px] uppercase text-gray-500 tracking-wide">Preguntas</span>
-          <span className="text-xs font-mono text-gray-200">{metrics.userQuestions}</span>
-        </div>
-        <div className="flex flex-col items-center border-l border-gray-800">
-          <span className="text-[8px] uppercase text-gray-500 tracking-wide">Salud</span>
-          <span className={`text-xs font-mono font-semibold ${
-            metrics.connectionScore >= 80 ? 'text-green-400' :
-            metrics.connectionScore >= 60 ? 'text-yellow-400' : 'text-red-400'
-          }`}>
-            {metrics.connectionScore}
-          </span>
-        </div>
       </div>
 
       {/* Tabs */}

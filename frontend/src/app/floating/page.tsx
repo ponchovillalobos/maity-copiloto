@@ -32,8 +32,13 @@ interface MeetingMetrics {
   wpm?: number;
   durationSec?: number;
   tipsCount?: number;
+  userTalkSec?: number;
+  interlocutorTalkSec?: number;
+  userTalkPct?: number;
+  userWords?: number;
+  interlocutorWords?: number;
   connectionScore?: number;
-  connectionTrend?: 'up' | 'down' | 'flat';
+  connectionTrend?: 'up' | 'down' | 'flat' | 'stable' | 'rising' | 'falling';
 }
 
 function formatDuration(sec: number): string {
@@ -153,25 +158,14 @@ export default function FloatingPage() {
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
 
+    // Único canal de tips: `coach-tip-update` emitido por coach_suggest backend.
+    // Antes había un duplicado (`coach-suggestion`) que causaba contadores inflados.
     listen<CoachTip>('coach-tip-update', (e) => {
       setTip(e.payload);
       setTipsCount((c) => c + 1);
       tipFlashRef.current = true;
       setTimeout(() => { tipFlashRef.current = false; }, 600);
     }).then(u => unlisteners.push(u));
-
-    listen<{ tip: string; category?: string; priority?: string; technique?: string }>(
-      'coach-suggestion',
-      (e) => {
-        setTip({
-          tip: e.payload.tip,
-          category: e.payload.category,
-          priority: e.payload.priority as CoachTip['priority'],
-          technique: e.payload.technique,
-        });
-        setTipsCount((c) => c + 1);
-      }
-    ).then(u => unlisteners.push(u));
 
     listen<AudioLevels>('audio-levels', (e) => setAudio(e.payload)).then(u => unlisteners.push(u));
     listen<AudioLevels>('recording-audio-levels', (e) => setAudio(e.payload)).then(u => unlisteners.push(u));
@@ -311,6 +305,39 @@ export default function FloatingPage() {
       <div className="space-y-1.5 mb-3 flex-shrink-0 px-1" data-tauri-drag-region>
         <AudioBar label="MIC" icon={<Mic className="w-3 h-3" />} level={micLevel} color="#485df4" />
         <AudioBar label="SIS" icon={<Volume2 className="w-3 h-3" />} level={sysLevel} color="#1bea9a" />
+      </div>
+
+      {/* TALK TIME SPLIT */}
+      <div className="mb-3 flex-shrink-0" data-tauri-drag-region>
+        <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-white/55 mb-1">
+          <span>Tiempo de palabra</span>
+          <span className="text-white/70 tabular-nums">
+            {formatDuration(metrics.userTalkSec ?? 0)} · {formatDuration(metrics.interlocutorTalkSec ?? 0)}
+          </span>
+        </div>
+        <div className="flex h-3 rounded-full overflow-hidden bg-white/8">
+          <div
+            className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
+            style={{
+              width: `${Math.max(0, Math.min(100, metrics.userTalkPct ?? 0))}%`,
+              background: '#485df4',
+              minWidth: (metrics.userTalkPct ?? 0) > 8 ? undefined : 0,
+            }}
+          >
+            {(metrics.userTalkPct ?? 0) > 18 ? `Tú ${Math.round(metrics.userTalkPct ?? 0)}%` : ''}
+          </div>
+          <div
+            className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
+            style={{
+              width: `${Math.max(0, Math.min(100, 100 - (metrics.userTalkPct ?? 0)))}%`,
+              background: '#1bea9a',
+            }}
+          >
+            {100 - (metrics.userTalkPct ?? 0) > 18
+              ? `Otro ${Math.round(100 - (metrics.userTalkPct ?? 0))}%`
+              : ''}
+          </div>
+        </div>
       </div>
 
       {/* TIP CARD */}
