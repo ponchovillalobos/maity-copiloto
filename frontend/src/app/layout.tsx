@@ -35,6 +35,7 @@ import { TourOverlay } from '@/components/onboarding/TourOverlay'
 import { StatusETAProvider } from '@/contexts/StatusETAContext'
 import { StatusETA } from '@/components/StatusBar/StatusETA'
 import { BookmarksList } from '@/components/Coach/BookmarksList'
+import { PlaybookDrawer } from '@/components/Playbook/PlaybookDrawer'
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -186,6 +187,8 @@ export default function RootLayout({
                                 <GlobalChatDrawer />
                                 {/* v0.4.1: Bookmarks list drawer (siempre montado, listen 'open-bookmarks-list') */}
                                 <BookmarksList />
+                                {/* v0.5.0: Playbook cross-prospect (siempre montado, listen 'open-playbook') */}
+                                <PlaybookDrawer />
                                 {/* v0.4.0: Auto-abre ventana flotante al iniciar grabación */}
                                 <FloatingAutoOpener />
                                 {/* v0.4.0: Broadcast métricas a la ventana flotante cada 2s */}

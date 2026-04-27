@@ -1246,6 +1246,8 @@ pub fn run() {
             coach::evaluator::coach_evaluate_communication,
             coach::evaluator::coach_evaluate_post_meeting,
             coach::evaluator::coach_get_post_meeting_evaluation,
+            coach::evaluation_pdf::export_evaluation_pdf,
+            coach::evaluation_pdf::show_in_folder,
             coach::chat::coach_chat,
             coach::chat::coach_chat_stream,
             auto_setup::auto_setup_retry,
@@ -1265,6 +1267,10 @@ pub fn run() {
             coach::meeting_chat::chat_with_meeting,
             // Coach chat global con todo el historial de reuniones
             coach::meeting_chat::chat_with_history,
+            // Coach prospecting (email draft post-reunión)
+            coach::prospecting::generate_prospecting_snapshot,
+            // Coach playbook (análisis cross-prospect)
+            coach::playbook::generate_playbook,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,

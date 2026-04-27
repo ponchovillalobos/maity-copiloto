@@ -23,6 +23,11 @@ const MeetingChatPanel = dynamic(
   { loading: () => <div className="animate-pulse h-64 bg-muted rounded-lg" />, ssr: false }
 );
 
+const ProspectingSnapshot = dynamic(
+  () => import('@/components/MeetingEvaluation/ProspectingSnapshot').then(mod => mod.ProspectingSnapshot),
+  { loading: () => <div className="animate-pulse h-64 bg-muted rounded-lg" />, ssr: false }
+);
+
 // Custom hooks
 import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
 import { useSummaryGeneration } from '@/hooks/meeting-details/useSummaryGeneration';
@@ -71,7 +76,7 @@ export default function PageContent({
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
-  const [rightTab, setRightTab] = useState<'summary' | 'evaluation' | 'chat'>('summary');
+  const [rightTab, setRightTab] = useState<'summary' | 'evaluation' | 'chat' | 'prospecting'>('summary');
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);
@@ -223,6 +228,16 @@ export default function PageContent({
             >
               Chat
             </button>
+            <button
+              onClick={() => setRightTab('prospecting')}
+              className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
+                rightTab === 'prospecting'
+                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+              }`}
+            >
+              Email
+            </button>
           </div>
           {rightTab === 'evaluation' ? (
             <div className="flex-1 overflow-hidden bg-[#f5f5f6] dark:bg-gray-900">
@@ -234,6 +249,10 @@ export default function PageContent({
           ) : rightTab === 'chat' ? (
             <div className="flex-1 overflow-hidden">
               <MeetingChatPanel meetingId={meeting.id} />
+            </div>
+          ) : rightTab === 'prospecting' ? (
+            <div className="flex-1 overflow-auto bg-[#f5f5f6] dark:bg-gray-900 p-6">
+              <ProspectingSnapshot meetingId={meeting.id} />
             </div>
           ) : (
         <SummaryPanel

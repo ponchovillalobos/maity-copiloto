@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FileDown, Mic, MicOff, Sparkles, Settings, Bookmark,
   Trash2, RefreshCw, FileText, Command as CmdIcon, ChevronRight,
-  MessageCircleMore, PictureInPicture2,
+  MessageCircleMore, PictureInPicture2, BookOpen,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
@@ -24,6 +24,7 @@ export type CommandId =
   | 'semantic-search'
   | 'toggle-coach'
   | 'global-chat'
+  | 'playbook'
   | 'open-floating'
   | 'list-bookmarks'
   | 'go-home'
@@ -121,6 +122,18 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         group: 'Coach IA',
         action: () => {
           window.dispatchEvent(new CustomEvent('open-global-chat'));
+        },
+      },
+      {
+        id: 'playbook',
+        slash: '/playbook',
+        label: 'Playbook cross-prospect',
+        description: 'Patrones a través de tus reuniones',
+        icon: <BookOpen className="w-4 h-4" />,
+        keywords: ['patterns', 'patrones', 'prospecting', 'playbook'],
+        group: 'Coach IA',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('open-playbook'));
         },
       },
       {

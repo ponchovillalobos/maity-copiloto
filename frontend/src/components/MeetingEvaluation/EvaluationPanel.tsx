@@ -16,7 +16,7 @@ import {
   Tooltip as ReTooltip,
   Cell,
 } from 'recharts';
-import { Sparkles, AlertTriangle, TrendingUp, MessageSquare } from 'lucide-react';
+import { Sparkles, AlertTriangle, TrendingUp, MessageSquare, Download, CheckCircle } from 'lucide-react';
 import type { Transcript } from '@/types';
 
 interface EvaluationProps {
@@ -141,6 +141,8 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
   const [result, setResult] = useState<PostMeetingEvaluationResult | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [generating, setGenerating] = useState<boolean>(false);
+  const [exporting, setExporting] = useState<boolean>(false);
+  const [exportSuccess, setExportSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -184,6 +186,34 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
       setError(String(e));
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    setExporting(true);
+    setError(null);
+    setExportSuccess(null);
+    try {
+      const pdfPath = await invoke<string>('export_evaluation_pdf', {
+        meetingId,
+        outputPath: null,
+      });
+      setExportSuccess(pdfPath);
+      // Auto-dismiss success message después de 5 segundos
+      setTimeout(() => setExportSuccess(null), 5000);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleOpenFolder = async () => {
+    if (!exportSuccess) return;
+    try {
+      await invoke('show_in_folder', { path: exportSuccess });
+    } catch (e) {
+      setError(String(e));
     }
   };
 
@@ -240,14 +270,45 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
           </h2>
           <div className="text-sm text-[#6a6a6d] mt-1">{ev.resumen.descripcion}</div>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="px-3 py-1.5 text-xs rounded-md border border-[#d0d0d3] hover:bg-[#f5f5f6] dark:border-gray-600 dark:hover:bg-gray-800 disabled:opacity-50"
-        >
-          {generating ? 'Re-evaluando…' : 'Re-evaluar'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportPdf}
+            disabled={exporting}
+            title="Exportar evaluación como PDF"
+            className="px-3 py-1.5 text-xs rounded-md border border-[#d0d0d3] hover:bg-[#f5f5f6] dark:border-gray-600 dark:hover:bg-gray-800 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {exporting ? 'Exportando…' : 'PDF'}
+          </button>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="px-3 py-1.5 text-xs rounded-md border border-[#d0d0d3] hover:bg-[#f5f5f6] dark:border-gray-600 dark:hover:bg-gray-800 disabled:opacity-50"
+          >
+            {generating ? 'Re-evaluando…' : 'Re-evaluar'}
+          </button>
+        </div>
       </div>
+
+      {exportSuccess && (
+        <div className="flex items-center gap-2 p-3 bg-[#f0fdf4] dark:bg-green-900/20 border border-[#1bea9a] rounded-lg text-sm">
+          <CheckCircle className="w-4 h-4 text-[#1bea9a]" />
+          <span className="flex-1 text-[#1bea9a]">PDF guardado correctamente</span>
+          <button
+            onClick={handleOpenFolder}
+            className="text-xs text-[#1bea9a] underline hover:font-semibold"
+          >
+            Abrir carpeta
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-[#fdf2f8] dark:bg-red-900/20 border border-[#ff0050] rounded-lg text-sm">
+          <AlertTriangle className="w-4 h-4 text-[#ff0050]" />
+          <span className="flex-1 text-[#ff0050]">{error}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-[#e7e7e9] dark:border-gray-700 p-5 flex flex-col items-center">
