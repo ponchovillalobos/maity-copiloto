@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FileDown, Mic, MicOff, Sparkles, Settings, Bookmark,
   Trash2, RefreshCw, FileText, Command as CmdIcon, ChevronRight,
+  MessageCircleMore, PictureInPicture2,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
@@ -22,6 +23,8 @@ export type CommandId =
   | 'search-meetings'
   | 'semantic-search'
   | 'toggle-coach'
+  | 'global-chat'
+  | 'open-floating'
   | 'go-home'
   | 'reload'
   | 'clear-cache';
@@ -33,7 +36,7 @@ interface CommandDef {
   description: string;
   icon: React.ReactNode;
   keywords?: string[];
-  group: 'Reunión' | 'Exportar' | 'Navegación' | 'Sistema';
+  group: 'Reunión' | 'Exportar' | 'Navegación' | 'Sistema' | 'Coach IA';
   enabled?: () => boolean;
   action: () => void | Promise<void>;
 }
@@ -105,6 +108,30 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         group: 'Reunión',
         action: () => {
           toast.info('Coach IA visible solo durante grabación activa');
+        },
+      },
+      {
+        id: 'global-chat',
+        slash: '/chat',
+        label: 'Chat con tu historial',
+        description: 'Pregunta sobre todas tus reuniones pasadas',
+        icon: <MessageCircleMore className="w-4 h-4" />,
+        keywords: ['chat', 'preguntar', 'historial', 'gemma', 'conversar'],
+        group: 'Coach IA',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('open-global-chat'));
+        },
+      },
+      {
+        id: 'open-floating',
+        slash: '/floating',
+        label: 'Ventana flotante always-on-top',
+        description: 'Abre el coach sobre Zoom/Teams',
+        icon: <PictureInPicture2 className="w-4 h-4" />,
+        keywords: ['floating', 'pip', 'zoom', 'teams', 'overlay'],
+        group: 'Coach IA',
+        action: () => {
+          invoke('open_floating_coach').catch((e) => toast.error(`No se pudo abrir: ${e}`));
         },
       },
       {

@@ -1263,6 +1263,8 @@ pub fn run() {
             coach::floating::floating_toggle_compact,
             // Coach chat con reunión específica (semantic search + Gemma 4)
             coach::meeting_chat::chat_with_meeting,
+            // Coach chat global con todo el historial de reuniones
+            coach::meeting_chat::chat_with_history,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,

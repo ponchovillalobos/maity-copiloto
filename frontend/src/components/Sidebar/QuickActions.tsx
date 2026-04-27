@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { FileDown, Search, Sparkles, Mic } from 'lucide-react';
+import { FileDown, Search, Sparkles, Mic, MessageCircleMore } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
@@ -95,6 +95,13 @@ export function QuickActions({
       onClick: () => onToggleCoach?.(),
       disabled: !isRecording,
       disabledReason: 'Solo durante grabación',
+    },
+    {
+      id: 'global-chat',
+      label: 'Chat',
+      description: 'Pregunta a tu historial',
+      icon: <MessageCircleMore className="w-4 h-4" />,
+      onClick: () => window.dispatchEvent(new CustomEvent('open-global-chat')),
     },
   ];
 
