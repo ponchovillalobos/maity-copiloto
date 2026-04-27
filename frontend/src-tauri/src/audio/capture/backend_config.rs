@@ -86,7 +86,13 @@ impl Default for AudioCaptureBackend {
 
 impl std::fmt::Display for AudioCaptureBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name())
+        // Lowercase reciprocal de `from_string` (mantiene round-trip
+        // to_string ↔ from_string consistente con serde rename_all = "lowercase").
+        match self {
+            AudioCaptureBackend::ScreenCaptureKit => write!(f, "screencapturekit"),
+            #[cfg(target_os = "macos")]
+            AudioCaptureBackend::CoreAudio => write!(f, "coreaudio"),
+        }
     }
 }
 
