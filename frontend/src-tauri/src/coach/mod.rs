@@ -17,6 +17,7 @@ pub mod meeting_type;
 pub mod nudge_engine;
 pub mod prompt;
 pub mod prompts;
+pub mod retry;
 pub mod trigger;
 #[cfg(test)]
 mod stress_tests;

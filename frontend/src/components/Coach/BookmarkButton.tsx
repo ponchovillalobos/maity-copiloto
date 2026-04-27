@@ -2,11 +2,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bookmark, Star, Clock, DollarSign, CheckCircle, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Bookmark, Star, Clock, DollarSign, CheckCircle, AlertTriangle, ArrowRight, Eye } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useCoach } from '@/contexts/CoachContext';
+import { toast } from 'sonner';
 
 const CATEGORIES = [
   { id: 'important',   label: 'Importante',   icon: <Star className="w-3.5 h-3.5" />,          color: 'text-yellow-300' },
@@ -22,7 +23,7 @@ export function BookmarkButton() {
   const { isRecording } = useRecordingState();
   const { metrics } = useCoach();
   const [isOpen, setIsOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -38,10 +39,26 @@ export function BookmarkButton() {
 
   // Auto-dismiss toast
   useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 2000);
+    if (!toastMessage) return;
+    const t = setTimeout(() => setToastMessage(null), 2000);
     return () => clearTimeout(t);
-  }, [toast]);
+  }, [toastMessage]);
+
+  // Listener Ctrl+B / Cmd+B para activar bookmark
+  useEffect(() => {
+    if (!isRecording || !currentMeetingId) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMacCmd = (e.metaKey || e.ctrlKey) && e.key === 'b';
+      if (!isMacCmd) return;
+      e.preventDefault();
+      // Abre el dropdown
+      setIsOpen(true);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isRecording, currentMeetingId]);
 
   if (!isRecording || !currentMeetingId) return null;
 
@@ -58,10 +75,21 @@ export function BookmarkButton() {
         category: cat.id,
         segmentText: last || null,
       });
-      setToast(`${cat.label} marcado`);
+      setToastMessage(`${cat.label} marcado`);
       setIsOpen(false);
+
+      // Toast mejorado con botón "Ver"
+      toast.success('Acuerdo guardado', {
+        description: 'Marcado en la transcripción · ver en historial de bookmarks',
+        action: {
+          label: 'Ver',
+          onClick: () => {
+            window.dispatchEvent(new CustomEvent('open-bookmarks-list'));
+          },
+        },
+      });
     } catch (e) {
-      setToast('Error al marcar');
+      toast.error('Error al marcar');
     } finally {
       setBusy(false);
     }
@@ -74,7 +102,7 @@ export function BookmarkButton() {
           onClick={() => setIsOpen(!isOpen)}
           disabled={busy}
           className="text-[10px] px-2 py-1 rounded bg-purple-600/20 text-purple-200 border border-purple-500/30 hover:bg-purple-600/30 disabled:opacity-40 transition flex items-center gap-1"
-          title="Marcar momento importante"
+          title="Marcar acuerdo (Ctrl+B)"
         >
           <Bookmark className="w-3 h-3" />
           Marcar
@@ -106,7 +134,7 @@ export function BookmarkButton() {
       </div>
 
       <AnimatePresence>
-        {toast && (
+        {toastMessage && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -114,7 +142,7 @@ export function BookmarkButton() {
             className="fixed bottom-6 right-6 px-3 py-2 rounded-lg bg-green-600/30 border border-green-500/40 text-green-200 text-xs font-medium shadow-lg z-50 flex items-center gap-1.5"
           >
             <CheckCircle className="w-3.5 h-3.5" />
-            {toast}
+            {toastMessage}
           </motion.div>
         )}
       </AnimatePresence>

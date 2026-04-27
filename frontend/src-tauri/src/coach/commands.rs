@@ -7,6 +7,7 @@ use crate::coach::context::{build_context, ContextMode};
 use crate::coach::prompt::{
     build_user_prompt_v3, DEFAULT_MODEL, MAITY_COPILOTO_V3_LITE_PROMPT, MeetingType,
 };
+use crate::coach::retry::{with_backoff, RetryConfig};
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use crate::validation_helpers;
 use reqwest::Client;
@@ -234,8 +235,6 @@ pub async fn coach_suggest(
         validated_category
     );
 
-    let client = &*SHARED_CLIENT;
-
     let start = Instant::now();
 
     crate::progress_events::emit_coach_thinking(
@@ -245,21 +244,45 @@ pub async fn coach_suggest(
         &model,
     );
 
-    let raw_result = generate_summary(
-        client,
-        &LLMProvider::Ollama,
-        &model,
-        "",
-        MAITY_COPILOTO_V3_LITE_PROMPT,
-        &user_prompt,
-        None,
-        None,
-        Some(200), // v3: un poco más para caber subcategory+technique
-        Some(0.5), // menos temperatura: queremos tips consistentes y basados en frameworks
-        Some(0.9),
-        None,
-        None,
-    )
+    // Coach Suggest usa retry con timeout corto (8s) + 2 intentos
+    // Si Ollama está saturado, rearma con backoff exponencial
+    let retry_config = RetryConfig {
+        max_attempts: 2,
+        initial_backoff_ms: 800,
+        max_total_ms: 12_000,
+        backoff_multiplier: 2.0,
+    };
+
+    let raw_result = with_backoff(&retry_config, "coach_suggest", |_attempt| {
+        // Crear cliente local con timeout corto (8s) para coach_suggest
+        let client = Client::builder()
+            .timeout(Duration::from_secs(8))
+            .pool_max_idle_per_host(2)
+            .build();
+
+        let user_prompt_clone = user_prompt.clone();
+        let model_clone = model.clone();
+
+        async move {
+            let client = client.map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+            generate_summary(
+                &client,
+                &LLMProvider::Ollama,
+                &model_clone,
+                "",
+                MAITY_COPILOTO_V3_LITE_PROMPT,
+                &user_prompt_clone,
+                None,
+                None,
+                Some(200), // v3: un poco más para caber subcategory+technique
+                Some(0.5), // menos temperatura: queremos tips consistentes y basados en frameworks
+                Some(0.9),
+                None,
+                None,
+            )
+            .await
+        }
+    })
     .await;
 
     let raw = match raw_result {
@@ -271,7 +294,10 @@ pub async fn coach_suggest(
                 start.elapsed().as_millis() as u64,
                 &model,
             );
-            return Err(format!("Error LLM: {}", e));
+            return Err(format!(
+                "Coach IA no responde — Ollama puede estar saturado o el modelo no disponible: {}",
+                e
+            ));
         }
     };
 

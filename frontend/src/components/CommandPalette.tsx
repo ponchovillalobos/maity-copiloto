@@ -25,6 +25,7 @@ export type CommandId =
   | 'toggle-coach'
   | 'global-chat'
   | 'open-floating'
+  | 'list-bookmarks'
   | 'go-home'
   | 'reload'
   | 'clear-cache';
@@ -132,6 +133,18 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         group: 'Coach IA',
         action: () => {
           invoke('open_floating_coach').catch((e) => toast.error(`No se pudo abrir: ${e}`));
+        },
+      },
+      {
+        id: 'list-bookmarks',
+        slash: '/bookmarks',
+        label: 'Ver bookmarks',
+        description: 'Historial de acuerdos y momentos marcados',
+        icon: <Bookmark className="w-4 h-4" />,
+        keywords: ['bookmark', 'marcados', 'acuerdos', 'momentos'],
+        group: 'Reunión',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('open-bookmarks-list'));
         },
       },
       {

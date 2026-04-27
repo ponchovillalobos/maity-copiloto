@@ -7,7 +7,7 @@ import { useStatusETA } from '@/contexts/StatusETAContext'
 import { listen } from '@tauri-apps/api/event'
 
 export function StatusETA() {
-  const { state } = useStatusETA()
+  const { state, start, finish } = useStatusETA()
   const [remainingSec, setRemainingSec] = useState<number>(0)
   const [elapsedSec, setElapsedSec] = useState<number>(0)
   const [isTakingLong, setIsTakingLong] = useState(false)
@@ -40,30 +40,40 @@ export function StatusETA() {
     return () => clearInterval(interval)
   }, [state.active, state.etaSec, state.startedAt])
 
-  // Listen to Tauri events for auto-start/finish
+  // Auto-detección de eventos Tauri:
+  // - recording-stop-complete → "Procesando transcripción" (8s)
+  // - meeting-saved / transcription-complete → finish
+  // - coach-thinking stage='analyzing' → "Analizando con IA" (5s)
+  // - coach-thinking stage='done'|'error' → finish
+  // - semantic-index-progress → "Indexando reunión" (12s)
   useEffect(() => {
-    if (!state.active) {
-      const unlistenRecordingStop = listen('recording-stop-complete', () => {
-        // Auto-start transcription processing
-        // Note: actual start needs to be called by the component that has useStatusETA context
-      })
+    const unlisteners: Array<() => void> = []
 
-      const unlistenMeetingSaved = listen('meeting-saved', () => {
-        // Auto-finish
-        // Note: actual finish needs to be called by the component
-      })
+    listen('recording-stop-complete', () => {
+      start('Procesando transcripción', 8, 'info')
+    }).then(u => unlisteners.push(u))
 
-      const unlistenCoachThinking = listen<{ stage: string }>('coach-thinking', () => {
-        // Note: actual handling needs to be called by the component
-      })
+    listen('meeting-saved', () => {
+      finish()
+    }).then(u => unlisteners.push(u))
 
-      return () => {
-        unlistenRecordingStop.then(fn => fn())
-        unlistenMeetingSaved.then(fn => fn())
-        unlistenCoachThinking.then(fn => fn())
+    listen('transcription-complete', () => {
+      finish()
+    }).then(u => unlisteners.push(u))
+
+    listen<{ stage: string }>('coach-thinking', (e) => {
+      const stage = e.payload?.stage
+      if (stage === 'analyzing' || stage === 'generating') {
+        start('Analizando con IA', 5, 'info')
+      } else if (stage === 'done' || stage === 'error') {
+        finish()
       }
-    }
-  }, [state.active])
+    }).then(u => unlisteners.push(u))
+
+    return () => unlisteners.forEach(u => u())
+    // start/finish son estables vía useState setters wrapper en context
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const formatTime = (seconds: number): string => {
     if (seconds === 0) return 'Casi listo...'
