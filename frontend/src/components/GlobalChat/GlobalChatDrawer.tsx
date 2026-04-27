@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
 import { Sparkles, Send, X, Loader2, Quote, MessageCircleMore, History } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface GlobalChatCitation {
   segment_id: string;
@@ -229,19 +231,70 @@ export function GlobalChatDrawer() {
           {history.map((turn, i) => (
             <div key={i} className={`flex ${turn.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[88%] rounded-2xl px-3.5 py-2 ${
+                className={`max-w-[88%] rounded-2xl px-4 py-3 ${
                   turn.role === 'user'
                     ? 'bg-[#485df4] text-white'
-                    : 'bg-[#f5f5f6] dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700'
+                    : 'bg-white dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 shadow-sm'
                 }`}
               >
-                <div
-                  className={`text-sm whitespace-pre-wrap ${
-                    turn.role === 'user' ? 'text-white' : 'text-[#3a3a3c] dark:text-gray-100'
-                  }`}
-                >
-                  {turn.content}
-                </div>
+                {turn.role === 'user' ? (
+                  <div className="text-[14px] leading-relaxed whitespace-pre-wrap text-white">
+                    {turn.content}
+                  </div>
+                ) : (
+                  <div className="text-[14px] leading-relaxed text-[#1f2025] dark:text-gray-100 chat-markdown">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                        strong: ({ children }) => (
+                          <strong className="font-semibold text-[#1f2025] dark:text-white">
+                            {children}
+                          </strong>
+                        ),
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        ul: ({ children }) => (
+                          <ul className="list-disc list-outside pl-5 my-2 space-y-1">{children}</ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol className="list-decimal list-outside pl-5 my-2 space-y-1">{children}</ol>
+                        ),
+                        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                        h1: ({ children }) => (
+                          <h1 className="text-base font-bold mt-2 mb-1">{children}</h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="text-sm font-bold mt-2 mb-1">{children}</h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 className="text-sm font-semibold mt-2 mb-1">{children}</h3>
+                        ),
+                        code: ({ children }) => (
+                          <code className="px-1 py-0.5 rounded bg-[#f0f2fe] dark:bg-gray-900 text-[#3a4ac3] dark:text-blue-300 text-[13px] font-mono">
+                            {children}
+                          </code>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote className="border-l-2 border-[#485df4] pl-3 my-2 italic text-[#4a4a4c] dark:text-gray-300">
+                            {children}
+                          </blockquote>
+                        ),
+                        a: ({ children, href }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#485df4] dark:text-blue-400 underline"
+                          >
+                            {children}
+                          </a>
+                        ),
+                      }}
+                    >
+                      {turn.content}
+                    </ReactMarkdown>
+                  </div>
+                )}
                 {turn.citations && turn.citations.length > 0 && (
                   <div className="mt-2.5 space-y-1.5">
                     {turn.citations.slice(0, 4).map((c) => (

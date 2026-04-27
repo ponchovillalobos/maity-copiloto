@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Send, Sparkles, Quote, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface MeetingChatCitation {
   segment_id: string;
@@ -125,15 +127,48 @@ export function MeetingChatPanel({ meetingId }: Props) {
             className={`flex ${turn.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+              className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                 turn.role === 'user'
                   ? 'bg-[#485df4] text-white'
-                  : 'bg-white dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700'
+                  : 'bg-white dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 shadow-sm'
               }`}
             >
-              <div className={`text-sm ${turn.role === 'user' ? 'text-white' : 'text-[#3a3a3c] dark:text-gray-100'} whitespace-pre-wrap`}>
-                {turn.content}
-              </div>
+              {turn.role === 'user' ? (
+                <div className="text-[14px] leading-relaxed whitespace-pre-wrap text-white">
+                  {turn.content}
+                </div>
+              ) : (
+                <div className="text-[14px] leading-relaxed text-[#1f2025] dark:text-gray-100">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                      strong: ({ children }) => (
+                        <strong className="font-semibold text-[#1f2025] dark:text-white">{children}</strong>
+                      ),
+                      ul: ({ children }) => (
+                        <ul className="list-disc list-outside pl-5 my-2 space-y-1">{children}</ul>
+                      ),
+                      ol: ({ children }) => (
+                        <ol className="list-decimal list-outside pl-5 my-2 space-y-1">{children}</ol>
+                      ),
+                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      code: ({ children }) => (
+                        <code className="px-1 py-0.5 rounded bg-[#f0f2fe] dark:bg-gray-900 text-[#3a4ac3] dark:text-blue-300 text-[13px] font-mono">
+                          {children}
+                        </code>
+                      ),
+                      blockquote: ({ children }) => (
+                        <blockquote className="border-l-2 border-[#485df4] pl-3 my-2 italic text-[#4a4a4c] dark:text-gray-300">
+                          {children}
+                        </blockquote>
+                      ),
+                    }}
+                  >
+                    {turn.content}
+                  </ReactMarkdown>
+                </div>
+              )}
               {turn.citations && turn.citations.length > 0 && (
                 <div className="mt-3 space-y-1.5">
                   {turn.citations.slice(0, 3).map(c => (

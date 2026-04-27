@@ -29,6 +29,7 @@ import { OfflineIndicator } from '@/components/OfflineIndicator'
 import { AutoSetupOverlay } from '@/components/AutoSetupOverlay'
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette'
 import { GlobalChatDrawer } from '@/components/GlobalChat/GlobalChatDrawer'
+import { FloatingAutoOpener } from '@/components/FloatingAutoOpener'
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -175,6 +176,8 @@ export default function RootLayout({
                                 <CommandPaletteMount />
                                 {/* v0.4.0: Chat global con historial (siempre montado, listen 'open-global-chat') */}
                                 <GlobalChatDrawer />
+                                {/* v0.4.0: Auto-abre ventana flotante al iniciar grabación */}
+                                <FloatingAutoOpener />
                               </div>
                             )}
                           </RecordingPostProcessingProvider>
