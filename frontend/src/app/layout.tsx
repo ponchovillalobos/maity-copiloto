@@ -30,6 +30,7 @@ import { AutoSetupOverlay } from '@/components/AutoSetupOverlay'
 import { CommandPalette, useCommandPalette } from '@/components/CommandPalette'
 import { GlobalChatDrawer } from '@/components/GlobalChat/GlobalChatDrawer'
 import { FloatingAutoOpener } from '@/components/FloatingAutoOpener'
+import { MetricsBroadcaster } from '@/components/MetricsBroadcaster'
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -178,6 +179,8 @@ export default function RootLayout({
                                 <GlobalChatDrawer />
                                 {/* v0.4.0: Auto-abre ventana flotante al iniciar grabación */}
                                 <FloatingAutoOpener />
+                                {/* v0.4.0: Broadcast métricas a la ventana flotante cada 2s */}
+                                <MetricsBroadcaster />
                               </div>
                             )}
                           </RecordingPostProcessingProvider>

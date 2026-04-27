@@ -309,7 +309,7 @@ pub async fn coach_suggest(
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
 
-    Ok(CoachSuggestion {
+    let suggestion = CoachSuggestion {
         tip: parsed.tip,
         category: parsed.category,
         subcategory: parsed.subcategory,
@@ -320,7 +320,14 @@ pub async fn coach_suggest(
         timestamp,
         model,
         latency_ms,
-    })
+    };
+
+    // Broadcast a TODAS las ventanas (incluida la flotante always-on-top).
+    // Tauri propaga emit() cross-window automáticamente.
+    use tauri::Emitter;
+    let _ = app.emit("coach-tip-update", &suggestion);
+
+    Ok(suggestion)
 }
 
 /// Cambia el modelo activo del coach.
