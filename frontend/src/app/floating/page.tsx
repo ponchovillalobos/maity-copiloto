@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Mic, Volume2, X, Minimize2, Maximize2, Sparkles, AlertTriangle,
-  TrendingUp, MessageCircle, Clock, Activity, Timer,
+  MessageCircle, Activity, Timer, ChevronLeft, ChevronRight, HelpCircle,
 } from 'lucide-react';
 
 interface CoachTip {
@@ -27,6 +27,11 @@ interface AudioLevels {
   sys_peak?: number;
 }
 
+interface InterlocutorQuestion {
+  text: string;
+  timestamp: number;
+}
+
 interface MeetingMetrics {
   health?: number;
   wpm?: number;
@@ -37,9 +42,12 @@ interface MeetingMetrics {
   userTalkPct?: number;
   userWords?: number;
   interlocutorWords?: number;
+  interlocutorQuestions?: InterlocutorQuestion[];
   connectionScore?: number;
   connectionTrend?: 'up' | 'down' | 'flat' | 'stable' | 'rising' | 'falling';
 }
+
+type Section = 'tip' | 'questions';
 
 function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -65,7 +73,6 @@ function healthColor(score: number): string {
   return '#ff0050';
 }
 
-/** Gauge circular grande para salud de la conversación. */
 function HealthGauge({ score }: { score: number }) {
   const radius = 38;
   const stroke = 8;
@@ -73,7 +80,7 @@ function HealthGauge({ score }: { score: number }) {
   const offset = circumference - (score / 100) * circumference;
   const color = healthColor(score);
   return (
-    <div className="relative w-24 h-24 flex-shrink-0">
+    <div className="relative w-24 h-24 flex-shrink-0" data-tauri-drag-region>
       <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="none" />
         <circle
@@ -89,7 +96,7 @@ function HealthGauge({ score }: { score: number }) {
           style={{ transition: 'stroke-dashoffset 0.5s ease' }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
         <div className="text-2xl font-bold tabular-nums" style={{ color }}>
           {Math.round(score)}
         </div>
@@ -99,7 +106,6 @@ function HealthGauge({ score }: { score: number }) {
   );
 }
 
-/** Barra de audio con label e icono. */
 function AudioBar({
   label,
   icon,
@@ -114,7 +120,7 @@ function AudioBar({
   const pct = Math.min(100, Math.max(0, level * 200));
   const active = level > 0.005;
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5" data-tauri-drag-region>
       <div className={`flex items-center gap-1 text-[10px] uppercase tracking-wide ${active ? 'text-white/90' : 'text-white/40'}`}>
         <span className={active ? 'animate-pulse' : ''}>{icon}</span>
         <span className="font-semibold w-7">{label}</span>
@@ -132,10 +138,12 @@ function AudioBar({
   );
 }
 
-/** Tarjeta de métrica individual con label + valor grande. */
 function MetricCard({ label, value, color, icon }: { label: string; value: string; color: string; icon: React.ReactNode }) {
   return (
-    <div className="flex flex-col rounded-lg bg-white/5 border border-white/8 p-2 min-w-0">
+    <div
+      className="flex flex-col rounded-lg bg-white/5 border border-white/8 p-2 min-w-0"
+      data-tauri-drag-region
+    >
       <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-white/55">
         {icon}
         <span>{label}</span>
@@ -149,22 +157,18 @@ function MetricCard({ label, value, color, icon }: { label: string; value: strin
 
 export default function FloatingPage() {
   const [compact, setCompact] = useState(false);
-  const [tip, setTip] = useState<CoachTip | null>(null);
-  const [tipsCount, setTipsCount] = useState(0);
+  const [tipsHistory, setTipsHistory] = useState<CoachTip[]>([]);
+  const [tipIndex, setTipIndex] = useState(0); // 0 = most recent
   const [audio, setAudio] = useState<AudioLevels>({});
   const [metrics, setMetrics] = useState<MeetingMetrics>({});
-  const tipFlashRef = useRef(false);
+  const [section, setSection] = useState<Section>('tip');
 
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
 
-    // Único canal de tips: `coach-tip-update` emitido por coach_suggest backend.
-    // Antes había un duplicado (`coach-suggestion`) que causaba contadores inflados.
     listen<CoachTip>('coach-tip-update', (e) => {
-      setTip(e.payload);
-      setTipsCount((c) => c + 1);
-      tipFlashRef.current = true;
-      setTimeout(() => { tipFlashRef.current = false; }, 600);
+      setTipsHistory((prev) => [e.payload, ...prev].slice(0, 50));
+      setTipIndex(0);
     }).then(u => unlisteners.push(u));
 
     listen<AudioLevels>('audio-levels', (e) => setAudio(e.payload)).then(u => unlisteners.push(u));
@@ -184,17 +188,25 @@ export default function FloatingPage() {
     try { await invoke('floating_toggle_compact', { compact: next }); } catch (e) { console.error(e); }
   };
 
+  const tip = tipsHistory[tipIndex];
+  const totalTips = tipsHistory.length;
+  const canPrev = tipIndex < totalTips - 1;
+  const canNext = tipIndex > 0;
+  const goPrev = () => canPrev && setTipIndex((i) => i + 1);
+  const goNext = () => canNext && setTipIndex((i) => i - 1);
+
   const micLevel = audio.mic_rms ?? audio.micRms ?? 0;
   const sysLevel = audio.sys_rms ?? audio.sysRms ?? 0;
   const health = metrics.health ?? metrics.connectionScore ?? 50;
   const wpm = metrics.wpm ?? 0;
   const duration = metrics.durationSec ?? 0;
   const tipColor = priorityHex(tip?.priority);
+  const questions = metrics.interlocutorQuestions ?? [];
 
   if (compact) {
     return (
       <div
-        className="h-screen w-screen flex flex-col p-2 select-none cursor-move"
+        className="h-screen w-screen flex flex-col p-2 select-none"
         style={{
           background: 'rgba(15, 16, 24, 0.88)',
           backdropFilter: 'blur(18px) saturate(180%)',
@@ -248,19 +260,18 @@ export default function FloatingPage() {
       }}
       data-tauri-drag-region
     >
-      {/* HEADER */}
       <div className="flex items-center justify-between mb-3 flex-shrink-0" data-tauri-drag-region>
         <div className="flex items-center gap-1.5 text-xs" data-tauri-drag-region>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" data-tauri-drag-region>
             <div className="relative w-2 h-2">
               <div className="absolute inset-0 rounded-full bg-[#1bea9a] animate-ping opacity-75"/>
               <div className="absolute inset-0 rounded-full bg-[#1bea9a]"/>
             </div>
             <span className="font-bold tracking-wider text-white">MAITY COACH</span>
           </div>
-          {tipsCount > 0 && (
+          {totalTips > 0 && (
             <span className="ml-1 text-[9px] px-1.5 py-0.5 rounded bg-[#485df4]/30 text-[#a8b3ff] font-semibold">
-              {tipsCount} tip{tipsCount !== 1 ? 's' : ''}
+              {totalTips} tip{totalTips !== 1 ? 's' : ''}
             </span>
           )}
         </div>
@@ -282,10 +293,9 @@ export default function FloatingPage() {
         </div>
       </div>
 
-      {/* GAUGE + MÉTRICAS */}
       <div className="flex items-center gap-3 mb-3 flex-shrink-0" data-tauri-drag-region>
         <HealthGauge score={health} />
-        <div className="flex-1 grid grid-cols-2 gap-1.5 min-w-0">
+        <div className="flex-1 grid grid-cols-2 gap-1.5 min-w-0" data-tauri-drag-region>
           <MetricCard
             label="WPM"
             value={Math.round(wpm).toString()}
@@ -301,27 +311,24 @@ export default function FloatingPage() {
         </div>
       </div>
 
-      {/* AUDIO BARS */}
       <div className="space-y-1.5 mb-3 flex-shrink-0 px-1" data-tauri-drag-region>
         <AudioBar label="MIC" icon={<Mic className="w-3 h-3" />} level={micLevel} color="#485df4" />
         <AudioBar label="SIS" icon={<Volume2 className="w-3 h-3" />} level={sysLevel} color="#1bea9a" />
       </div>
 
-      {/* TALK TIME SPLIT */}
       <div className="mb-3 flex-shrink-0" data-tauri-drag-region>
-        <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-white/55 mb-1">
+        <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-white/55 mb-1" data-tauri-drag-region>
           <span>Tiempo de palabra</span>
           <span className="text-white/70 tabular-nums">
             {formatDuration(metrics.userTalkSec ?? 0)} · {formatDuration(metrics.interlocutorTalkSec ?? 0)}
           </span>
         </div>
-        <div className="flex h-3 rounded-full overflow-hidden bg-white/8">
+        <div className="flex h-3 rounded-full overflow-hidden bg-white/8" data-tauri-drag-region>
           <div
             className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
             style={{
               width: `${Math.max(0, Math.min(100, metrics.userTalkPct ?? 0))}%`,
               background: '#485df4',
-              minWidth: (metrics.userTalkPct ?? 0) > 8 ? undefined : 0,
             }}
           >
             {(metrics.userTalkPct ?? 0) > 18 ? `Tú ${Math.round(metrics.userTalkPct ?? 0)}%` : ''}
@@ -340,60 +347,151 @@ export default function FloatingPage() {
         </div>
       </div>
 
-      {/* TIP CARD */}
-      <div
-        className="flex-1 rounded-lg border p-3 overflow-hidden flex flex-col min-h-0"
-        style={{
-          background: tip ? `linear-gradient(135deg, ${tipColor}1a 0%, rgba(255,255,255,0.04) 100%)` : 'rgba(255,255,255,0.04)',
-          borderColor: tip ? `${tipColor}55` : 'rgba(255,255,255,0.08)',
-          transition: 'border-color 0.3s ease, background 0.3s ease',
-        }}
-      >
-        <div className="flex items-center justify-between mb-2 flex-shrink-0">
-          <div className="flex items-center gap-1.5">
-            {tip ? (
-              <>
-                {(tip.priority === 'critical' || tip.priority === 'high') ? (
-                  <AlertTriangle className="w-3.5 h-3.5" style={{ color: tipColor }} />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5" style={{ color: tipColor }} />
-                )}
-                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: tipColor }}>
-                  {priorityLabel(tip.priority)}
+      {/* SECCIÓN SELECTORA: TIP / PREGUNTAS */}
+      <div className="flex gap-1 mb-2 flex-shrink-0">
+        <button
+          onClick={() => setSection('tip')}
+          className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded transition ${
+            section === 'tip'
+              ? 'bg-white/12 text-white'
+              : 'bg-white/4 text-white/55 hover:bg-white/8'
+          }`}
+        >
+          <Sparkles className="w-3 h-3" /> Tip {totalTips > 0 ? `(${totalTips})` : ''}
+        </button>
+        <button
+          onClick={() => setSection('questions')}
+          className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded transition ${
+            section === 'questions'
+              ? 'bg-white/12 text-white'
+              : 'bg-white/4 text-white/55 hover:bg-white/8'
+          }`}
+        >
+          <HelpCircle className="w-3 h-3" /> Preguntas {questions.length > 0 ? `(${questions.length})` : ''}
+        </button>
+      </div>
+
+      {/* SECCIÓN: TIPS */}
+      {section === 'tip' && (
+        <div
+          className="flex-1 rounded-lg border p-3 overflow-hidden flex flex-col min-h-0"
+          style={{
+            background: tip ? `linear-gradient(135deg, ${tipColor}1a 0%, rgba(255,255,255,0.04) 100%)` : 'rgba(255,255,255,0.04)',
+            borderColor: tip ? `${tipColor}55` : 'rgba(255,255,255,0.08)',
+            transition: 'border-color 0.3s ease, background 0.3s ease',
+          }}
+        >
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5">
+              {tip ? (
+                <>
+                  {(tip.priority === 'critical' || tip.priority === 'high') ? (
+                    <AlertTriangle className="w-3.5 h-3.5" style={{ color: tipColor }} />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" style={{ color: tipColor }} />
+                  )}
+                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: tipColor }}>
+                    {priorityLabel(tip.priority)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <MessageCircle className="w-3.5 h-3.5 text-white/50" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
+                    Tip en vivo
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {tip?.category && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 font-semibold">
+                  {tip.category}
                 </span>
-              </>
-            ) : (
-              <>
-                <MessageCircle className="w-3.5 h-3.5 text-white/50" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-                  Tip en vivo
-                </span>
-              </>
+              )}
+              {totalTips > 1 && (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={goPrev}
+                    disabled={!canPrev}
+                    className="p-0.5 rounded hover:bg-white/15 disabled:opacity-25 disabled:cursor-not-allowed text-white/70"
+                    title="Tip anterior"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <span className="text-[9px] tabular-nums text-white/60 px-1">
+                    {tipIndex + 1}/{totalTips}
+                  </span>
+                  <button
+                    onClick={goNext}
+                    disabled={!canNext}
+                    className="p-0.5 rounded hover:bg-white/15 disabled:opacity-25 disabled:cursor-not-allowed text-white/70"
+                    title="Tip siguiente"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="text-[13px] text-white/95 leading-relaxed overflow-y-auto custom-scrollbar flex-1">
+            {tip?.tip || (
+              <div className="text-white/55 text-xs italic">
+                Esperando próxima sugerencia del coach. Habla con tu interlocutor — los tips llegan
+                cada ~20s o cuando hay cambios relevantes.
+              </div>
             )}
           </div>
-          {tip?.category && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 font-semibold">
-              {tip.category}
-            </span>
-          )}
-        </div>
 
-        <div className="text-[13px] text-white/95 leading-relaxed overflow-y-auto custom-scrollbar flex-1">
-          {tip?.tip || (
-            <div className="text-white/55 text-xs italic">
-              Esperando próxima sugerencia del coach. Habla con tu interlocutor — los tips llegan
-              cada ~20s o cuando hay cambios relevantes.
+          {tip?.technique && (
+            <div className="mt-2 pt-2 border-t border-white/10 flex-shrink-0">
+              <div className="text-[9px] uppercase tracking-wider text-white/50 mb-0.5">Técnica</div>
+              <div className="text-[11px] text-white/80 italic">{tip.technique}</div>
             </div>
           )}
         </div>
+      )}
 
-        {tip?.technique && (
-          <div className="mt-2 pt-2 border-t border-white/10 flex-shrink-0">
-            <div className="text-[9px] uppercase tracking-wider text-white/50 mb-0.5">Técnica</div>
-            <div className="text-[11px] text-white/80 italic">{tip.technique}</div>
-          </div>
-        )}
-      </div>
+      {/* SECCIÓN: PREGUNTAS DEL CLIENTE */}
+      {section === 'questions' && (
+        <div className="flex-1 rounded-lg border border-white/10 bg-white/4 p-3 overflow-hidden flex flex-col min-h-0">
+          {questions.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-white/55 text-xs italic text-center">
+              Aún no se detectan preguntas del interlocutor.
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1.5">
+              {questions
+                .slice()
+                .reverse()
+                .map((q, i) => {
+                  const ageSec = Math.max(0, (Date.now() - q.timestamp) / 1000);
+                  const ageLabel =
+                    ageSec < 60
+                      ? `${Math.round(ageSec)}s`
+                      : ageSec < 3600
+                      ? `${Math.floor(ageSec / 60)}m`
+                      : `${Math.floor(ageSec / 3600)}h`;
+                  return (
+                    <div
+                      key={`${q.timestamp}-${i}`}
+                      className="rounded-md bg-white/8 border border-white/8 px-2.5 py-2"
+                    >
+                      <div className="flex items-start gap-2">
+                        <HelpCircle className="w-3 h-3 mt-0.5 flex-shrink-0 text-[#1bea9a]" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] text-white/95 leading-snug">{q.text}</div>
+                          <div className="text-[9px] text-white/45 mt-0.5">hace {ageLabel}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

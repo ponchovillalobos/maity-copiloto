@@ -68,6 +68,11 @@ export function MetricsBroadcaster() {
       const health = coachMetrics?.connectionScore ?? 50;
       const tipsCount = suggestions.length;
 
+      const interlocutorQuestions = (coachMetrics?.questionHistory ?? [])
+        .filter((q) => q.speaker === 'interlocutor')
+        .slice(-20)
+        .map((q) => ({ text: q.text, timestamp: q.timestamp }));
+
       emit('meeting-metrics', {
         health,
         wpm,
@@ -80,6 +85,7 @@ export function MetricsBroadcaster() {
         interlocutorWords,
         connectionScore: coachMetrics?.connectionScore ?? 50,
         connectionTrend: coachMetrics?.connectionTrend ?? 'stable',
+        interlocutorQuestions,
       }).catch(() => {
         /* ignore — flotante puede no estar abierta */
       });

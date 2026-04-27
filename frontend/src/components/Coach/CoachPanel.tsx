@@ -17,7 +17,6 @@ import { Sparkles, MessageCircleQuestion, ShieldAlert, Target, Clock, Heart, Loa
 import { invoke } from '@tauri-apps/api/core';
 import { useCoach, CoachSuggestion, CoachChatMessage } from '@/contexts/CoachContext';
 import { useProgressEvents } from '@/hooks/useProgressEvents';
-import { ConnectionThermometer } from './ConnectionThermometer';
 import { MeetingTypeBadge } from './MeetingTypeBadge';
 import { BookmarkButton } from './BookmarkButton';
 
@@ -301,22 +300,6 @@ export function CoachPanel() {
   // Tips persistentes: TODAS las sugerencias de la sesión, más recientes arriba
   const visible = [...suggestions].reverse();
   const ollamaDown = status && !status.ollama_running;
-
-  // Formato duración mm:ss
-  const formatDuration = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-  const talkPct = Math.round(metrics.userTalkRatio * 100);
-  const talkPctColor =
-    metrics.totalWords === 0
-      ? 'text-gray-500'
-      : talkPct > 65
-      ? 'text-orange-300'
-      : talkPct < 35
-      ? 'text-blue-300'
-      : 'text-green-300';
 
   const handleSend = async () => {
     const msg = chatInput.trim();
