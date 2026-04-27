@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { emit } from '@tauri-apps/api/event';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
@@ -24,6 +24,29 @@ export function MetricsBroadcaster() {
   const { suggestions, metrics: coachMetrics } = useCoach();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Pre-cómputo memoizado de talk-time + word counts.
+  // Antes: full-loop sobre transcripts cada 2s en `tick` → con 2000 transcripts
+  // = 1000 iter/min puro garbage. Ahora se recomputa solo cuando transcripts
+  // cambia (eventos discretos al llegar nuevo segment).
+  const aggregates = useMemo(() => {
+    let userWords = 0;
+    let interlocutorWords = 0;
+    let userSegmentSec = 0;
+    let interlocutorSegmentSec = 0;
+    for (const t of transcripts as Transcript[]) {
+      const words = (t.text || '').trim().split(/\s+/).filter(Boolean).length;
+      const dur = typeof t.duration === 'number' ? t.duration : 0;
+      if (t.source_type === 'user') {
+        userWords += words;
+        userSegmentSec += dur;
+      } else if (t.source_type === 'interlocutor') {
+        interlocutorWords += words;
+        interlocutorSegmentSec += dur;
+      }
+    }
+    return { userWords, interlocutorWords, userSegmentSec, interlocutorSegmentSec };
+  }, [transcripts]);
+
   useEffect(() => {
     if (!isRecording) {
       if (intervalRef.current) {
@@ -37,21 +60,7 @@ export function MetricsBroadcaster() {
       const durationSec = Math.max(0, (activeDuration ?? 0));
       const minutes = Math.max(0.05, durationSec / 60);
 
-      let userWords = 0;
-      let interlocutorWords = 0;
-      let userSegmentSec = 0;
-      let interlocutorSegmentSec = 0;
-      for (const t of transcripts as Transcript[]) {
-        const words = (t.text || '').trim().split(/\s+/).filter(Boolean).length;
-        const dur = typeof t.duration === 'number' ? t.duration : 0;
-        if (t.source_type === 'user') {
-          userWords += words;
-          userSegmentSec += dur;
-        } else if (t.source_type === 'interlocutor') {
-          interlocutorWords += words;
-          interlocutorSegmentSec += dur;
-        }
-      }
+      const { userWords, interlocutorWords, userSegmentSec, interlocutorSegmentSec } = aggregates;
       const wpm = userWords / minutes;
 
       // Tiempo hablado por persona (segundos): preferir audio_*_time si existe,
@@ -100,7 +109,7 @@ export function MetricsBroadcaster() {
         intervalRef.current = null;
       }
     };
-  }, [isRecording, activeDuration, transcripts, suggestions, coachMetrics]);
+  }, [isRecording, activeDuration, aggregates, suggestions, coachMetrics]);
 
   return null;
 }

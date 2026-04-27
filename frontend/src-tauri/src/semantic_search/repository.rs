@@ -129,6 +129,92 @@ impl EmbeddingsRepository {
         Ok(out)
     }
 
+    /// Variante paginada de `load_all` para datasets grandes (>10k embeddings).
+    /// Carga `limit` filas a partir de `offset`. Útil para iterar en chunks
+    /// y evitar materializar todo el corpus en RAM (~620 MB con 200k embeddings 768d).
+    pub async fn load_page(
+        pool: &SqlitePool,
+        model: &str,
+        meeting_id: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<EmbeddingRow>, sqlx::Error> {
+        let rows = if let Some(mid) = meeting_id {
+            sqlx::query(
+                "SELECT meeting_id, segment_id, text, embedding,
+                        audio_start_time, audio_end_time, source_type
+                 FROM transcript_embeddings
+                 WHERE model = ? AND meeting_id = ?
+                 ORDER BY rowid
+                 LIMIT ? OFFSET ?",
+            )
+            .bind(model)
+            .bind(mid)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query(
+                "SELECT meeting_id, segment_id, text, embedding,
+                        audio_start_time, audio_end_time, source_type
+                 FROM transcript_embeddings
+                 WHERE model = ?
+                 ORDER BY rowid
+                 LIMIT ? OFFSET ?",
+            )
+            .bind(model)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?
+        };
+
+        let mut out = Vec::with_capacity(rows.len());
+        for row in rows {
+            let blob: Vec<u8> = row.try_get("embedding")?;
+            let embedding = match bytes_to_embedding(&blob) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::warn!("Skipping malformed embedding row: {}", e);
+                    continue;
+                }
+            };
+            out.push(EmbeddingRow {
+                meeting_id: row.try_get("meeting_id")?,
+                segment_id: row.try_get("segment_id")?,
+                text: row.try_get("text")?,
+                embedding,
+                audio_start_time: row.try_get("audio_start_time").ok(),
+                audio_end_time: row.try_get("audio_end_time").ok(),
+                source_type: row.try_get("source_type").ok(),
+            });
+        }
+        Ok(out)
+    }
+
+    pub async fn count(
+        pool: &SqlitePool,
+        model: &str,
+        meeting_id: Option<&str>,
+    ) -> Result<i64, sqlx::Error> {
+        let count: (i64,) = if let Some(mid) = meeting_id {
+            sqlx::query_as(
+                "SELECT COUNT(*) FROM transcript_embeddings WHERE model = ? AND meeting_id = ?",
+            )
+            .bind(model)
+            .bind(mid)
+            .fetch_one(pool)
+            .await?
+        } else {
+            sqlx::query_as("SELECT COUNT(*) FROM transcript_embeddings WHERE model = ?")
+                .bind(model)
+                .fetch_one(pool)
+                .await?
+        };
+        Ok(count.0)
+    }
+
     pub async fn delete_by_meeting(
         pool: &SqlitePool,
         meeting_id: &str,

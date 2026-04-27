@@ -11,8 +11,9 @@
 //! ventana reciente, ideal para preguntas sobre reuniones cerradas.
 
 use crate::coach::commands::SHARED_CLIENT;
-use crate::semantic_search::{cosine_similarity, repository::EmbeddingsRepository, DEFAULT_EMBED_MODEL};
+use crate::semantic_search::DEFAULT_EMBED_MODEL;
 use crate::semantic_search::embedder::embed_text;
+use crate::semantic_search::search::streaming_top_k;
 use crate::state::AppState;
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use serde::{Deserialize, Serialize};
@@ -107,11 +108,11 @@ pub async fn chat_with_meeting(
             )
         })?;
 
-    let rows = EmbeddingsRepository::load_all(pool, &embed_model, Some(&meeting_id))
+    let scored = streaming_top_k(pool, &embed_model, Some(&meeting_id), &query_emb, k)
         .await
-        .map_err(|e| format!("Error cargando embeddings: {}", e))?;
+        .map_err(|e| format!("Error buscando embeddings: {}", e))?;
 
-    if rows.is_empty() {
+    if scored.is_empty() {
         return Ok(MeetingChatResponse {
             answer: "Esta reunión aún no tiene embeddings indexados. Genera el índice antes de chatear.".to_string(),
             citations: vec![],
@@ -121,12 +122,8 @@ pub async fn chat_with_meeting(
         });
     }
 
-    let mut scored: Vec<(f32, _)> = rows
-        .into_iter()
-        .map(|r| (cosine_similarity(&query_emb, &r.embedding), r))
-        .collect();
-    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    let top: Vec<_> = scored.into_iter().take(k).collect();
+    let top: Vec<(f32, crate::semantic_search::repository::EmbeddingRow)> =
+        scored.into_iter().map(|s| (s.score, s.row)).collect();
 
     let mut context_block = String::new();
     let mut citations: Vec<MeetingChatCitation> = Vec::with_capacity(top.len());
@@ -251,12 +248,11 @@ pub async fn chat_with_history(
             )
         })?;
 
-    // Cargar TODOS los embeddings (sin filtro meeting_id).
-    let rows = EmbeddingsRepository::load_all(pool, &embed_model, None)
+    let scored = streaming_top_k(pool, &embed_model, None, &query_emb, k)
         .await
-        .map_err(|e| format!("Error cargando embeddings: {}", e))?;
+        .map_err(|e| format!("Error buscando embeddings: {}", e))?;
 
-    if rows.is_empty() {
+    if scored.is_empty() {
         return Ok(MeetingChatResponse {
             answer: "No hay reuniones indexadas todavía. Graba algunas reuniones para empezar a chatear con tu historial.".to_string(),
             citations: vec![],
@@ -266,12 +262,8 @@ pub async fn chat_with_history(
         });
     }
 
-    let mut scored: Vec<(f32, _)> = rows
-        .into_iter()
-        .map(|r| (cosine_similarity(&query_emb, &r.embedding), r))
-        .collect();
-    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-    let top: Vec<_> = scored.into_iter().take(k).collect();
+    let top: Vec<(f32, crate::semantic_search::repository::EmbeddingRow)> =
+        scored.into_iter().map(|s| (s.score, s.row)).collect();
 
     // Cargar títulos de meetings citados (lookup masivo) para evitar N consultas.
     let meeting_ids: std::collections::HashSet<String> =

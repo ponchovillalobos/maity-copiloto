@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use super::embedder::embed_text;
+#[allow(unused_imports)]
 use super::repository::EmbeddingsRepository;
-use super::{cosine_similarity, IndexResult, SearchResult, DEFAULT_EMBED_MODEL};
+use super::{IndexResult, SearchResult, DEFAULT_EMBED_MODEL};
 use crate::state::AppState;
 
 pub static EMBED_HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
@@ -135,31 +136,26 @@ pub async fn semantic_search(
         .await
         .map_err(|e| format!("Embed query failed: {}", e))?;
 
-    let rows = EmbeddingsRepository::load_all(pool, &model, meeting_id.as_deref())
-        .await
-        .map_err(|e| format!("DB load failed: {}", e))?;
-
-    if rows.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let mut scored: Vec<(f32, super::repository::EmbeddingRow)> = rows
-        .into_iter()
-        .map(|r| (cosine_similarity(&query_emb, &r.embedding), r))
-        .collect();
-    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    let scored = super::search::streaming_top_k(
+        pool,
+        &model,
+        meeting_id.as_deref(),
+        &query_emb,
+        top_k,
+    )
+    .await
+    .map_err(|e| format!("DB search failed: {}", e))?;
 
     Ok(scored
         .into_iter()
-        .take(top_k)
-        .map(|(score, r)| SearchResult {
-            meeting_id: r.meeting_id,
-            segment_id: r.segment_id,
-            text: r.text,
-            score,
-            audio_start_time: r.audio_start_time,
-            audio_end_time: r.audio_end_time,
-            source_type: r.source_type,
+        .map(|s| SearchResult {
+            meeting_id: s.row.meeting_id,
+            segment_id: s.row.segment_id,
+            text: s.row.text,
+            score: s.score,
+            audio_start_time: s.row.audio_start_time,
+            audio_end_time: s.row.audio_end_time,
+            source_type: s.row.source_type,
         })
         .collect())
 }

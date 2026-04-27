@@ -14,6 +14,7 @@
 pub mod commands;
 pub mod embedder;
 pub mod repository;
+pub mod search;
 
 use serde::{Deserialize, Serialize};
 
