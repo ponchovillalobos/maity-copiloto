@@ -31,6 +31,9 @@ import { CommandPalette, useCommandPalette } from '@/components/CommandPalette'
 import { GlobalChatDrawer } from '@/components/GlobalChat/GlobalChatDrawer'
 import { FloatingAutoOpener } from '@/components/FloatingAutoOpener'
 import { MetricsBroadcaster } from '@/components/MetricsBroadcaster'
+import { TourOverlay } from '@/components/onboarding/TourOverlay'
+import { StatusETAProvider } from '@/contexts/StatusETAContext'
+import { StatusETA } from '@/components/StatusBar/StatusETA'
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -153,6 +156,7 @@ export default function RootLayout({
                 <OllamaDownloadProvider>
                   <OnboardingProvider>
                     <UpdateCheckProvider>
+                      <StatusETAProvider>
                       <SidebarProvider>
                         <TooltipProvider>
                           <RecordingPostProcessingProvider>
@@ -167,6 +171,8 @@ export default function RootLayout({
                               <OnboardingFlow onComplete={handleOnboardingComplete} />
                             ) : (
                               <div className="flex flex-col h-screen">
+                                {/* Status ETA bar (operations with countdown) */}
+                                <StatusETA />
                                 {/* Offline indicator at the top */}
                                 <OfflineIndicator />
                                 <div className="flex flex-1 overflow-hidden">
@@ -181,11 +187,14 @@ export default function RootLayout({
                                 <FloatingAutoOpener />
                                 {/* v0.4.0: Broadcast métricas a la ventana flotante cada 2s */}
                                 <MetricsBroadcaster />
+                                {/* v0.4.0: Tour visual de onboarding (solo primera vez post-onboarding) */}
+                                <TourOverlay />
                               </div>
                             )}
                           </RecordingPostProcessingProvider>
                         </TooltipProvider>
                       </SidebarProvider>
+                      </StatusETAProvider>
                     </UpdateCheckProvider>
                   </OnboardingProvider>
 
