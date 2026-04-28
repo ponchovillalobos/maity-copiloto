@@ -37,6 +37,7 @@ import { StatusETA } from '@/components/StatusBar/StatusETA'
 import { BookmarksList } from '@/components/Coach/BookmarksList'
 import { PlaybookDrawer } from '@/components/Playbook/PlaybookDrawer'
 import { CalendarImporter } from '@/components/Calendar/CalendarImporter'
+import { OllamaStatus } from '@/components/StatusBar/OllamaStatus'
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -174,6 +175,8 @@ export default function RootLayout({
                               <OnboardingFlow onComplete={handleOnboardingComplete} />
                             ) : (
                               <div className="flex flex-col h-screen">
+                                {/* Ollama status widget (top-right corner) */}
+                                <OllamaStatus />
                                 {/* Status ETA bar (operations with countdown) */}
                                 <StatusETA />
                                 {/* Offline indicator at the top */}

@@ -82,10 +82,22 @@ export function MeetingChatPanel({ meetingId }: Props) {
         { role: 'assistant', content: res.answer, citations: res.citations },
       ]);
     } catch (e) {
-      setError(String(e));
+      const errorMsg = String(e);
+      let friendlyError = errorMsg;
+
+      if (errorMsg.toLowerCase().includes('embedding') || errorMsg.toLowerCase().includes('index')) {
+        friendlyError = 'Esta reunión aún no está indexada para chat. Genera el índice primero.';
+      } else if (errorMsg.toLowerCase().includes('ollama') || errorMsg.toLowerCase().includes('model')) {
+        friendlyError = 'Coach IA no responde. Verifica Ollama.';
+        if (typeof globalThis !== 'undefined' && globalThis.window) {
+          globalThis.window.dispatchEvent(new CustomEvent('verify-ollama-status'));
+        }
+      }
+
+      setError(friendlyError);
       setHistory(prev => [
         ...prev,
-        { role: 'assistant', content: `Error: ${e}`, citations: [] },
+        { role: 'assistant', content: `Error: ${friendlyError}`, citations: [] },
       ]);
     } finally {
       setLoading(false);

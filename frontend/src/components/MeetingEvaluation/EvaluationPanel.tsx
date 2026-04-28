@@ -176,6 +176,11 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
     setError(null);
     try {
       const transcriptText = buildTranscriptText(transcripts);
+      if (!canGenerate) {
+        setError('Esta reunión es muy corta para generar evaluación. Necesitas al menos 100 caracteres de transcript.');
+        setGenerating(false);
+        return;
+      }
       const res = await invoke<PostMeetingEvaluationResult>('coach_evaluate_post_meeting', {
         meetingId,
         transcript: transcriptText,
@@ -184,7 +189,18 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
       });
       setResult(res);
     } catch (e) {
-      setError(String(e));
+      const errorMsg = String(e);
+      if (errorMsg.toLowerCase().includes('ollama') || errorMsg.toLowerCase().includes('modelo')) {
+        setError('El modelo de evaluación (gemma3:4b) no está disponible. Verifica que Ollama esté corriendo.');
+        // Dispara evento para OllamaStatus widget
+        if (typeof globalThis !== 'undefined' && globalThis.window) {
+          globalThis.window.dispatchEvent(new CustomEvent('verify-ollama-status'));
+        }
+      } else if (errorMsg.toLowerCase().includes('transcripción') || errorMsg.toLowerCase().includes('transcript')) {
+        setError('Esta reunión es muy corta para generar evaluación. Necesitas al menos 100 caracteres de transcript.');
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setGenerating(false);
     }

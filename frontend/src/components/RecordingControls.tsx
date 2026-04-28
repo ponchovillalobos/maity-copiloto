@@ -115,7 +115,16 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       // Parse error message to provide user-friendly feedback
       const errorMsg = error instanceof Error ? error.message : String(error);
 
-      // Check for device-related errors
+      // Toast con mensaje amigable y accionable
+      if (errorMsg.includes('permission')) {
+        toast.error('Maity necesita permiso de micrófono. Ve a Configuración del sistema → Privacidad.');
+      } else if (errorMsg.includes('microphone') || errorMsg.includes('mic') || errorMsg.includes('input')) {
+        toast.error('No pudimos iniciar la grabación. Verifica que tu micrófono esté conectado y vuelve a intentar.');
+      } else {
+        toast.error('No pudimos iniciar la grabación. Verifica que tu micrófono esté conectado y vuelve a intentar.');
+      }
+
+      // Check for device-related errors (para mostrar modal si es necesario)
       if (errorMsg.includes('microphone') || errorMsg.includes('mic') || errorMsg.includes('input')) {
         setDeviceError({
           title: 'Micrófono No Disponible',
@@ -180,6 +189,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         }
       }
       setIsProcessing(false);
+      toast.error('Hubo un problema al detener. La grabación se guardó automáticamente.');
       onRecordingStop(false);
     } finally {
       setIsStopping(false);
@@ -216,7 +226,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       logger.debug('Recording paused successfully');
     } catch (error) {
       console.error('Failed to pause recording:', error);
-      toast.error('Error al pausar grabación');
+      toast.error('No pudimos pausar la grabación. Reintenta o detén la grabación.');
     } finally {
       setIsPausing(false);
     }
@@ -234,7 +244,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
       logger.debug('Recording resumed successfully');
     } catch (error) {
       console.error('Failed to resume recording:', error);
-      toast.error('Error al reanudar grabación');
+      toast.error('No pudimos reanudar la grabación. Reintenta o detén la grabación.');
     } finally {
       setIsResuming(false);
     }

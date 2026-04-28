@@ -384,7 +384,16 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       });
       setLatestSuggestion(suggestion);
     } catch (e) {
-      logger.warn(`[Coach] Error al generar sugerencia: ${e}`);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      logger.warn(`[Coach] Error al generar sugerencia: ${errorMsg}`);
+
+      // Mostrar toast con acción para Ollama offline
+      if (errorMsg.toLowerCase().includes('ollama') || errorMsg.toLowerCase().includes('model')) {
+        // Dispatch evento que OllamaStatus widget escucha
+        if (typeof globalThis !== 'undefined' && globalThis.window) {
+          globalThis.window.dispatchEvent(new CustomEvent('verify-ollama-status'));
+        }
+      }
     } finally {
       setLoading(false);
     }
