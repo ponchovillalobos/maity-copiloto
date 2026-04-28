@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, FileDown, Mic, MicOff, Sparkles, Settings, Bookmark,
   Trash2, RefreshCw, FileText, Command as CmdIcon, ChevronRight,
-  MessageCircleMore, PictureInPicture2, BookOpen,
+  MessageCircleMore, PictureInPicture2, BookOpen, Calendar,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,7 @@ export type CommandId =
   | 'playbook'
   | 'open-floating'
   | 'list-bookmarks'
+  | 'import-calendar'
   | 'go-home'
   | 'reload'
   | 'clear-cache';
@@ -38,7 +39,7 @@ interface CommandDef {
   description: string;
   icon: React.ReactNode;
   keywords?: string[];
-  group: 'Reunión' | 'Exportar' | 'Navegación' | 'Sistema' | 'Coach IA';
+  group: 'Reunión' | 'Exportar' | 'Navegación' | 'Sistema' | 'Coach IA' | 'Calendario';
   enabled?: () => boolean;
   action: () => void | Promise<void>;
 }
@@ -264,6 +265,18 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
           } catch (e) {
             toast.error(`Error: ${e}`);
           }
+        },
+      },
+      {
+        id: 'import-calendar',
+        slash: '/calendar',
+        label: 'Importar calendario .ics',
+        description: 'Cargar eventos de Outlook/Google Calendar localmente',
+        icon: <Calendar className="w-4 h-4" />,
+        keywords: ['ics', 'outlook', 'google', 'evento', 'calendar'],
+        group: 'Calendario',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('open-calendar-import'));
         },
       },
     ],

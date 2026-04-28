@@ -200,7 +200,9 @@ pub mod api;
 pub mod audio;
 pub mod auto_setup;
 pub mod builtin_ai;
+pub mod calendar;
 pub mod coach;
+pub mod compliance;
 pub mod console_utils;
 pub mod database;
 pub mod export;
@@ -1011,6 +1013,8 @@ pub fn run() {
             get_transcription_status,
             read_audio_file,
             save_transcript,
+            calendar::commands::calendar_parse_ics_file,
+            calendar::commands::calendar_match_meeting_to_event,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,
             analytics::commands::track_event,
@@ -1271,6 +1275,15 @@ pub fn run() {
             coach::prospecting::generate_prospecting_snapshot,
             // Coach playbook (análisis cross-prospect)
             coach::playbook::generate_playbook,
+            // Coach custom prompts (enterprise personalization)
+            coach::custom_prompts::coach_save_custom_prompt,
+            coach::custom_prompts::coach_list_custom_prompts,
+            coach::custom_prompts::coach_set_active_custom_prompt,
+            coach::custom_prompts::coach_delete_custom_prompt,
+            // Compliance reports (audit logs + PDF generation)
+            compliance::commands::compliance_log_event,
+            compliance::commands::compliance_get_meeting_audit,
+            compliance::commands::compliance_export_report,
             // System settings commands
             #[cfg(target_os = "macos")]
             utils::open_system_settings,

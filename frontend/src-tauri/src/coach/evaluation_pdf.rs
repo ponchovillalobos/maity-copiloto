@@ -19,6 +19,7 @@ use std::process::Command;
 
 /// Estructura para representar la evaluación en PDF con metadatos
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct EvaluationPdfData {
     meeting_id: String,
     meeting_name: String,

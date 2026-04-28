@@ -119,6 +119,10 @@ ringbuf = "0.4.8"
 # PDF export for transcripts
 printpdf = "0.7"
 
+# Compliance reports: hashing and hex encoding
+sha2 = "0.10"
+hex = "0.4"
+
 ffmpeg-sidecar = { git = "https://github.com/nathanbabcock/ffmpeg-sidecar", branch = "main" }
 
 sqlx = { version = "0.8", features = [ "runtime-tokio", "sqlite", "chrono"] }

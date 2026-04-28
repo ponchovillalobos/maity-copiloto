@@ -36,6 +36,7 @@ import { StatusETAProvider } from '@/contexts/StatusETAContext'
 import { StatusETA } from '@/components/StatusBar/StatusETA'
 import { BookmarksList } from '@/components/Coach/BookmarksList'
 import { PlaybookDrawer } from '@/components/Playbook/PlaybookDrawer'
+import { CalendarImporter } from '@/components/Calendar/CalendarImporter'
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -183,6 +184,8 @@ export default function RootLayout({
                                 </div>
                                 {/* Wave B2: Command Palette (Ctrl+K) */}
                                 <CommandPaletteMount />
+                                {/* Calendar import modal (listen 'open-calendar-import') */}
+                                <CalendarImporter />
                                 {/* v0.4.0: Chat global con historial (siempre montado, listen 'open-global-chat') */}
                                 <GlobalChatDrawer />
                                 {/* v0.4.1: Bookmarks list drawer (siempre montado, listen 'open-bookmarks-list') */}

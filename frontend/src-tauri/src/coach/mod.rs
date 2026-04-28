@@ -9,6 +9,7 @@ pub mod bookmarks;
 pub mod chat;
 pub mod commands;
 pub mod context;
+pub mod custom_prompts;
 pub mod evaluation_pdf;
 pub mod evaluation_types;
 pub mod evaluator;
@@ -34,6 +35,10 @@ pub use commands::{
     coach_suggest, CoachModelsConfig, CoachStatus, CoachSuggestion,
 };
 pub use context::{build_context, CoachContext, ContextMode};
+pub use custom_prompts::{
+    coach_delete_custom_prompt, coach_list_custom_prompts, coach_save_custom_prompt,
+    coach_set_active_custom_prompt, CustomPrompt,
+};
 pub use evaluator::{
     coach_evaluate_communication, CommunicationFeedback, CommunicationObservations,
 };

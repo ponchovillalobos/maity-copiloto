@@ -17,6 +17,7 @@ import {
   Cell,
 } from 'recharts';
 import { Sparkles, AlertTriangle, TrendingUp, MessageSquare, Download, CheckCircle } from 'lucide-react';
+import { ComplianceReportButton } from '../Compliance';
 import type { Transcript } from '@/types';
 
 interface EvaluationProps {
@@ -270,7 +271,8 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
           </h2>
           <div className="text-sm text-[#6a6a6d] mt-1">{ev.resumen.descripcion}</div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <ComplianceReportButton meetingId={meetingId} />
           <button
             onClick={handleExportPdf}
             disabled={exporting}

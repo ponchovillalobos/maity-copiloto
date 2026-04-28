@@ -194,6 +194,7 @@ pub fn export_as_pdf(
 
     // Add transcripts
     let min_y_position = Mm(10.0); // Bottom margin
+    #[allow(unused_assignments)]
     let mut current_page = page1;
     let mut current_layer_ref = current_layer;
 
