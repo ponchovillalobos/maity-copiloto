@@ -79,8 +79,8 @@ export function DownloadProgressStep() {
     <OnboardingContainer
       title="100% Local y Privado"
       description="Maity transcribe tus reuniones con Parakeet local y usa Ollama para el coach IA. Nada sale de tu equipo. Cero API keys."
-      step={3}
-      totalSteps={isMac ? 4 : 3}
+      step={4}
+      totalSteps={isMac ? 6 : 5}
     >
       <div className="flex flex-col items-center space-y-8">
         {/* Privacy Icon */}

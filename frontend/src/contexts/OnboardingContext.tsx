@@ -499,8 +499,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   const goNext = useCallback(() => {
     setCurrentStep((prev: number) => {
       const next = prev + 1;
-      // Don't go past step 4
-      return Math.min(next, 4);
+      // Don't go past step 6
+      return Math.min(next, 6);
     });
   }, []);
 

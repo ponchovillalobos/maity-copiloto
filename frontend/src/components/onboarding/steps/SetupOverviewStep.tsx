@@ -55,7 +55,7 @@ export function SetupOverviewStep() {
       title="Resumen de Configuración"
       description="Maity transcribe tus reuniones con Parakeet local y te da sugerencias en vivo con Ollama. 100% en tu equipo, sin cloud, sin API keys."
       step={2}
-      totalSteps={isMac ? 4 : 3}
+      totalSteps={isMac ? 6 : 5}
     >
       <div className="flex flex-col items-center space-y-8">
         {/* Privacy Icon */}

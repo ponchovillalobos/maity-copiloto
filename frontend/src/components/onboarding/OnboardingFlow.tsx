@@ -5,6 +5,8 @@ import {
   PermissionsStep,
   DownloadProgressStep,
   SetupOverviewStep,
+  AutoModelSetupStep,
+  MicTestStep,
 } from './steps';
 
 interface OnboardingFlowProps {
@@ -31,18 +33,22 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     checkPlatform();
   }, []);
 
-  // 4-Step Onboarding Flow (System-Recommended Models):
+  // 6-Step Onboarding Flow (System-Recommended Models):
   // Step 1: Welcome - Introduce Maity features
   // Step 2: Setup Overview - Database initialization + show recommended downloads
-  // Step 3: Download Progress - Download Parakeet + Gemma (auto-selected based on RAM)
-  // Step 4: Permissions - Request mic + system audio (macOS only)
+  // Step 3: Auto Model Setup - Download Ollama models (gemma3:4b, nomic-embed-text)
+  // Step 4: Download Progress - Download Parakeet (auto-selected based on RAM)
+  // Step 5: Mic Test - Audio device selection + level monitoring + preview
+  // Step 6: Permissions - Request mic + system audio (macOS only)
 
   return (
     <div className="onboarding-flow">
       {currentStep === 1 && <WelcomeStep />}
       {currentStep === 2 && <SetupOverviewStep />}
-      {currentStep === 3 && <DownloadProgressStep />}
-      {currentStep === 4 && isMac && <PermissionsStep />}
+      {currentStep === 3 && <AutoModelSetupStep />}
+      {currentStep === 4 && <DownloadProgressStep />}
+      {currentStep === 5 && <MicTestStep />}
+      {currentStep === 6 && isMac && <PermissionsStep />}
     </div>
   );
 }
