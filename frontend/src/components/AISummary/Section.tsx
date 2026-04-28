@@ -75,7 +75,7 @@ export const Section: React.FC<SectionProps> = ({
         {onSectionDelete && (
           <button
             onClick={() => onSectionDelete(sectionKey)}
-            className="text-[#8a8a8d] hover:text-[#4a4a4c]"
+            className="text-[#8a8a8d] hover:text-gray-200"
             aria-label="Eliminar sección"
           >
             Eliminar

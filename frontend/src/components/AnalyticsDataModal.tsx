@@ -19,11 +19,11 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
         <div className="flex items-center justify-between p-6 border-b border-[#e7e7e9] dark:border-gray-700">
           <div className="flex items-center gap-3">
             <Shield className="w-6 h-6 text-[#3a4ac3] dark:text-blue-400" />
-            <h2 className="text-xl font-semibold text-[#000000] dark:text-white">Qué Recopilamos</h2>
+            <h2 className="text-xl font-semibold text-white dark:text-white">Qué Recopilamos</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-[#8a8a8d] dark:text-gray-500 hover:text-[#4a4a4c] dark:hover:text-gray-300 transition-colors"
+            className="text-[#8a8a8d] dark:text-gray-500 hover:text-gray-200 dark:hover:text-gray-300 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -44,62 +44,62 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
 
           {/* Data Categories */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-[#000000] dark:text-white">Datos que Recopilamos:</h3>
+            <h3 className="text-lg font-semibold text-white dark:text-white">Datos que Recopilamos:</h3>
 
             {/* Model Preferences */}
             <div className="border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-4">
-              <h4 className="font-semibold text-[#000000] dark:text-white mb-2">1. Preferencias de Modelo</h4>
-              <ul className="text-sm text-[#3a3a3c] dark:text-gray-200 space-y-1 ml-4">
+              <h4 className="font-semibold text-white dark:text-white mb-2">1. Preferencias de Modelo</h4>
+              <ul className="text-sm text-gray-100 dark:text-gray-200 space-y-1 ml-4">
                 <li>• Modelo de transcripción (ej., &ldquo;Parakeet&rdquo;, &ldquo;Canary&rdquo;)</li>
                 <li>• Modelo de Coach IA (ej., &ldquo;gemma4&rdquo;, &ldquo;gemma3&rdquo;)</li>
                 <li>• Proveedor: Ollama local (sin cloud)</li>
               </ul>
-              <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-2 italic">Nos ayuda a entender qué modelos prefieren los usuarios</p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 italic">Nos ayuda a entender qué modelos prefieren los usuarios</p>
             </div>
 
             {/* Meeting Metrics */}
             <div className="border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-4">
-              <h4 className="font-semibold text-[#000000] dark:text-white mb-2">2. Métricas de Reunión Anónimas</h4>
-              <ul className="text-sm text-[#3a3a3c] dark:text-gray-200 space-y-1 ml-4">
+              <h4 className="font-semibold text-white dark:text-white mb-2">2. Métricas de Reunión Anónimas</h4>
+              <ul className="text-sm text-gray-100 dark:text-gray-200 space-y-1 ml-4">
                 <li>• Duración de grabación (ej., "125 segundos")</li>
                 <li>• Duración de pausa (ej., "5 segundos")</li>
                 <li>• Número de segmentos de transcripción</li>
                 <li>• Número de fragmentos de audio procesados</li>
               </ul>
-              <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-2 italic">Nos ayuda a optimizar rendimiento y entender patrones de uso</p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 italic">Nos ayuda a optimizar rendimiento y entender patrones de uso</p>
             </div>
 
             {/* Device Types */}
             <div className="border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-4">
-              <h4 className="font-semibold text-[#000000] dark:text-white mb-2">3. Tipos de Dispositivo (No Nombres)</h4>
-              <ul className="text-sm text-[#3a3a3c] dark:text-gray-200 space-y-1 ml-4">
+              <h4 className="font-semibold text-white dark:text-white mb-2">3. Tipos de Dispositivo (No Nombres)</h4>
+              <ul className="text-sm text-gray-100 dark:text-gray-200 space-y-1 ml-4">
                 <li>• Tipo de micrófono: "Bluetooth" o "Con cable" o "Desconocido"</li>
                 <li>• Tipo de audio del sistema: "Bluetooth" o "Con cable" o "Desconocido"</li>
               </ul>
-              <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-2 italic">Nos ayuda a mejorar compatibilidad, NO los nombres reales de dispositivos</p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 italic">Nos ayuda a mejorar compatibilidad, NO los nombres reales de dispositivos</p>
             </div>
 
             {/* Usage Patterns */}
             <div className="border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-4">
-              <h4 className="font-semibold text-[#000000] dark:text-white mb-2">4. Patrones de Uso de la App</h4>
-              <ul className="text-sm text-[#3a3a3c] dark:text-gray-200 space-y-1 ml-4">
+              <h4 className="font-semibold text-white dark:text-white mb-2">4. Patrones de Uso de la App</h4>
+              <ul className="text-sm text-gray-100 dark:text-gray-200 space-y-1 ml-4">
                 <li>• Eventos de inicio/cierre de app</li>
                 <li>• Duración de sesión</li>
                 <li>• Uso de funciones (ej., "configuración cambiada")</li>
                 <li>• Ocurrencia de errores (nos ayuda a corregir bugs)</li>
               </ul>
-              <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-2 italic">Nos ayuda a mejorar la experiencia del usuario</p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 italic">Nos ayuda a mejorar la experiencia del usuario</p>
             </div>
 
             {/* Platform Info */}
             <div className="border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-4">
-              <h4 className="font-semibold text-[#000000] dark:text-white mb-2">5. Información de Plataforma</h4>
-              <ul className="text-sm text-[#3a3a3c] dark:text-gray-200 space-y-1 ml-4">
+              <h4 className="font-semibold text-white dark:text-white mb-2">5. Información de Plataforma</h4>
+              <ul className="text-sm text-gray-100 dark:text-gray-200 space-y-1 ml-4">
                 <li>• Sistema operativo (ej., "macOS", "Windows")</li>
                 <li>• Versión de la app (incluida automáticamente en todos los eventos)</li>
                 <li>• Arquitectura (ej., "x86_64", "aarch64")</li>
               </ul>
-              <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-2 italic">Nos ayuda a priorizar soporte de plataformas</p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 italic">Nos ayuda a priorizar soporte de plataformas</p>
             </div>
           </div>
 
@@ -118,8 +118,8 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
 
           {/* Example Event */}
           <div className="bg-[#f5f5f6] dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-4">
-            <h4 className="font-semibold text-[#000000] dark:text-white mb-2">Ejemplo de Evento:</h4>
-            <pre className="text-xs text-[#3a3a3c] dark:text-gray-200 overflow-x-auto">
+            <h4 className="font-semibold text-white dark:text-white mb-2">Ejemplo de Evento:</h4>
+            <pre className="text-xs text-gray-100 dark:text-gray-200 overflow-x-auto">
               {`{
   "event": "meeting_ended",
   "app_version": "0.2.0",
@@ -141,7 +141,7 @@ export default function AnalyticsDataModal({ isOpen, onClose, onConfirmDisable }
         <div className="flex items-center justify-between gap-4 p-6 border-t border-[#e7e7e9] dark:border-gray-700 bg-[#f5f5f6] dark:bg-gray-800">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-[#3a3a3c] dark:text-gray-200 bg-white dark:bg-gray-800 border border-[#d0d0d3] dark:border-gray-600 rounded-md hover:bg-[#f5f5f6] dark:hover:bg-gray-700 transition-colors"
+            className="px-4 py-2 text-gray-100 dark:text-gray-200 bg-white dark:bg-gray-800 border border-[#d0d0d3] dark:border-gray-600 rounded-md hover:bg-[#f5f5f6] dark:hover:bg-gray-700 transition-colors"
           >
             Mantener Analíticas Habilitadas
           </button>

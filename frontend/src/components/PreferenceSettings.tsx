@@ -153,8 +153,8 @@ export function PreferenceSettings() {
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-[#e7e7e9] dark:border-gray-700 p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-[#000000] dark:text-white mb-2">Notificaciones</h3>
-            <p className="text-sm text-[#4a4a4c] dark:text-gray-300">Habilitar o deshabilitar notificaciones de inicio y fin de reunión</p>
+            <h3 className="text-lg font-semibold text-white dark:text-white mb-2">Notificaciones</h3>
+            <p className="text-sm text-gray-200 dark:text-gray-300">Habilitar o deshabilitar notificaciones de inicio y fin de reunión</p>
           </div>
           <Switch checked={notificationsEnabledValue} onCheckedChange={setNotificationsEnabled} />
         </div>
@@ -162,8 +162,8 @@ export function PreferenceSettings() {
 
       {/* Data Storage Locations Section */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-[#e7e7e9] dark:border-gray-700 p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-[#000000] dark:text-white mb-4">Ubicaciones de Almacenamiento de Datos</h3>
-        <p className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-6">
+        <h3 className="text-lg font-semibold text-white dark:text-white mb-4">Ubicaciones de Almacenamiento de Datos</h3>
+        <p className="text-sm text-gray-200 dark:text-gray-300 mb-6">
           Ver y acceder donde Maity almacena tus datos
         </p>
 
@@ -171,7 +171,7 @@ export function PreferenceSettings() {
           {/* Database Location */}
           {/* <div className="p-4 border rounded-lg bg-[#f5f5f6]">
             <div className="font-medium mb-2">Database</div>
-            <div className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-3 break-all font-mono text-xs">
+            <div className="text-sm text-gray-200 dark:text-gray-300 mb-3 break-all font-mono text-xs">
               {storageLocations?.database || 'Loading...'}
             </div>
             <button
@@ -186,7 +186,7 @@ export function PreferenceSettings() {
           {/* Models Location */}
           {/* <div className="p-4 border rounded-lg bg-[#f5f5f6]">
             <div className="font-medium mb-2">Whisper Models</div>
-            <div className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-3 break-all font-mono text-xs">
+            <div className="text-sm text-gray-200 dark:text-gray-300 mb-3 break-all font-mono text-xs">
               {storageLocations?.models || 'Loading...'}
             </div>
             <button
@@ -201,7 +201,7 @@ export function PreferenceSettings() {
           {/* Recordings Location */}
           <div className="p-4 border dark:border-gray-600 rounded-lg bg-[#f5f5f6] dark:bg-gray-700">
             <div className="font-medium mb-2 dark:text-white">Grabaciones de Reuniones</div>
-            <div className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-3 break-all font-mono text-xs">
+            <div className="text-sm text-gray-200 dark:text-gray-300 mb-3 break-all font-mono text-xs">
               {storageLocations?.recordings || 'Cargando...'}
             </div>
             <button

@@ -57,7 +57,7 @@ export function OnboardingContainer({
                   className={cn(
                     'pointer-events-auto w-8 h-8 rounded-full bg-white dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 shadow-sm flex items-center justify-center transition-all duration-200',
                     canGoPrevious && step !== 1
-                      ? 'hover:bg-[#f5f5f6] dark:hover:bg-gray-700 hover:shadow-md hover:scale-110 text-[#3a3a3c] dark:text-gray-200'
+                      ? 'hover:bg-[#f5f5f6] dark:hover:bg-gray-700 hover:shadow-md hover:scale-110 text-gray-100 dark:text-gray-200'
                       : 'opacity-0 cursor-not-allowed'
                   )}
                 >
@@ -70,7 +70,7 @@ export function OnboardingContainer({
                   className={cn(
                     'pointer-events-auto w-8 h-8 rounded-full bg-white dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 shadow-sm flex items-center justify-center transition-all duration-200',
                     canGoNext && step !== totalSteps
-                      ? 'hover:bg-[#f5f5f6] dark:hover:bg-gray-700 hover:shadow-md hover:scale-110 text-[#3a3a3c] dark:text-gray-200'
+                      ? 'hover:bg-[#f5f5f6] dark:hover:bg-gray-700 hover:shadow-md hover:scale-110 text-gray-100 dark:text-gray-200'
                       : 'opacity-0 cursor-not-allowed'
                   )}
                 >
@@ -86,9 +86,9 @@ export function OnboardingContainer({
 
         {/* Header - Fixed */}
         <div className="mb-4 text-center space-y-3 flex-shrink-0">
-          <h1 className="text-4xl font-semibold text-[#000000] dark:text-white animate-fade-in-up">{title}</h1>
+          <h1 className="text-4xl font-semibold text-white dark:text-white animate-fade-in-up">{title}</h1>
           {description && (
-            <p className="text-base text-[#4a4a4c] dark:text-gray-300 max-w-md mx-auto animate-fade-in-up delay-75">
+            <p className="text-base text-gray-200 dark:text-gray-300 max-w-md mx-auto animate-fade-in-up delay-75">
               {description}
             </p>
           )}

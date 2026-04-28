@@ -359,7 +359,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
           {isProcessing && !isParentProcessing ? (
             <div className="flex items-center space-x-2">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
-              <span className="text-sm text-[#4a4a4c] dark:text-gray-300">Procesando grabación...</span>
+              <span className="text-sm text-gray-200 dark:text-gray-300">Procesando grabación...</span>
             </div>
           ) : (
             <>
@@ -376,7 +376,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                   <div className="w-px h-6 bg-[#d0d0d3] dark:bg-gray-600 mx-1" />
 
                   <div className="flex items-center space-x-1 mx-2">
-                    <div className="text-sm text-[#4a4a4c] dark:text-gray-300 min-w-[40px]">
+                    <div className="text-sm text-gray-200 dark:text-gray-300 min-w-[40px]">
                       {formatTime(currentTime)}
                     </div>
                     <div
@@ -387,7 +387,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                         style={{ width: `${progress}%` }}
                       />
                     </div>
-                    <div className="text-sm text-[#4a4a4c] dark:text-gray-300 min-w-[40px]">
+                    <div className="text-sm text-gray-200 dark:text-gray-300 min-w-[40px]">
                       {formatTime(duration)}
                     </div>
                   </div>
@@ -445,13 +445,13 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             disabled={isPausing || isResuming || isStopping}
                             className={`w-14 h-14 flex items-center justify-center ${isPausing || isResuming || isStopping
                               ? 'bg-[#d0d0d3] dark:bg-gray-600 border-2 border-[#d0d0d3] dark:border-gray-600 text-[#8a8a8d]'
-                              : 'bg-white dark:bg-gray-800 border-2 border-[#d0d0d3] dark:border-gray-600 text-[#4a4a4c] dark:text-gray-300 hover:border-gray-400 hover:bg-[#f5f5f6] dark:hover:bg-gray-700'
+                              : 'bg-white dark:bg-gray-800 border-2 border-[#d0d0d3] dark:border-gray-600 text-gray-200 dark:text-gray-300 hover:border-gray-400 hover:bg-[#f5f5f6] dark:hover:bg-gray-700'
                               } rounded-full transition-colors shadow-md relative`}
                             aria-label={isPaused ? 'Reanudar grabación' : 'Pausar grabación'}
                           >
                             {isPaused ? <Play size={22} /> : <Pause size={22} />}
                             {(isPausing || isResuming) && (
-                              <div className="absolute -top-8 text-[#4a4a4c] dark:text-gray-300 font-medium text-xs">
+                              <div className="absolute -top-8 text-gray-200 dark:text-gray-300 font-medium text-xs">
                                 {isPausing ? 'Pausando...' : 'Reanudando...'}
                               </div>
                             )}
@@ -476,7 +476,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                           >
                             <Square size={22} />
                             {isStopping && (
-                              <div className="absolute -top-8 text-[#4a4a4c] dark:text-gray-300 font-medium text-xs">
+                              <div className="absolute -top-8 text-gray-200 dark:text-gray-300 font-medium text-xs">
                                 Deteniendo...
                               </div>
                             )}
@@ -518,7 +518,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
 
         {/* Show validation status only */}
         {isValidatingModel && (
-          <div className="text-xs text-[#4a4a4c] dark:text-gray-300 text-center mt-2">
+          <div className="text-xs text-gray-200 dark:text-gray-300 text-center mt-2">
             Validando reconocimiento de voz...
           </div>
         )}
@@ -548,7 +548,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         )}
 
         {/* {showPlayback && recordingPath && (
-        <div className="text-sm text-[#4a4a4c] dark:text-gray-300 px-4">
+        <div className="text-sm text-gray-200 dark:text-gray-300 px-4">
           Recording saved to: {recordingPath}
         </div>
       )} */}

@@ -62,9 +62,9 @@ export function About() {
                         className="mx-auto"
                     />
                 </div>
-                {/* <h1 className="text-xl font-bold text-[#000000] dark:text-white">Maity</h1> */}
-                <span className="text-sm text-[#6a6a6d] dark:text-gray-400"> v{currentVersion}</span>
-                <p className="text-medium text-[#4a4a4c] dark:text-gray-300 mt-1">
+                {/* <h1 className="text-xl font-bold text-white dark:text-white">Maity</h1> */}
+                <span className="text-sm text-gray-400 dark:text-gray-400"> v{currentVersion}</span>
+                <p className="text-medium text-gray-200 dark:text-gray-300 mt-1">
                     Notas y resúmenes en tiempo real que nunca salen de tu dispositivo.
                 </p>
                 <div className="mt-3">
@@ -100,20 +100,20 @@ export function About() {
                 <h2 className="text-base font-semibold text-[#1a1a1a] dark:text-white">Qué hace diferente a Maity</h2>
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-[#f5f5f6] dark:bg-gray-700 rounded p-3 hover:bg-[#e7e7e9] dark:hover:bg-gray-600 transition-colors">
-                        <h3 className="font-bold text-sm text-[#000000] dark:text-white mb-1">Privacidad primero</h3>
-                        <p className="text-xs text-[#4a4a4c] dark:text-gray-300 leading-relaxed">Tus datos y el procesamiento de IA pueden quedarse en tu dispositivo. Sin nube, sin filtraciones.</p>
+                        <h3 className="font-bold text-sm text-white dark:text-white mb-1">Privacidad primero</h3>
+                        <p className="text-xs text-gray-200 dark:text-gray-300 leading-relaxed">Tus datos y el procesamiento de IA pueden quedarse en tu dispositivo. Sin nube, sin filtraciones.</p>
                     </div>
                     <div className="bg-[#f5f5f6] dark:bg-gray-700 rounded p-3 hover:bg-[#e7e7e9] dark:hover:bg-gray-600 transition-colors">
-                        <h3 className="font-bold text-sm text-[#000000] dark:text-white mb-1">Usa Cualquier Modelo</h3>
-                        <p className="text-xs text-[#4a4a4c] dark:text-gray-300 leading-relaxed">¿Prefieres modelos locales de código abierto? Genial. ¿Quieres usar una API externa? También está bien. Sin ataduras.</p>
+                        <h3 className="font-bold text-sm text-white dark:text-white mb-1">Usa Cualquier Modelo</h3>
+                        <p className="text-xs text-gray-200 dark:text-gray-300 leading-relaxed">¿Prefieres modelos locales de código abierto? Genial. ¿Quieres usar una API externa? También está bien. Sin ataduras.</p>
                     </div>
                     <div className="bg-[#f5f5f6] dark:bg-gray-700 rounded p-3 hover:bg-[#e7e7e9] dark:hover:bg-gray-600 transition-colors">
-                        <h3 className="font-bold text-sm text-[#000000] dark:text-white mb-1">Ahorro Inteligente</h3>
-                        <p className="text-xs text-[#4a4a4c] dark:text-gray-300 leading-relaxed">Evita facturas por minuto ejecutando modelos localmente (o paga solo por las llamadas que elijas).</p>
+                        <h3 className="font-bold text-sm text-white dark:text-white mb-1">Ahorro Inteligente</h3>
+                        <p className="text-xs text-gray-200 dark:text-gray-300 leading-relaxed">Evita facturas por minuto ejecutando modelos localmente (o paga solo por las llamadas que elijas).</p>
                     </div>
                     <div className="bg-[#f5f5f6] dark:bg-gray-700 rounded p-3 hover:bg-[#e7e7e9] dark:hover:bg-gray-600 transition-colors">
-                        <h3 className="font-bold text-sm text-[#000000] dark:text-white mb-1">Funciona en todas partes</h3>
-                        <p className="text-xs text-[#4a4a4c] dark:text-gray-300 leading-relaxed">Google Meet, Zoom, Teams - en línea o sin conexión.</p>
+                        <h3 className="font-bold text-sm text-white dark:text-white mb-1">Funciona en todas partes</h3>
+                        <p className="text-xs text-gray-200 dark:text-gray-300 leading-relaxed">Google Meet, Zoom, Teams - en línea o sin conexión.</p>
                     </div>
                 </div>
             </div>
@@ -128,7 +128,7 @@ export function About() {
             {/* CTA Section - Compact */}
             <div className="text-center space-y-2">
                 <h3 className="text-medium font-semibold text-[#1a1a1a] dark:text-white">¿Listo para llevar tu negocio más lejos?</h3>
-                <p className="text-s text-[#4a4a4c] dark:text-gray-300">
+                <p className="text-s text-gray-200 dark:text-gray-300">
                     Si planeas construir agentes de IA personalizados con privacidad primero o un producto totalmente adaptado para tu <span className="font-bold">negocio</span>, podemos ayudarte a construirlo.
                 </p>
                 <button

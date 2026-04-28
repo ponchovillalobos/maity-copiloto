@@ -178,8 +178,8 @@ export function LanguageSelection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-[#4a4a4c] dark:text-gray-300" />
-          <h4 className="text-sm font-medium text-[#000000] dark:text-white">Idioma de Transcripción</h4>
+          <Globe className="h-4 w-4 text-gray-200 dark:text-gray-300" />
+          <h4 className="text-sm font-medium text-white dark:text-white">Idioma de Transcripción</h4>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export function LanguageSelection({
           value={selectedLanguage}
           onChange={(e) => handleLanguageChange(e.target.value)}
           disabled={disabled || saving}
-          className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-[#d0d0d3] dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-[#485df4] focus:border-[#485df4] disabled:bg-[#f5f5f6] dark:disabled:bg-gray-700 disabled:text-[#6a6a6d] dark:disabled:text-gray-500 dark:text-white"
+          className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-[#d0d0d3] dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-[#485df4] focus:border-[#485df4] disabled:bg-[#f5f5f6] dark:disabled:bg-gray-700 disabled:text-gray-400 dark:disabled:text-gray-500 dark:text-white"
         >
           {availableLanguages.map((language) => (
             <option key={language.code} value={language.code}>
@@ -208,7 +208,7 @@ export function LanguageSelection({
 
         {/* Texto informativo */}
         <div className="text-xs space-y-2 pt-2">
-          <p className="text-[#4a4a4c] dark:text-gray-300">
+          <p className="text-gray-200 dark:text-gray-300">
             <strong>Actual:</strong> {selectedLanguageName}
           </p>
           {selectedLanguage === 'auto' && (
@@ -224,7 +224,7 @@ export function LanguageSelection({
             </div>
           )}
           {selectedLanguage !== 'auto' && selectedLanguage !== 'auto-translate' && (
-            <p className="text-[#4a4a4c] dark:text-gray-300">
+            <p className="text-gray-200 dark:text-gray-300">
               La transcripción será optimizada para <strong>{selectedLanguageName}</strong>
             </p>
           )}

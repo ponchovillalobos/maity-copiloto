@@ -25,10 +25,10 @@ export function EmptyStateSummary({ onGenerate, hasModel, isGenerating = false }
       className="flex flex-col items-center justify-center h-full p-8 text-center"
     >
       <FileQuestion className="w-16 h-16 text-gray-300 mb-4" />
-      <h3 className="text-lg font-semibold text-[#000000] mb-2">
+      <h3 className="text-lg font-semibold text-white mb-2">
         Aún No Se Ha Generado Resumen
       </h3>
-      <p className="text-sm text-[#6a6a6d] mb-6 max-w-md">
+      <p className="text-sm text-gray-400 mb-6 max-w-md">
         Genera un resumen potenciado por IA de la transcripción de tu reunión para obtener puntos clave, acciones pendientes y decisiones.
       </p>
 

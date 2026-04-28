@@ -202,8 +202,8 @@ export default function PageContent({
               onClick={() => setRightTab('summary')}
               className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
                 rightTab === 'summary'
-                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
-                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+                  ? 'bg-gray-800 text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-gray-300 hover:text-white'
               }`}
             >
               Resumen
@@ -212,8 +212,8 @@ export default function PageContent({
               onClick={() => setRightTab('evaluation')}
               className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
                 rightTab === 'evaluation'
-                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
-                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+                  ? 'bg-gray-800 text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-gray-300 hover:text-white'
               }`}
             >
               Evaluación
@@ -222,8 +222,8 @@ export default function PageContent({
               onClick={() => setRightTab('chat')}
               className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
                 rightTab === 'chat'
-                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
-                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+                  ? 'bg-gray-800 text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-gray-300 hover:text-white'
               }`}
             >
               Chat
@@ -232,8 +232,8 @@ export default function PageContent({
               onClick={() => setRightTab('prospecting')}
               className={`px-3 py-2 text-sm font-medium rounded-t-md transition-colors ${
                 rightTab === 'prospecting'
-                  ? 'bg-[#f5f5f6] dark:bg-gray-800 text-[#3a4ac3] dark:text-blue-300 border-b-2 border-[#485df4]'
-                  : 'text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200'
+                  ? 'bg-gray-800 text-blue-300 border-b-2 border-[#485df4]'
+                  : 'text-gray-300 hover:text-white'
               }`}
             >
               Email

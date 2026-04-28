@@ -417,7 +417,7 @@ export function ParakeetModelManager({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-xs text-[#6a6a6d] dark:text-gray-400 text-center pt-2"
+          className="text-xs text-gray-400 dark:text-gray-400 text-center pt-2"
         >
           Usando {getModelDisplayName(selectedModel)} para transcripción
         </motion.div>
@@ -497,7 +497,7 @@ function ModelCard({
             {/* Model Name */}
             <div className="flex items-center gap-2 mb-1">
               <span className="text-2xl">{icon}</span>
-              <h3 className="font-semibold text-[#000000] dark:text-white">{displayName}</h3>
+              <h3 className="font-semibold text-white dark:text-white">{displayName}</h3>
               {isSelected && isAvailable && (
                 <motion.span
                   initial={{ scale: 0 }}
@@ -510,7 +510,7 @@ function ModelCard({
             </div>
 
             {/* Tagline */}
-            <p className="text-sm text-[#4a4a4c] dark:text-gray-300 ml-9">{tagline}</p>
+            <p className="text-sm text-gray-200 dark:text-gray-300 ml-9">{tagline}</p>
           </div>
 
           {/* Status/Action */}
@@ -611,7 +611,7 @@ function ModelCard({
                   e.stopPropagation();
                   onCancel();
                 }}
-                className="text-xs text-[#4a4a4c] dark:text-gray-300 hover:text-[#cc0040] dark:hover:text-red-400 font-medium transition-colors px-2 py-1 rounded hover:bg-[#fff0f5]"
+                className="text-xs text-gray-200 dark:text-gray-300 hover:text-[#cc0040] dark:hover:text-red-400 font-medium transition-colors px-2 py-1 rounded hover:bg-[#fff0f5]"
                 title="Cancelar descarga"
               >
                 Cancelar
@@ -625,7 +625,7 @@ function ModelCard({
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               />
             </div>
-            <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
               {model.size_mb ? (
                 <>
                   {formatFileSize(model.size_mb * downloadProgress / 100)} / {formatFileSize(model.size_mb)}

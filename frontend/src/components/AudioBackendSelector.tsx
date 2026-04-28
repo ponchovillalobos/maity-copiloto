@@ -92,7 +92,7 @@ export function AudioBackendSelector({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <label className="text-sm font-medium text-[#3a3a3c] dark:text-gray-200">
+        <label className="text-sm font-medium text-gray-100 dark:text-gray-200">
           System Audio Backend
         </label>
         <div className="relative">
@@ -100,7 +100,7 @@ export function AudioBackendSelector({
             type="button"
             onMouseEnter={() => setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
-            className="text-[#8a8a8d] dark:text-gray-500 hover:text-[#4a4a4c] dark:hover:text-gray-300 transition-colors"
+            className="text-[#8a8a8d] dark:text-gray-500 hover:text-gray-200 dark:hover:text-gray-300 transition-colors"
           >
             <Info className="h-4 w-4" />
           </button>
@@ -154,7 +154,7 @@ export function AudioBackendSelector({
               />
               <div className="ml-3 flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[#000000] dark:text-white">
+                  <span className="text-sm font-medium text-white dark:text-white">
                     {backend.name}
                   </span>
                   {currentBackend === backend.id && (
@@ -163,19 +163,19 @@ export function AudioBackendSelector({
                     </span>
                   )}
                   {isCoreAudio && (
-                    <span className="text-xs font-medium text-[#6a6a6d] dark:text-gray-400 bg-[#e7e7e9] dark:bg-gray-700 px-2 py-0.5 rounded">
+                    <span className="text-xs font-medium text-gray-400 dark:text-gray-400 bg-[#e7e7e9] dark:bg-gray-700 px-2 py-0.5 rounded">
                       Disabled
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-[#4a4a4c] dark:text-gray-300">{backend.description}</p>
+                <p className="mt-1 text-xs text-gray-200 dark:text-gray-300">{backend.description}</p>
               </div>
             </label>
           );
         })}
       </div>
 
-      <div className="text-xs text-[#6a6a6d] dark:text-gray-400 space-y-1">
+      <div className="text-xs text-gray-400 dark:text-gray-400 space-y-1">
         <p>• Backend selection only affects system audio capture</p>
         <p>• Microphone always uses the default method</p>
         <p>• Changes apply to new recording sessions</p>

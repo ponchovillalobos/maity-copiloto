@@ -237,7 +237,7 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
 
               {updateInfo.body && (
                 <div className="bg-[#f5f5f6] rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <p className="text-sm text-[#3a3a3c] whitespace-pre-wrap">
+                  <p className="text-sm text-gray-100 whitespace-pre-wrap">
                     {updateInfo.body}
                   </p>
                 </div>
@@ -254,7 +254,7 @@ export function UpdateDialog({ open, onOpenChange, updateInfo }: UpdateDialogPro
                     style={{ width: `${Math.min(progress.percentage, 100)}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-[#4a4a4c] mt-1">
+                <div className="flex justify-between text-xs text-gray-200 mt-1">
                   <span>{Math.round(progress.percentage)}% completado</span>
                   {progress.total > 0 && (
                     <span>

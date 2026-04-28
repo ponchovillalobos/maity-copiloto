@@ -367,9 +367,9 @@ export function CanaryModelManager({
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-2xl">{icon}</span>
-                    <h3 className="font-semibold text-[#000000] dark:text-white">{displayName}</h3>
+                    <h3 className="font-semibold text-white dark:text-white">{displayName}</h3>
                     <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 rounded font-medium">Int8</span>
-                    <span className="text-xs text-[#6a6a6d] dark:text-gray-400">{formatFileSize(model.size_mb)}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-400">{formatFileSize(model.size_mb)}</span>
                     {isSelected && isAvailable && (
                       <motion.span
                         initial={{ scale: 0 }}
@@ -380,7 +380,7 @@ export function CanaryModelManager({
                       </motion.span>
                     )}
                   </div>
-                  <p className="text-sm text-[#4a4a4c] dark:text-gray-300 ml-9">{tagline}</p>
+                  <p className="text-sm text-gray-200 dark:text-gray-300 ml-9">{tagline}</p>
                 </div>
 
                 <div className="ml-4 flex items-center gap-2">
@@ -442,7 +442,7 @@ export function CanaryModelManager({
                     </div>
                     <button
                       onClick={(e) => { e.stopPropagation(); cancelDownload(model.name); }}
-                      className="text-xs text-[#4a4a4c] dark:text-gray-300 hover:text-[#cc0040] font-medium transition-colors px-2 py-1 rounded hover:bg-[#fff0f5]"
+                      className="text-xs text-gray-200 dark:text-gray-300 hover:text-[#cc0040] font-medium transition-colors px-2 py-1 rounded hover:bg-[#fff0f5]"
                     >
                       Cancelar
                     </button>
@@ -455,7 +455,7 @@ export function CanaryModelManager({
                       transition={{ duration: 0.3, ease: 'easeOut' }}
                     />
                   </div>
-                  <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-1">
+                  <p className="text-xs text-gray-400 dark:text-gray-400 mt-1">
                     {formatFileSize(model.size_mb * downloadProgress / 100)} / {formatFileSize(model.size_mb)}
                   </p>
                 </motion.div>
@@ -469,7 +469,7 @@ export function CanaryModelManager({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-xs text-[#6a6a6d] dark:text-gray-400 text-center pt-2"
+          className="text-xs text-gray-400 dark:text-gray-400 text-center pt-2"
         >
           Usando {getCanaryModelDisplayName(selectedModel)} para transcripcion
         </motion.div>

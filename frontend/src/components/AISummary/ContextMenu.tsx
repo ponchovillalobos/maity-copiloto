@@ -30,7 +30,7 @@ export function ContextMenu({
         className="w-full px-4 py-2 text-left hover:bg-[#e7e7e9] dark:hover:bg-gray-700 flex items-center space-x-2"
         onClick={onCopy}
       >
-        <span className="text-[#4a4a4c] dark:text-gray-300">📋</span>
+        <span className="text-gray-200 dark:text-gray-300">📋</span>
         <span>Copiar {selectedBlockCount > 1 ? `${selectedBlockCount} bloques` : 'bloque'}</span>
       </button>
       <button

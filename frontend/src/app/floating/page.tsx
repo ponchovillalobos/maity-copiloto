@@ -7,12 +7,12 @@ import {
   X, Minimize2, Maximize2, Sparkles, AlertTriangle,
   MessageCircle, Activity, Timer, ChevronLeft, ChevronRight, HelpCircle,
 } from 'lucide-react';
+import { categoryMeta, priorityMeta } from '@/components/Coach/tipMeta';
 
 interface CoachTip {
   tip: string;
   category?: string;
   priority?: 'critical' | 'important' | 'soft' | 'high' | 'medium' | 'low';
-  technique?: string;
   confidence?: number;
   tip_type?: string;
   timestamp?: number;
@@ -46,17 +46,8 @@ function formatDuration(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function priorityHex(p?: string): string {
-  if (p === 'critical' || p === 'high') return '#ff0050';
-  if (p === 'important' || p === 'medium') return '#f59e0b';
-  return '#1bea9a';
-}
-
-function priorityLabel(p?: string): string {
-  if (p === 'critical' || p === 'high') return 'Crítico';
-  if (p === 'important' || p === 'medium') return 'Importante';
-  return 'Sugerencia';
-}
+// priorityHex/priorityLabel/categoryMeta vienen de tipMeta.ts (compartidos
+// con CoachPanel principal — etiquetas idénticas garantizadas).
 
 function healthColor(score: number): string {
   if (score >= 70) return '#1bea9a';
@@ -171,7 +162,9 @@ export default function FloatingPage() {
   const health = metrics.health ?? metrics.connectionScore ?? 50;
   const wpm = metrics.wpm ?? 0;
   const duration = metrics.durationSec ?? 0;
-  const tipColor = priorityHex(tip?.priority);
+  const prio = priorityMeta(tip?.priority);
+  const cat = categoryMeta(tip?.category);
+  const tipColor = prio.hex;
   const questions = metrics.interlocutorQuestions ?? [];
 
   if (compact) {
@@ -208,7 +201,7 @@ export default function FloatingPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] text-white/55 uppercase tracking-wider mb-0.5">
-              {tip?.priority ? priorityLabel(tip.priority) : 'Esperando'}
+              {tip ? prio.label : 'Esperando'}
             </div>
             <div className="text-[11px] text-white/95 line-clamp-2 leading-tight font-medium">
               {tip?.tip || 'Sin tips aún'}
@@ -353,13 +346,13 @@ export default function FloatingPage() {
             <div className="flex items-center gap-1.5">
               {tip ? (
                 <>
-                  {(tip.priority === 'critical' || tip.priority === 'high') ? (
+                  {prio.label === 'Crítico' ? (
                     <AlertTriangle className="w-3.5 h-3.5" style={{ color: tipColor }} />
                   ) : (
                     <Sparkles className="w-3.5 h-3.5" style={{ color: tipColor }} />
                   )}
                   <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: tipColor }}>
-                    {priorityLabel(tip.priority)}
+                    {prio.label}
                   </span>
                 </>
               ) : (
@@ -374,7 +367,7 @@ export default function FloatingPage() {
             <div className="flex items-center gap-1">
               {tip?.category && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 font-semibold">
-                  {tip.category}
+                  {cat.label}
                 </span>
               )}
               {totalTips > 1 && (
@@ -384,6 +377,7 @@ export default function FloatingPage() {
                     disabled={!canPrev}
                     className="p-0.5 rounded hover:bg-white/15 disabled:opacity-25 disabled:cursor-not-allowed text-white/70"
                     title="Tip anterior"
+                    aria-label="Tip anterior"
                   >
                     <ChevronLeft className="w-3 h-3" />
                   </button>
@@ -395,6 +389,7 @@ export default function FloatingPage() {
                     disabled={!canNext}
                     className="p-0.5 rounded hover:bg-white/15 disabled:opacity-25 disabled:cursor-not-allowed text-white/70"
                     title="Tip siguiente"
+                    aria-label="Tip siguiente"
                   >
                     <ChevronRight className="w-3 h-3" />
                   </button>
@@ -411,13 +406,6 @@ export default function FloatingPage() {
               </div>
             )}
           </div>
-
-          {tip?.technique && (
-            <div className="mt-2 pt-2 border-t border-white/10 flex-shrink-0">
-              <div className="text-[9px] uppercase tracking-wider text-white/50 mb-0.5">Técnica</div>
-              <div className="text-[11px] text-white/80 italic">{tip.technique}</div>
-            </div>
-          )}
         </div>
       )}
 

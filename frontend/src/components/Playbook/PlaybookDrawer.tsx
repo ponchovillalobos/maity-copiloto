@@ -156,17 +156,17 @@ export function PlaybookDrawer() {
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-[#485df4]" />
             <div>
-              <div className="text-sm font-semibold text-[#3a3a3c] dark:text-gray-100">
+              <div className="text-sm font-semibold text-gray-100 dark:text-gray-100">
                 Playbook Cross-Prospect
               </div>
-              <div className="text-[11px] text-[#6a6a6d] dark:text-gray-400">
+              <div className="text-[11px] text-gray-400 dark:text-gray-400">
                 Patrones a través de todas tus reuniones
               </div>
             </div>
           </div>
           <button
             onClick={() => setOpen(false)}
-            className="p-1.5 rounded hover:bg-[#f5f5f6] dark:hover:bg-gray-800 text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200"
+            className="p-1.5 rounded hover:bg-[#f5f5f6] dark:hover:bg-gray-800 text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
             title="Cerrar"
             aria-label="Cerrar"
           >
@@ -178,10 +178,10 @@ export function PlaybookDrawer() {
           {!result && !loading && (
             <div className="py-8 text-center">
               <BookOpen className="w-10 h-10 text-[#485df4] mx-auto mb-3 opacity-70" />
-              <div className="text-sm text-[#3a3a3c] dark:text-gray-200 font-medium mb-1">
+              <div className="text-sm text-gray-100 dark:text-gray-200 font-medium mb-1">
                 ¿Qué patrón quieres analizar?
               </div>
-              <div className="text-xs text-[#6a6a6d] dark:text-gray-400 mb-4">
+              <div className="text-xs text-gray-400 dark:text-gray-400 mb-4">
                 Busca patrones recurrentes a través de todas tus reuniones grabadas.
               </div>
               <div className="space-y-2 max-w-sm mx-auto">
@@ -204,7 +204,7 @@ export function PlaybookDrawer() {
           {loading && (
             <div className="py-8 flex flex-col items-center">
               <Loader2 className="w-6 h-6 animate-spin text-[#485df4] mb-2" />
-              <div className="text-sm text-[#6a6a6d] dark:text-gray-400">
+              <div className="text-sm text-gray-400 dark:text-gray-400">
                 Buscando en tus reuniones…
               </div>
             </div>
@@ -225,7 +225,7 @@ export function PlaybookDrawer() {
                   <TrendingUp className="w-5 h-5 text-[#485df4] flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <div className="text-xs font-semibold text-[#8a8a8d] mb-1">PATRÓN PRINCIPAL</div>
-                    <div className="text-sm font-medium text-[#1f2025] dark:text-gray-100 mb-2">
+                    <div className="text-sm font-medium text-gray-100 dark:text-gray-100 mb-2">
                       {result.insight.patron_principal}
                     </div>
                     <div className="inline-block bg-[#485df4] text-white text-[10px] font-semibold px-2.5 py-1 rounded-full">
@@ -254,7 +254,7 @@ export function PlaybookDrawer() {
                             <div className="text-[10px] text-[#8a8a8d] mb-1 truncate">
                               {cita.meeting_title}
                             </div>
-                            <div className="text-xs text-[#1f2025] dark:text-gray-200 italic line-clamp-2">
+                            <div className="text-xs text-gray-100 dark:text-gray-200 italic line-clamp-2">
                               "{cita.quote}"
                             </div>
                           </div>
@@ -275,11 +275,11 @@ export function PlaybookDrawer() {
                         key={idx}
                         className="bg-[#f5f5f6] dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 rounded-lg p-3"
                       >
-                        <div className="text-[10px] text-[#6a6a6d] mb-1.5 font-semibold">
+                        <div className="text-[10px] text-gray-400 mb-1.5 font-semibold">
                           Contexto: {script.contexto}
                         </div>
                         <div className="bg-white dark:bg-gray-900 rounded p-2 mb-2 border border-[#e7e7e9] dark:border-gray-600">
-                          <div className="text-xs text-[#1f2025] dark:text-gray-200 italic mb-2">
+                          <div className="text-xs text-gray-100 dark:text-gray-200 italic mb-2">
                             "{script.respuesta_recomendada}"
                           </div>
                           <div className="text-[10px] text-[#8a8a8d]">

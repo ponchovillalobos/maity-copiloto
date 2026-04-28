@@ -130,11 +130,11 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
         <div>
             <div>
                 {/* <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-[#000000] dark:text-white">Transcript Settings</h3>
+                    <h3 className="text-lg font-semibold text-white dark:text-white">Transcript Settings</h3>
                 </div> */}
                 <div className="space-y-4 pb-6">
                     <div>
-                        <Label className="block text-sm font-medium text-[#3a3a3c] dark:text-gray-200 mb-1">
+                        <Label className="block text-sm font-medium text-gray-100 dark:text-gray-200 mb-1">
                             Modelo de Transcripción
                         </Label>
                         <div className="flex space-x-2 mx-1">
@@ -203,7 +203,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
 
                     {requiresApiKey && (
                         <div>
-                            <Label className="block text-sm font-medium text-[#3a3a3c] dark:text-gray-200 mb-1">
+                            <Label className="block text-sm font-medium text-gray-100 dark:text-gray-200 mb-1">
                                 Clave API
                             </Label>
                             <div className="relative mx-1">
@@ -245,7 +245,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     </Button>
                                 </div>
                             </div>
-                            <p className="text-xs text-[#6a6a6d] dark:text-gray-400 mt-2 mx-1">
+                            <p className="text-xs text-gray-400 dark:text-gray-400 mt-2 mx-1">
                                 Ingresa la clave API del proveedor seleccionado.
                             </p>
                         </div>

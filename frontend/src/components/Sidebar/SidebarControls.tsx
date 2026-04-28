@@ -44,7 +44,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
       <button
         onClick={() => router.push('/settings')}
         aria-label="Abrir configuración"
-        className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-[#3a3a3c] dark:text-gray-200 bg-[#d0d0d3] dark:bg-gray-700 hover:bg-[#b0b0b3] dark:hover:bg-gray-600 rounded-lg transition-colors shadow-sm"
+        className="w-full flex items-center justify-center px-3 py-1.5 mt-1 mb-1 text-sm font-medium text-gray-100 dark:text-gray-200 bg-[#d0d0d3] dark:bg-gray-700 hover:bg-[#b0b0b3] dark:hover:bg-gray-600 rounded-lg transition-colors shadow-sm"
       >
         <Settings className="w-4 h-4 mr-2" />
         <span>Configuración</span>

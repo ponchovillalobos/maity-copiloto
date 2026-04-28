@@ -430,7 +430,7 @@ const Sidebar: React.FC = () => {
                   }`}
                 aria-label="Ir al inicio"
               >
-                <Home className="w-5 h-5 text-[#4a4a4c] dark:text-gray-300" />
+                <Home className="w-5 h-5 text-gray-200 dark:text-gray-300" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -466,7 +466,7 @@ const Sidebar: React.FC = () => {
                   }`}
                 aria-label="Abrir configuración"
               >
-                <Settings className="w-5 h-5 text-[#4a4a4c] dark:text-gray-300" />
+                <Settings className="w-5 h-5 text-gray-200 dark:text-gray-300" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="right">
@@ -541,9 +541,9 @@ const Sidebar: React.FC = () => {
               <span className={depth === 0 ? "" : "font-medium"}>{item.title}</span>
               <div className="ml-auto">
                 {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-[#6a6a6d]" />
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-[#6a6a6d]" />
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
                 )}
               </div>
               {searchQuery && item.id === 'meetings' && isSearching && (
@@ -555,7 +555,7 @@ const Sidebar: React.FC = () => {
               <div className="flex items-center w-full">
                 {isMeetingItem ? (
                   <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-[#e7e7e9] dark:bg-gray-700">
-                    <File className="w-3.5 h-3.5 text-[#4a4a4c] dark:text-gray-300" />
+                    <File className="w-3.5 h-3.5 text-gray-200 dark:text-gray-300" />
                   </div>
                 ) : (
                   <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-[#e0e5fd] dark:bg-blue-900">
@@ -591,7 +591,7 @@ const Sidebar: React.FC = () => {
 
               {/* Show transcript match snippet if available */}
               {hasTranscriptMatch && (
-                <div className="mt-1 ml-8 text-xs text-[#6a6a6d] dark:text-gray-400 bg-[#f0f2fe] dark:bg-gray-800 p-1.5 rounded border border-[#e0e5fd] dark:border-gray-600 line-clamp-2">
+                <div className="mt-1 ml-8 text-xs text-gray-400 dark:text-gray-400 bg-[#f0f2fe] dark:bg-gray-800 p-1.5 rounded border border-[#e0e5fd] dark:border-gray-600 line-clamp-2">
                   <span className="font-medium text-[#3a4ac3] dark:text-blue-300">Match:</span> {matchingResult.matchContext}
                 </div>
               )}
@@ -637,7 +637,7 @@ const Sidebar: React.FC = () => {
           <div className="flex-1">
             {!isCollapsed && (
               <div className="p-3">
-                {/* <span className="text-lg text-center border rounded-full bg-[#f0f2fe] border-white font-semibold text-[#3a3a3c] mb-2 block items-center">
+                {/* <span className="text-lg text-center border rounded-full bg-[#f0f2fe] border-white font-semibold text-gray-100 mb-2 block items-center">
                   <span>Maity</span>
                 </span> */}
                 <Logo isCollapsed={isCollapsed} />
@@ -693,8 +693,8 @@ const Sidebar: React.FC = () => {
                     <div
                       className="flex items-center transition-all duration-150 p-3 text-lg font-semibold h-10 mx-3 mt-3 rounded-lg"
                     >
-                      <NotebookPen className="w-4 h-4 mr-2 text-[#4a4a4c] dark:text-gray-400" />
-                      <span className="text-[#3a3a3c] dark:text-gray-200">{item.title}</span>
+                      <NotebookPen className="w-4 h-4 mr-2 text-gray-200 dark:text-gray-400" />
+                      <span className="text-gray-100 dark:text-gray-200">{item.title}</span>
                       {searchQuery && item.id === 'meetings' && isSearching && (
                         <span className="ml-2 text-xs text-[#485df4] animate-pulse">Buscando...</span>
                       )}
@@ -750,7 +750,7 @@ const Sidebar: React.FC = () => {
             <h3 className="text-lg font-semibold mb-4">Editar Título de Reunión</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="meeting-title" className="block text-sm font-medium text-[#3a3a3c] dark:text-gray-200 mb-2">
+                <label htmlFor="meeting-title" className="block text-sm font-medium text-gray-100 dark:text-gray-200 mb-2">
                   Título de la Reunión
                 </label>
                 <input
@@ -775,7 +775,7 @@ const Sidebar: React.FC = () => {
           <DialogFooter>
             <button
               onClick={handleEditCancel}
-              className="px-4 py-2 text-sm font-medium text-[#3a3a3c] dark:text-gray-200 bg-[#e7e7e9] dark:bg-gray-700 hover:bg-[#d0d0d3] dark:hover:bg-gray-600 rounded-md transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-100 dark:text-gray-200 bg-[#e7e7e9] dark:bg-gray-700 hover:bg-[#d0d0d3] dark:hover:bg-gray-600 rounded-md transition-colors"
             >
               Cancelar
             </button>

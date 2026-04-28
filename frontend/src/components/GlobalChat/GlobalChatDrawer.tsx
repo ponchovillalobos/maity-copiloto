@@ -176,10 +176,10 @@ export function GlobalChatDrawer() {
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#485df4]" />
             <div>
-              <div className="text-sm font-semibold text-[#3a3a3c] dark:text-gray-100">
+              <div className="text-sm font-semibold text-gray-100 dark:text-gray-100">
                 Chat con tu historial
               </div>
-              <div className="text-[11px] text-[#6a6a6d] dark:text-gray-400">
+              <div className="text-[11px] text-gray-400 dark:text-gray-400">
                 Pregunta sobre cualquier reunión grabada
               </div>
             </div>
@@ -187,7 +187,7 @@ export function GlobalChatDrawer() {
           <div className="flex items-center gap-1">
             <button
               onClick={handleClearHistory}
-              className="p-1.5 rounded hover:bg-[#f5f5f6] dark:hover:bg-gray-800 text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200"
+              className="p-1.5 rounded hover:bg-[#f5f5f6] dark:hover:bg-gray-800 text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
               title="Limpiar historial de chat"
               aria-label="Limpiar historial"
             >
@@ -195,7 +195,7 @@ export function GlobalChatDrawer() {
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="p-1.5 rounded hover:bg-[#f5f5f6] dark:hover:bg-gray-800 text-[#6a6a6d] hover:text-[#3a3a3c] dark:hover:text-gray-200"
+              className="p-1.5 rounded hover:bg-[#f5f5f6] dark:hover:bg-gray-800 text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
               title="Cerrar"
               aria-label="Cerrar"
             >
@@ -208,10 +208,10 @@ export function GlobalChatDrawer() {
           {history.length === 0 && !loading && (
             <div className="py-8 text-center">
               <MessageCircleMore className="w-10 h-10 text-[#485df4] mx-auto mb-3 opacity-70" />
-              <div className="text-sm text-[#3a3a3c] dark:text-gray-200 font-medium mb-1">
+              <div className="text-sm text-gray-100 dark:text-gray-200 font-medium mb-1">
                 ¿Sobre qué quieres preguntar?
               </div>
-              <div className="text-xs text-[#6a6a6d] dark:text-gray-400 mb-4">
+              <div className="text-xs text-gray-400 dark:text-gray-400 mb-4">
                 Las respuestas se basan en tus reuniones indexadas y citan literalmente con timestamps.
               </div>
               <div className="grid grid-cols-1 gap-2 max-w-sm mx-auto">
@@ -242,13 +242,13 @@ export function GlobalChatDrawer() {
                     {turn.content}
                   </div>
                 ) : (
-                  <div className="text-[14px] leading-relaxed text-[#1f2025] dark:text-gray-100 chat-markdown">
+                  <div className="text-[14px] leading-relaxed text-gray-100 dark:text-gray-100 chat-markdown">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
                         p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                         strong: ({ children }) => (
-                          <strong className="font-semibold text-[#1f2025] dark:text-white">
+                          <strong className="font-semibold text-gray-100 dark:text-white">
                             {children}
                           </strong>
                         ),
@@ -275,7 +275,7 @@ export function GlobalChatDrawer() {
                           </code>
                         ),
                         blockquote: ({ children }) => (
-                          <blockquote className="border-l-2 border-[#485df4] pl-3 my-2 italic text-[#4a4a4c] dark:text-gray-300">
+                          <blockquote className="border-l-2 border-[#485df4] pl-3 my-2 italic text-gray-200 dark:text-gray-300">
                             {children}
                           </blockquote>
                         ),
@@ -314,7 +314,7 @@ export function GlobalChatDrawer() {
                               </span>
                             </div>
                           )}
-                          <div className="text-[#4a4a4c] dark:text-gray-300 line-clamp-2">{c.text}</div>
+                          <div className="text-gray-200 dark:text-gray-300 line-clamp-2">{c.text}</div>
                         </div>
                       </button>
                     ))}
@@ -325,7 +325,7 @@ export function GlobalChatDrawer() {
           ))}
 
           {loading && (
-            <div className="flex items-center gap-2 text-sm text-[#6a6a6d] dark:text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400">
               <Loader2 className="w-4 h-4 animate-spin" /> Buscando en tu historial…
             </div>
           )}

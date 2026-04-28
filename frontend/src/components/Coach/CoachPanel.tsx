@@ -19,6 +19,7 @@ import { useCoach, CoachSuggestion, CoachChatMessage } from '@/contexts/CoachCon
 import { useProgressEvents } from '@/hooks/useProgressEvents';
 import { MeetingTypeBadge } from './MeetingTypeBadge';
 import { BookmarkButton } from './BookmarkButton';
+import { categoryMeta, priorityMeta } from './tipMeta';
 
 // Skeleton loader para tips durante carga
 function SkeletonTipCard() {
@@ -42,27 +43,26 @@ function SkeletonTipCard() {
   );
 }
 
-const CATEGORY_STYLE: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
-  icebreaker: { color: 'text-yellow-300', bg: 'bg-yellow-500/10 border-yellow-500/40', icon: <Sparkles className="w-4 h-4" />, label: 'Romper hielo' },
-  discovery: { color: 'text-cyan-300', bg: 'bg-cyan-500/10 border-cyan-500/40', icon: <MessageCircleQuestion className="w-4 h-4" />, label: 'Descubrir' },
-  question: { color: 'text-blue-300', bg: 'bg-blue-500/10 border-blue-500/40', icon: <MessageCircleQuestion className="w-4 h-4" />, label: 'Pregunta' },
-  objection: { color: 'text-orange-300', bg: 'bg-orange-500/10 border-orange-500/40', icon: <ShieldAlert className="w-4 h-4" />, label: 'Objeción' },
-  closing: { color: 'text-green-300', bg: 'bg-green-500/10 border-green-500/40', icon: <Target className="w-4 h-4" />, label: 'Cierre' },
-  pacing: { color: 'text-purple-300', bg: 'bg-purple-500/10 border-purple-500/40', icon: <Clock className="w-4 h-4" />, label: 'Ritmo' },
-  rapport: { color: 'text-pink-300', bg: 'bg-pink-500/10 border-pink-500/40', icon: <Heart className="w-4 h-4" />, label: 'Rapport' },
-  persuasion: { color: 'text-indigo-300', bg: 'bg-indigo-500/10 border-indigo-500/40', icon: <Sparkles className="w-4 h-4" />, label: 'Persuasión' },
-  service: { color: 'text-red-300', bg: 'bg-red-500/10 border-red-500/40', icon: <HandCoins className="w-4 h-4" />, label: 'Servicio' },
-  negotiation: { color: 'text-amber-300', bg: 'bg-amber-500/10 border-amber-500/40', icon: <DollarSign className="w-4 h-4" />, label: 'Negociación' },
+// Iconos por categoría — separados de las labels (compartidas vía tipMeta.ts)
+// para que panel y burbuja usen las MISMAS etiquetas pero el panel agregue
+// iconografía propia.
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  icebreaker:    <Sparkles className="w-4 h-4" />,
+  discovery:     <MessageCircleQuestion className="w-4 h-4" />,
+  question:      <MessageCircleQuestion className="w-4 h-4" />,
+  objection:     <ShieldAlert className="w-4 h-4" />,
+  closing:       <Target className="w-4 h-4" />,
+  pacing:        <Clock className="w-4 h-4" />,
+  rapport:       <Heart className="w-4 h-4" />,
+  persuasion:    <Sparkles className="w-4 h-4" />,
+  service:       <HandCoins className="w-4 h-4" />,
+  negotiation:   <DollarSign className="w-4 h-4" />,
+  self_control:  <ShieldAlert className="w-4 h-4" />,
+  listening:     <Heart className="w-4 h-4" />,
 };
 
-const PRIORITY_BADGE: Record<string, { label: string; emoji: string; color: string }> = {
-  critical: { label: 'Crítico', emoji: '🔴', color: 'bg-red-500/20 text-red-300 border-red-500/40' },
-  important: { label: 'Importante', emoji: '🟡', color: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40' },
-  soft: { label: 'Sugerencia', emoji: '🟢', color: 'bg-green-500/20 text-green-300 border-green-500/40' },
-};
-
-function categoryStyle(category: string) {
-  return CATEGORY_STYLE[category] ?? CATEGORY_STYLE.pacing;
+function categoryIcon(category: string): React.ReactNode {
+  return CATEGORY_ICONS[category] ?? <Clock className="w-4 h-4" />;
 }
 
 function relativeTime(timestamp: number): string {
@@ -102,11 +102,13 @@ function parseTipPrefix(tip: string): { prefix: string | null; body: string; pre
 }
 
 function SuggestionCard({ suggestion, idx = 0 }: { suggestion: CoachSuggestion; idx?: number }) {
-  const style = categoryStyle(suggestion.category);
+  const cat = categoryMeta(suggestion.category);
+  const prio = priorityMeta(suggestion.priority);
+  const icon = categoryIcon(suggestion.category);
   const borderColor =
-    suggestion.priority === 'critical' ? 'border-l-red-500' :
-    suggestion.priority === 'important' ? 'border-l-yellow-500' : 'border-l-green-500';
-  const isCritical = suggestion.priority === 'critical';
+    prio.label === 'Crítico' ? 'border-l-red-500' :
+    prio.label === 'Importante' ? 'border-l-yellow-500' : 'border-l-green-500';
+  const isCritical = prio.label === 'Crítico';
   const isNudge = suggestion.model === 'nudge-engine';
   const { prefix, body, prefixColor } = parseTipPrefix(suggestion.tip);
 
@@ -116,13 +118,13 @@ function SuggestionCard({ suggestion, idx = 0 }: { suggestion: CoachSuggestion; 
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15, delay: idx * 0.04 }}
-      className={`rounded-md border border-l-2 ${borderColor} ${style.bg} p-2 shadow-sm group ${isNudge ? 'ring-1 ring-amber-500/30' : ''}`}
+      className={`rounded-md border border-l-2 ${borderColor} ${cat.bgClass} p-2 shadow-sm group ${isNudge ? 'ring-1 ring-amber-500/30' : ''}`}
       role={isCritical ? 'alert' : undefined}
       title={`${relativeTime(suggestion.timestamp)} · conf ${(suggestion.confidence * 100).toFixed(0)}%${suggestion.latency_ms ? ` · ${suggestion.latency_ms}ms` : ''}${isNudge ? ' · nudge' : ''}`}
     >
       <div className="flex items-center gap-1.5 mb-1">
-        <span className={`${style.color}`}>{style.icon}</span>
-        <span className={`text-[10px] uppercase tracking-wide font-medium ${style.color}`}>{style.label}</span>
+        <span className={cat.textClass}>{icon}</span>
+        <span className={`text-[10px] uppercase tracking-wide font-medium ${cat.textClass}`}>{cat.label}</span>
         {isNudge && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">nudge</span>}
         <span className="text-[9px] text-gray-600 ml-auto">{relativeTime(suggestion.timestamp)}</span>
       </div>

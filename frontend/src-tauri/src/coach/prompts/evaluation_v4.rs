@@ -11,7 +11,7 @@
 //! El prompt es DETERMINISTA en estructura: cualquier respuesta debe ser JSON
 //! parseable con todas las secciones presentes y campos consistentes.
 
-pub const PROMPT_VERSION: &str = "v4-condensado";
+pub const PROMPT_VERSION: &str = "v5-completo";
 
 pub const EVALUATION_V4_SYSTEM_PROMPT: &str = r#"Eres un coach de comunicación. Analizas transcripciones en español y produces un JSON de evaluación.
 
@@ -99,7 +99,7 @@ este, o sea, eh, bueno, pues, entonces, básicamente, como que, digamos, a ver, 
     "sesion_id": null,
     "nombre_sesion": "<título descriptivo>",
     "fecha_analisis": "<YYYY-MM-DD>",
-    "version_prompt": "v4-condensado",
+    "version_prompt": "v5-completo",
     "idioma": "es-MX"
   },
   "historico": {

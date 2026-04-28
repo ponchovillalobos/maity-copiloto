@@ -243,7 +243,7 @@ export function AutoModelSetupStep() {
           <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center animate-spin">
             <Loader2 className="w-6 h-6 text-[#3a4ac3]" />
           </div>
-          <p className="text-center text-[#4a4a4c] dark:text-gray-300">
+          <p className="text-center text-gray-200 dark:text-gray-300">
             Buscando Ollama...
           </p>
         </div>
@@ -300,7 +300,7 @@ export function AutoModelSetupStep() {
             </Button>
           </div>
 
-          <p className="text-xs text-center text-[#6a6a6d] dark:text-gray-500">
+          <p className="text-xs text-center text-gray-400 dark:text-gray-500">
             Nota: Algunas funciones (Coach IA, búsqueda) no estarán disponibles sin Ollama.
           </p>
         </div>
@@ -349,14 +349,14 @@ export function AutoModelSetupStep() {
                       <Loader2 className="w-5 h-5 text-[#3a4ac3] animate-spin flex-shrink-0" />
                     )}
                     {!status.installed && !status.downloading && (
-                      <Download className="w-5 h-5 text-[#6a6a6d] dark:text-gray-400 flex-shrink-0" />
+                      <Download className="w-5 h-5 text-gray-400 dark:text-gray-400 flex-shrink-0" />
                     )}
 
                     <div className="flex-1">
-                      <p className="font-medium text-[#000000] dark:text-white text-sm">
+                      <p className="font-medium text-white dark:text-white text-sm">
                         {modelConfig.displayName}
                       </p>
-                      <p className="text-xs text-[#6a6a6d] dark:text-gray-400">
+                      <p className="text-xs text-gray-400 dark:text-gray-400">
                         {modelConfig.size}
                       </p>
                     </div>
@@ -378,7 +378,7 @@ export function AutoModelSetupStep() {
                         style={{ width: `${status.progress}%` }}
                       />
                     </div>
-                    <p className="text-xs text-[#6a6a6d] dark:text-gray-400 text-right">
+                    <p className="text-xs text-gray-400 dark:text-gray-400 text-right">
                       {status.progress}%
                     </p>
                   </div>
@@ -407,7 +407,7 @@ export function AutoModelSetupStep() {
             onClick={() => setShowWhyExplanation(!showWhyExplanation)}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#f5f5f6] dark:hover:bg-gray-700 transition-colors"
           >
-            <span className="flex items-center gap-2 text-sm font-medium text-[#000000] dark:text-white">
+            <span className="flex items-center gap-2 text-sm font-medium text-white dark:text-white">
               <HelpCircle className="w-4 h-4" />
               ¿Por qué necesito esto?
             </span>
@@ -420,11 +420,11 @@ export function AutoModelSetupStep() {
 
           {showWhyExplanation && (
             <div className="border-t border-[#e7e7e9] dark:border-gray-700 px-4 py-3 bg-[#f5f5f6] dark:bg-gray-800 space-y-2">
-              <p className="text-xs text-[#4a4a4c] dark:text-gray-300">
+              <p className="text-xs text-gray-200 dark:text-gray-300">
                 <strong>Privacidad:</strong> Maity usa IA local para que tu audio nunca
                 salga de tu computadora. Ningún servicio en la nube, cero API keys.
               </p>
-              <p className="text-xs text-[#4a4a4c] dark:text-gray-300">
+              <p className="text-xs text-gray-200 dark:text-gray-300">
                 <strong>Modelos:</strong> Estos modelos pesan ~3.3 GB total y se descargan
                 solo una vez. Después funcionan completamente sin conexión a internet.
               </p>
@@ -465,7 +465,7 @@ export function AutoModelSetupStep() {
         </div>
 
         {!allInstalled && (
-          <p className="text-xs text-center text-[#6a6a6d] dark:text-gray-500">
+          <p className="text-xs text-center text-gray-400 dark:text-gray-500">
             Puedes descargar los modelos después desde Configuración si lo prefieres.
           </p>
         )}

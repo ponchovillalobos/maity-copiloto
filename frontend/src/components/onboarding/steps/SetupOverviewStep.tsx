@@ -75,8 +75,8 @@ export function SetupOverviewStep() {
                   {feature.icon}
                 </div>
                 <div>
-                  <h3 className="font-medium text-[#000000]">{feature.title}</h3>
-                  <p className="text-sm text-[#6a6a6d]">{feature.description}</p>
+                  <h3 className="font-medium text-white">{feature.title}</h3>
+                  <p className="text-sm text-gray-400">{feature.description}</p>
                 </div>
               </div>
             ))}
@@ -104,7 +104,7 @@ export function SetupOverviewStep() {
               href="https://github.com/Zackriya-Solutions/meeting-minutes"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-[#4a4a4c] hover:underline"
+              className="text-xs text-gray-200 hover:underline"
             >
               Reportar problemas en GitHub
             </a>

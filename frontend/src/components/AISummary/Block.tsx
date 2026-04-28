@@ -246,7 +246,7 @@ export const BlockComponent: React.FC<BlockProps> = ({
           className={`
             w-full resize-none overflow-hidden bg-transparent border-none p-0 focus:outline-none focus:ring-0
             transition-all duration-150 ease-in-out
-            ${block.color === 'gray' ? 'text-[#6a6a6d] dark:text-gray-400' : ''}
+            ${block.color === 'gray' ? 'text-gray-400 dark:text-gray-400' : ''}
             ${block.type === 'heading1' ? 'text-xl font-bold' : ''}
             ${block.type === 'heading2' ? 'text-lg font-semibold' : ''}
           `}
@@ -269,12 +269,12 @@ export const BlockComponent: React.FC<BlockProps> = ({
                 onClick={() => handleCommandSelect(cmd)}
                 onMouseEnter={() => setSelectedCommandIndex(index)}
               >
-                <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-[#e7e7e9] dark:bg-gray-600 rounded text-[#4a4a4c] dark:text-gray-300">
+                <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-[#e7e7e9] dark:bg-gray-600 rounded text-gray-200 dark:text-gray-300">
                   {cmd.icon}
                 </span>
                 <div className="flex-1">
                   <div className="font-medium">{cmd.label}</div>
-                  <div className="text-sm text-[#6a6a6d] dark:text-gray-400">{cmd.description}</div>
+                  <div className="text-sm text-gray-400 dark:text-gray-400">{cmd.description}</div>
                 </div>
               </button>
             ))}

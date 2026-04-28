@@ -45,7 +45,7 @@ export function ProgressIndicator({ current, total, onStepClick }: ProgressIndic
                 ) : (
                   <StepIcon
                     className={`transition-all duration-300 ${
-                      isActive ? 'w-4 h-4 text-white' : 'w-3 h-3 text-[#4a4a4c] dark:text-gray-300'
+                      isActive ? 'w-4 h-4 text-white' : 'w-3 h-3 text-gray-200 dark:text-gray-300'
                     }`}
                   />
                 )}

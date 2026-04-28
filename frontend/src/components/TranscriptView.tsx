@@ -368,7 +368,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = memo(function Trans
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="flex items-center gap-2 mt-4 text-[#6a6a6d] dark:text-gray-400"
+          className="flex items-center gap-2 mt-4 text-gray-400 dark:text-gray-400"
         >
           <div className="w-2 h-2 bg-[#485df4] rounded-full animate-pulse"></div>
           <span className="text-sm">Escuchando...</span>
@@ -380,14 +380,14 @@ export const TranscriptView: React.FC<TranscriptViewProps> = memo(function Trans
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center text-[#6a6a6d] dark:text-gray-400 mt-8"
+          className="text-center text-gray-400 dark:text-gray-400 mt-8"
         >
           {isRecording ? (
             <>
               <div className="flex items-center justify-center mb-3">
                 <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-[#ff4080]' : 'bg-[#485df4] animate-pulse'}`}></div>
               </div>
-              <p className="text-sm text-[#4a4a4c] dark:text-gray-300">
+              <p className="text-sm text-gray-200 dark:text-gray-300">
                 {isPaused ? 'Grabación pausada' : 'Escuchando...'}
               </p>
               <p className="text-xs mt-1 text-[#8a8a8d] dark:text-gray-500">

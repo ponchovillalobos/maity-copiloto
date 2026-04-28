@@ -158,7 +158,7 @@ export default function AnalyticsConsentSwitch() {
       <div className="space-y-4">
         <div>
           <h3 className="text-base font-semibold text-[#1a1a1a] dark:text-white mb-2">Analíticas de Uso</h3>
-          <p className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-4">
+          <p className="text-sm text-gray-200 dark:text-gray-300 mb-4">
             Ayúdanos a mejorar Maity compartiendo datos de uso anónimos. No se recopila contenido personal—todo permanece en tu dispositivo.
           </p>
         </div>
@@ -166,13 +166,13 @@ export default function AnalyticsConsentSwitch() {
         <div className="flex items-center justify-between p-3 bg-[#f5f5f6] dark:bg-gray-800 rounded-lg border border-[#e7e7e9] dark:border-gray-700">
           <div>
             <h4 className="font-semibold text-[#1a1a1a] dark:text-white">Habilitar Analíticas</h4>
-            <p className="text-sm text-[#4a4a4c] dark:text-gray-300">
+            <p className="text-sm text-gray-200 dark:text-gray-300">
               {isProcessing ? 'Actualizando...' : 'Solo patrones de uso anónimos'}
             </p>
           </div>
           <div className="flex items-center gap-2 ml-4">
             {isProcessing && (
-              <Loader2 className="w-4 h-4 animate-spin text-[#6a6a6d] dark:text-gray-400" />
+              <Loader2 className="w-4 h-4 animate-spin text-gray-400 dark:text-gray-400" />
             )}
             <Switch
               checked={isAnalyticsOptedIn}
@@ -188,11 +188,11 @@ export default function AnalyticsConsentSwitch() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-[#1a1a1a] dark:text-white mb-1">Tu ID de Usuario</div>
-                <p className="text-xs text-[#4a4a4c] dark:text-gray-300 mb-2">
+                <p className="text-xs text-gray-200 dark:text-gray-300 mb-2">
                   Comparte este ID al reportar problemas para ayudarnos a investigar tus registros
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="text-xs text-[#3a3a3c] dark:text-gray-200 bg-white dark:bg-gray-700 px-2 py-1 rounded border border-[#d0d0d3] dark:border-gray-600 font-mono flex-1 truncate">
+                  <code className="text-xs text-gray-100 dark:text-gray-200 bg-white dark:bg-gray-700 px-2 py-1 rounded border border-[#d0d0d3] dark:border-gray-600 font-mono flex-1 truncate">
                     {userId}
                   </code>
                   <Button

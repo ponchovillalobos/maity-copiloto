@@ -246,7 +246,7 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-[#000000] dark:text-white">Dispositivos de Audio</h4>
+        <h4 className="text-sm font-medium text-white dark:text-white">Dispositivos de Audio</h4>
         <div className="flex items-center space-x-2">
           {/* TODO: Monitoring */}
           {/* <button */}
@@ -282,8 +282,8 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
         {/* Microphone Selection */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Mic className="h-4 w-4 text-[#4a4a4c] dark:text-gray-300" />
-            <Label htmlFor="mic-selection" className="text-sm font-medium text-[#3a3a3c] dark:text-gray-200">
+            <Mic className="h-4 w-4 text-gray-200 dark:text-gray-300" />
+            <Label htmlFor="mic-selection" className="text-sm font-medium text-gray-100 dark:text-gray-200">
               Micrófono
             </Label>
           </div>
@@ -308,19 +308,19 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
             </SelectContent>
           </Select>
           {inputDevices.length === 0 && (
-            <p className="text-xs text-[#6a6a6d] dark:text-gray-400">No se encontraron dispositivos de micrófono</p>
+            <p className="text-xs text-gray-400 dark:text-gray-400">No se encontraron dispositivos de micrófono</p>
           )}
 
           {/* Audio Level Meters for Input Devices */}
           {showLevels && inputDevices.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-gray-100">
-              <p className="text-xs text-[#4a4a4c] dark:text-gray-300 font-medium">Niveles del Micrófono:</p>
+              <p className="text-xs text-gray-200 dark:text-gray-300 font-medium">Niveles del Micrófono:</p>
               {inputDevices.map((device) => {
                 const levelData = audioLevels.get(device.name);
                 return (
                   <div key={`level-${device.name}`} className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#4a4a4c] dark:text-gray-300 truncate max-w-[200px]">
+                      <span className="text-xs text-gray-200 dark:text-gray-300 truncate max-w-[200px]">
                         {device.name}
                       </span>
                       {levelData && (
@@ -350,8 +350,8 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
         {/* System Audio Selection */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Speaker className="h-4 w-4 text-[#4a4a4c] dark:text-gray-300" />
-            <Label htmlFor="system-selection" className="text-sm font-medium text-[#3a3a3c] dark:text-gray-200">
+            <Speaker className="h-4 w-4 text-gray-200 dark:text-gray-300" />
+            <Label htmlFor="system-selection" className="text-sm font-medium text-gray-100 dark:text-gray-200">
               Audio del Sistema
             </Label>
           </div>
@@ -378,7 +378,7 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
           </Select>
 
           {outputDevices.length === 0 && (
-            <p className="text-xs text-[#6a6a6d] dark:text-gray-400">No se encontraron dispositivos de audio del sistema</p>
+            <p className="text-xs text-gray-400 dark:text-gray-400">No se encontraron dispositivos de audio del sistema</p>
           )}
 
           {/* Backend Selection - available on all platforms */}
@@ -391,7 +391,7 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
       </div>
 
       {/* Info text */}
-      <div className="text-xs text-[#6a6a6d] dark:text-gray-400 space-y-1">
+      <div className="text-xs text-gray-400 dark:text-gray-400 space-y-1">
         <p>• <strong>Micrófono:</strong> Graba tu voz y sonido ambiente</p>
         <p>• <strong>Audio del Sistema:</strong> Graba audio de la computadora (música, llamadas, etc.)</p>
         {isMonitoring && (

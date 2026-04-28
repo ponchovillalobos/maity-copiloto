@@ -68,16 +68,16 @@ function DownloadToastContent({
         ) : hasError ? (
           <X className="w-4 h-4 text-[#cc0040]" />
         ) : isCancelled ? (
-          <X className="w-4 h-4 text-[#4a4a4c]" />
+          <X className="w-4 h-4 text-gray-200" />
         ) : (
-          <ArrowBigDownDash className="size-5 text-[#4a4a4c] " />
+          <ArrowBigDownDash className="size-5 text-gray-200 " />
         )}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-1">
-          <p className="text-sm font-medium text-[#000000] truncate">
+          <p className="text-sm font-medium text-white truncate">
             {download.displayName}
           </p>
         </div>
@@ -87,7 +87,7 @@ function DownloadToastContent({
         ) : isComplete ? (
           <p className="text-xs text-[#16bb7b]">Download complete</p>
         ) : isCancelled ? (
-          <p className="text-xs text-[#4a4a4c]">Download cancelled</p>
+          <p className="text-xs text-gray-200">Download cancelled</p>
         ) : (
           <>
             {/* Progress bar */}
@@ -99,7 +99,7 @@ function DownloadToastContent({
             </div>
 
             {/* Progress text */}
-            <div className="flex items-center justify-between text-xs text-[#6a6a6d]">
+            <div className="flex items-center justify-between text-xs text-gray-400">
               <span>
                 {download.downloadedMb.toFixed(1)} / {download.totalMb.toFixed(1)} MB
               </span>
@@ -107,7 +107,7 @@ function DownloadToastContent({
                 {download.speedMbps > 0 && (
                   <span>{download.speedMbps.toFixed(1)} MB/s</span>
                 )}
-                <span className="text-[#000000] font-medium">
+                <span className="text-white font-medium">
                   {Math.round(download.progress)}%
                 </span>
               </span>

@@ -348,11 +348,10 @@ pub async fn coach_suggest(
         latency_ms,
     };
 
-    // Broadcast a TODAS las ventanas (incluida la flotante always-on-top).
-    // Tauri propaga emit() cross-window automáticamente.
-    use tauri::Emitter;
-    let _ = app.emit("coach-tip-update", &suggestion);
-
+    // Nota: NO emitimos `coach-tip-update` aquí.
+    // El frontend (CoachContext) aplica filtros (confianza, vaguedad, prefijo)
+    // y re-emite el evento solo si el tip pasa esos filtros, garantizando que
+    // panel principal y ventana flotante muestren EXACTAMENTE los mismos tips.
     Ok(suggestion)
 }
 

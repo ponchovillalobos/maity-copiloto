@@ -32,7 +32,7 @@ export function PermissionRow({ icon, title, description, status, isPending = fa
             isAuthorized ? 'bg-[#d0d0d3] dark:bg-gray-600' : isDenied ? 'bg-[#ffe0eb]' : 'bg-neutral-50'
           )}
         >
-          <div className={cn(isAuthorized ? 'text-[#000000] dark:text-white' : isDenied ? 'text-[#ff0050]' : 'text-neutral-500')}>{icon}</div>
+          <div className={cn(isAuthorized ? 'text-white dark:text-white' : isDenied ? 'text-[#ff0050]' : 'text-neutral-500')}>{icon}</div>
         </div>
 
         {/* Title + Description */}

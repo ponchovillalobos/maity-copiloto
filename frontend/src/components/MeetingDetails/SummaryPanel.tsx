@@ -188,7 +188,7 @@ export function SummaryPanel({
           <div className="flex items-center justify-center flex-1">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#485df4] mb-4"></div>
-              <p className="text-[#4a4a4c] dark:text-gray-300">Generando Resumen con IA...</p>
+              <p className="text-gray-200 dark:text-gray-300">Generando Resumen con IA...</p>
             </div>
           </div>
         </div>

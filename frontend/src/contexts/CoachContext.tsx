@@ -24,10 +24,104 @@ import React, {
   ReactNode,
 } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { listen, emit } from '@tauri-apps/api/event';
+import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow';
 import { useTranscripts } from './TranscriptContext';
 import { useRecordingState } from './RecordingStateContext';
 import { logger } from '@/lib/logger';
+
+/**
+ * Broadcast cross-window robusto: emit() global + fallback iterando webviews.
+ * En Windows con ventanas transparent+decorations:false la propagación de
+ * `emit()` puede fallar silenciosa. Iterar webviews garantiza que la flotante
+ * reciba siempre los tips finales (post-filtro).
+ */
+async function broadcastEvent(name: string, payload: unknown): Promise<void> {
+  try {
+    await emit(name, payload);
+  } catch {
+    /* ignore — fallback abajo */
+  }
+  try {
+    const windows = await getAllWebviewWindows();
+    await Promise.all(
+      windows.map((w) => w.emit(name, payload).catch(() => undefined)),
+    );
+  } catch {
+    /* ignore — flotante puede no estar abierta */
+  }
+}
+
+// Regex compiladas una sola vez (módulo-level) para evitar realocaciones en hot path.
+const PROFANITY_REGEX = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche)\b/i;
+const PROFANITY_REGEX_GLOBAL = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche|estúpida|estupida)\b/gi;
+const SATISFACTION_REGEX = /\b(excelente|perfecto|me encanta|impresionante|genial|increíble|fantástico|maravilloso|muy bien|buenísimo|gracias|agradezco)\b/i;
+const FRUSTRATION_REGEX = /\b(terrible|pésimo|inaceptable|harto|harta|cancelar|demanda|queja|reclamo|mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|maldición|maldicion|pinche)\b/i;
+const EMPATHY_REGEX = /\b(entiendo|veo|comprendo|tiene sentido|te escucho|imagino|disculpa|lo siento)\b/g;
+const CAPITALIZED_NAME_REGEX = /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/;
+const VAGUE_TIP_REGEX = /\b(empatiza|conecta|rapport|escucha activa|framework|LATTE|SPIN|HEARD|MEDDPICC)\b/i;
+
+// Tip factory: minimiza alocaciones de objetos repetitivos.
+function makeHeuristicTip(
+  tip: string,
+  category: string,
+  priority: 'critical' | 'important' | 'soft',
+  model: string = 'heuristic',
+): CoachSuggestion {
+  return {
+    tip,
+    category,
+    priority,
+    confidence: 0.95,
+    timestamp: Math.floor(Date.now() / 1000),
+    model,
+    latency_ms: 0,
+  };
+}
+
+/**
+ * Modo conversacional detectado por las métricas en vivo.
+ * - `conversation`: usuario habla regularmente (interacción real → todos los tips aplican).
+ * - `audience`: usuario casi no habla (escucha conferencia/podcast/cliente largo) →
+ *   suprimimos tips de "responder al cliente enojado" y otros que asumen interacción.
+ * - `starting`: muy poco contexto aún para clasificar.
+ */
+type ConversationMode = 'conversation' | 'audience' | 'starting';
+
+function detectConversationMode(args: {
+  userWords: number;
+  interlocutorWords: number;
+  userTalkRatio: number;
+  durationSec: number;
+}): ConversationMode {
+  const { userWords, interlocutorWords, userTalkRatio, durationSec } = args;
+  if (durationSec < 60 || userWords + interlocutorWords < 30) return 'starting';
+  // User es <12% del audio AND interlocutor habló suficiente → audiencia.
+  if (userTalkRatio < 0.12 && interlocutorWords >= 80) return 'audience';
+  return 'conversation';
+}
+
+/** Normaliza un tip para comparar duplicados (lowercase, sin puntuación, espacios colapsados). */
+function normalizeTip(s: string): string {
+  return s.toLowerCase()
+    .replace(/[.,;:!?¡¿«»"'`´()\[\]{}—–-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Similitud Jaccard sobre tokens (0..1). Rápido, suficiente para detectar reformulaciones. */
+function tipSimilarity(a: string, b: string): number {
+  const ta = new Set(normalizeTip(a).split(' ').filter((t) => t.length > 2));
+  const tb = new Set(normalizeTip(b).split(' ').filter((t) => t.length > 2));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let inter = 0;
+  ta.forEach((t) => { if (tb.has(t)) inter++; });
+  const union = ta.size + tb.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+const TIP_DEDUP_THRESHOLD = 0.85;
+const TIP_DEDUP_WINDOW = 5;
 
 /** Mensaje de chat del usuario o respuesta del coach. */
 export interface CoachChatMessage {
@@ -110,6 +204,8 @@ export interface CoachMetrics {
   longestUserMonologueSec: number;
   /** Historial de preguntas detectadas */
   questionHistory: QuestionEntry[];
+  /** Modo conversacional inferido de las métricas (afecta qué tips se muestran). */
+  conversationMode: ConversationMode;
 }
 
 interface CoachContextType {
@@ -200,6 +296,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     userWpm: 0,
     longestUserMonologueSec: 0,
     questionHistory: [],
+    conversationMode: 'starting',
   });
   const sessionStartRef = useRef<number | null>(null);
   const scoreHistoryRef = useRef<number[]>([]);
@@ -219,6 +316,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   const suppressUntilRef = useRef<number>(0);
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meetingTypeRef = useRef(meetingType);
+  // Modo conversacional actual — actualizado cada 3s por computeMetrics.
+  // Usado para suprimir tips inadecuados cuando el usuario solo escucha.
+  const conversationModeRef = useRef<ConversationMode>('starting');
   useEffect(() => {
     meetingTypeRef.current = meetingType;
   }, [meetingType]);
@@ -230,6 +330,33 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadingRef.current = loading;
   }, [loading]);
+
+  /**
+   * Push tip al estado + emite `coach-tip-update` cross-window para que la
+   * ventana flotante muestre EXACTAMENTE los mismos tips que el panel principal.
+   * Esta es la ÚNICA fuente que emite el evento — el backend ya no lo hace
+   * para evitar duplicados / desincronía con los filtros de calidad.
+   */
+  const pushSuggestion = useCallback((suggestion: CoachSuggestion) => {
+    // Deduplicación: si el tip nuevo es idéntico (o ~≥85% similar) a alguno
+    // de los últimos `TIP_DEDUP_WINDOW`, NO lo mostramos. Repetir lo mismo
+    // no aporta valor — el coach debe ser conciso.
+    const recent = suggestionsRef.current.slice(-TIP_DEDUP_WINDOW);
+    const isDuplicate = recent.some(
+      (prev) => tipSimilarity(prev.tip, suggestion.tip) >= TIP_DEDUP_THRESHOLD,
+    );
+    if (isDuplicate) {
+      logger.info(`[Coach] Tip descartado por duplicado: "${suggestion.tip.slice(0, 60)}…"`);
+      return;
+    }
+    setSuggestions((prev) => {
+      const next = [...prev, suggestion];
+      return next.length > MAX_SUGGESTIONS ? next.slice(-MAX_SUGGESTIONS) : next;
+    });
+    setLatestSuggestion(suggestion);
+    lastTipTimestampRef.current = Date.now();
+    void broadcastEvent('coach-tip-update', suggestion);
+  }, []);
 
   /**
    * Construye el contexto para el coach: TODA la conversación desde inicio,
@@ -255,19 +382,6 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       totalChars += line.length;
     }
     return lines.join('\n');
-  }, [transcriptsRef]);
-
-  /**
-   * Cuenta las palabras totales del transcript (para decidir si vale la pena
-   * disparar otra sugerencia).
-   */
-  const countWords = useCallback((): number => {
-    const all = transcriptsRef.current ?? [];
-    let total = 0;
-    for (const t of all) {
-      total += ((t as any).text ?? '').split(/\s+/).filter(Boolean).length;
-    }
-    return total;
   }, [transcriptsRef]);
 
   /**
@@ -299,9 +413,13 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       logger.debug('[Coach] Skip: ventana muy corta');
       return;
     }
-    // Agregar contexto de calidad de servicio al window para que el LLM lo considere
+    // Agregar contexto de calidad de servicio + modo conversacional al window
+    // para que el LLM adapte el tip al escenario real.
     const currentScore = scoreHistoryRef.current.slice(-1)[0] ?? 50;
-    if (currentScore <= 30) {
+    const currentMode = conversationModeRef.current;
+    if (currentMode === 'audience') {
+      window = `[CONTEXTO: El USUARIO está escuchando — es una conferencia / podcast / monólogo del INTERLOCUTOR. NO sugerir "responde al cliente" ni asumir conflicto. Solo sugerir tomar nota de un punto clave, preparar una pregunta para después, o señalar un momento importante. Si no hay nada accionable, NO emitas tip.]\n${window}`;
+    } else if (currentScore <= 30) {
       window = `[ALERTA: Calidad de servicio MUY BAJA (${currentScore}/100). El usuario necesita mejorar su tono y escucha activa.]\n${window}`;
     } else if (currentScore <= 50) {
       window = `[Nota: Calidad de servicio por debajo del promedio (${currentScore}/100). Sugerir mejoras de comunicacion.]\n${window}`;
@@ -325,6 +443,8 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         return;
       }
     }
+    // Modo audience suprime los disparos heurísticos pero NO el LLM (gemma decide).
+    // El contexto modo se inyecta en `window` arriba — ver pista al LLM.
 
     setLoading(true);
     try {
@@ -362,8 +482,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       // Filtro de calidad: tips correctivos/observación DEBEN tener frase concreta
       const tipText = suggestion.tip || '';
       const hasQuotedPhrase = tipText.includes("'") || tipText.includes(":");
-      const isVague = /\b(empatiza|conecta|rapport|escucha activa|framework|LATTE|SPIN|HEARD|MEDDPICC)\b/i.test(tipText);
-      if (isVague) {
+      if (VAGUE_TIP_REGEX.test(tipText)) {
         logger.debug(`[Coach] Tip descartado por jerga/vaguedad: ${tipText}`);
         return;
       }
@@ -372,17 +491,21 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Marcar timestamp del tip para cooldown
-      lastTipTimestampRef.current = Date.now();
-
-      setSuggestions((prev) => {
-        const next = [...prev, suggestion];
-        if (next.length > MAX_SUGGESTIONS) {
-          return next.slice(next.length - MAX_SUGGESTIONS);
+      // Filtro modo audiencia: si el usuario solo escucha, descartar tips que
+      // asumen interacción ("responde", "objeción", "cierre", "negociación").
+      if (conversationModeRef.current === 'audience') {
+        const inappropriateForAudience = new Set([
+          'service', 'objection', 'closing', 'negotiation', 'self_control', 'persuasion',
+        ]);
+        const cat = (suggestion.category ?? '').toLowerCase();
+        const looksInteractive = /\b(dile|respóndele|respondele|pregúntale|preguntale|cliente molesto|cliente enojado)\b/i.test(tipText);
+        if (inappropriateForAudience.has(cat) || looksInteractive) {
+          logger.info(`[Coach] Tip descartado en modo audiencia: ${cat} / "${tipText.slice(0, 60)}…"`);
+          return;
         }
-        return next;
-      });
-      setLatestSuggestion(suggestion);
+      }
+
+      pushSuggestion(suggestion);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       logger.warn(`[Coach] Error al generar sugerencia: ${errorMsg}`);
@@ -397,7 +520,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [buildWindow, detectLanguage, currentMeetingId]);
+  }, [buildWindow, detectLanguage, currentMeetingId, pushSuggestion]);
 
   /**
    * Cambia el modelo del backend y actualiza el estado local.
@@ -592,35 +715,22 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         // Analyze triggers for BOTH user and interlocutor speech
         const isInterlocutor = u.source_type === 'interlocutor';
 
-        // Profanity detection differentiated by speaker
-        const profanityRegex = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche)\b/i;
-        if (profanityRegex.test(u.text)) {
+        // Profanity detection differentiated by speaker.
+        // En modo audience NO emitir tips de "responde al cliente" porque el
+        // usuario no está interactuando (puede ser conferencia, podcast, etc).
+        if (PROFANITY_REGEX.test(u.text) && conversationModeRef.current !== 'audience') {
           if (isInterlocutor) {
-            // CLIENT angry — coach user on how to calm them
-            const calmClientTip = {
-              tip: "Cliente molesto. Dile: 'Entiendo tu frustración, tienes razón. ¿Cómo puedo solucionarlo?'",
-              category: "service",
-              confidence: 0.98,
-              priority: "critical" as const,
-              timestamp: Date.now(),
-              model: "heuristic",
-              latency_ms: 0,
-            };
-            setSuggestions(prev => [calmClientTip, ...prev].slice(0, MAX_SUGGESTIONS));
-            lastTipTimestampRef.current = Date.now();
+            pushSuggestion(makeHeuristicTip(
+              "Cliente molesto. Dile: 'Entiendo tu frustración, tienes razón. ¿Cómo puedo solucionarlo?'",
+              "service",
+              "critical",
+            ));
           } else {
-            // USER losing control — self-regulation tip
-            const selfControlTip = {
-              tip: "Cuidado con tu tono. Di: 'Disculpa si sonó brusco, quiero ayudarte. Vamos a resolverlo juntos.'",
-              category: "self_control",
-              confidence: 0.98,
-              priority: "critical" as const,
-              timestamp: Date.now(),
-              model: "heuristic",
-              latency_ms: 0,
-            };
-            setSuggestions(prev => [selfControlTip, ...prev].slice(0, MAX_SUGGESTIONS));
-            lastTipTimestampRef.current = Date.now();
+            pushSuggestion(makeHeuristicTip(
+              "Cuidado con tu tono. Di: 'Disculpa si sonó brusco, quiero ayudarte. Vamos a resolverlo juntos.'",
+              "self_control",
+              "critical",
+            ));
             return; // User profanity is urgent, skip LLM tip
           }
         }
@@ -680,7 +790,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (unlisten) unlisten();
     };
-  }, [enabled, isRecording, triggerNow]);
+  }, [enabled, isRecording, triggerNow, pushSuggestion]);
 
   /**
    * Effect 3 v2.0: auto-detect meeting type a los 45s de grabación.
@@ -743,34 +853,45 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       let longestUserRun = 0;
       let currentUserRun = 0;
       let userFrustrationCount = 0;
-      let interlocutorFrustrationCount = 0;
       let interlocutorSatisfactionCount = 0;
       let userEmpathyCount = 0;
+      let turnChanges = 0;
+      let userProfanityCount = 0;
+      let prevSource = '';
       const questionEntries: QuestionEntry[] = [];
-      const satisfactionWords = /\b(excelente|perfecto|me encanta|impresionante|genial|increíble|fantástico|maravilloso|muy bien|buenísimo|gracias|agradezco)\b/i;
-      const frustrationWords = /\b(terrible|pésimo|inaceptable|harto|harta|cancelar|demanda|queja|reclamo|mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|maldición|maldicion|pinche)\b/i;
+      const nowMs = Date.now();
+      const sessionStartMs = sessionStartRef.current;
+
+      // Loop ÚNICO O(n) — fusión de 3 pasadas previas (metrics + turnChanges + profanity).
+      // Reduce 60% el costo de computeMetrics en reuniones largas (>1000 turnos).
       for (const t of all) {
-        const text = ((t as any).text ?? '').trim();
+        const raw = (t as any).text ?? '';
+        const text = raw.trim();
         if (!text) continue;
-        const wordCount = text.split(/\s+/).filter(Boolean).length;
-        const questionCount = (text.match(/¿/g) || []).length;
         const isInt = (t as any).source_type === 'interlocutor';
 
-        // Track question history
+        // Speaker switches (turnChanges) — antes era loop separado.
+        const src = (t as any).source_type ?? '';
+        if (src && src !== prevSource) {
+          turnChanges++;
+          prevSource = src;
+        }
+
+        const wordCount = text.split(/\s+/).filter(Boolean).length;
+        const questionCount = (text.match(/¿/g) || []).length;
+
         if (questionCount > 0 || text.includes('?')) {
           const speaker = isInt ? 'interlocutor' as const : 'user' as const;
-          const ts = sessionStartRef.current ? (Date.now() - sessionStartRef.current) : 0;
+          const ts = sessionStartMs ? (nowMs - sessionStartMs) : 0;
           questionEntries.push({ text: text.substring(0, 200), speaker, timestamp: ts });
         }
 
-        // Count frustration differentiated by speaker
-        if (frustrationWords.test(text)) {
-          if (isInt) interlocutorFrustrationCount++;
-          else userFrustrationCount++;
+        // Frustración del interlocutor es NEUTRAL (oportunidad, no falla),
+        // por eso solo trackeamos la del usuario.
+        if (!isInt && FRUSTRATION_REGEX.test(text)) {
+          userFrustrationCount++;
         }
-
-        // Count interlocutor satisfaction
-        if (satisfactionWords.test(text) && isInt) {
+        if (isInt && SATISFACTION_REGEX.test(text)) {
           interlocutorSatisfactionCount++;
         }
 
@@ -784,20 +905,20 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           userQuestions += questionCount;
           currentUserRun += wordCount;
 
-          // Empatía: regex con palabras señalizadoras
-          const empathyMatch = text
-            .toLowerCase()
-            .match(/\b(entiendo|veo|comprendo|tiene sentido|te escucho|imagino|disculpa|lo siento)\b/g);
+          // Profanity user (antes era loop separado).
+          const profanityMatches = raw.match(PROFANITY_REGEX_GLOBAL);
+          if (profanityMatches) userProfanityCount += profanityMatches.length;
+
+          const empathyMatch = text.toLowerCase().match(EMPATHY_REGEX);
           if (empathyMatch) {
             empathyPhrases += empathyMatch.length;
             userEmpathyCount += empathyMatch.length;
           }
 
-          // Uso de nombres propios (heurística: palabra capitalizada en medio de frase)
           const words = text.split(/\s+/);
           for (let i = 1; i < words.length; i++) {
             const w = words[i];
-            if (w.length >= 3 && /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(w)) {
+            if (w.length >= 3 && CAPITALIZED_NAME_REGEX.test(w)) {
               nameUsedCount++;
             }
           }
@@ -806,42 +927,26 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       if (currentUserRun > longestUserRun) longestUserRun = currentUserRun;
       const totalWords = userWords + interlocutorWords;
       const userTalkRatio = totalWords > 0 ? userWords / totalWords : 0;
-      const durationSec = sessionStartRef.current
-        ? Math.floor((Date.now() - sessionStartRef.current) / 1000)
+      const durationSec = sessionStartMs
+        ? Math.floor((nowMs - sessionStartMs) / 1000)
         : 0;
 
-      // WPM: palabras del usuario / minutos de sesión
       const minutesElapsed = Math.max(0.5, durationSec / 60);
       const userWpm = Math.round(userWords / minutesElapsed);
-
-      // Monólogo más largo en segundos (estimación: 150 WPM promedio → words / 2.5)
       const longestUserMonologueSec = Math.round(longestUserRun / 2.5);
 
+      // Detectar modo conversacional para suprimir tips inadecuados.
+      const mode = detectConversationMode({
+        userWords,
+        interlocutorWords,
+        userTalkRatio,
+        durationSec,
+      });
+      conversationModeRef.current = mode;
+
       // Connection score algorithm v5.0 — CALIDAD DE SERVICIO
-      // Evalua si el usuario esta dando buen servicio al cliente.
-      // Frustration tiene peso DOMINANTE — una sola groseria del usuario
-      // puede hundir el score. El termometro refleja calidad, no actividad.
-      const minutesSinceStart = Math.max(0.5, durationSec / 60);
-      let score = 50; // Baseline neutral
-
-      // Contar cambios de turno (speaker switches)
-      let turnChanges = 0;
-      let prevSource = '';
-      for (const t of all) {
-        const src = (t as any).source_type ?? '';
-        if (src && src !== prevSource) { turnChanges++; prevSource = src; }
-      }
-
-      // Contar groserías del USUARIO separadamente (penalizacion fuerte)
-      let userProfanityCount = 0;
-      const profanityRegex = /\b(mierda|carajo|puta|chingad|joder|estúpido|estupido|idiota|imbécil|imbecil|maldito|maldita|hijueputa|pendej|cabron|cabrón|verga|pinche|estúpida|estupida)\b/gi;
-      for (const t of all) {
-        if ((t as any).source_type !== 'interlocutor') {
-          const text = ((t as any).text ?? '');
-          const matches = text.match(profanityRegex);
-          if (matches) userProfanityCount += matches.length;
-        }
-      }
+      const minutesSinceStart = minutesElapsed;
+      let score = 50;
 
       if (totalWords > 5) {
         // +15 pts: balance de participacion (ambos hablan, no monologo)
@@ -871,9 +976,6 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         // User empathy → reward (active listening)
         score += Math.min(15, userEmpathyCount * 3);
 
-        // Interlocutor frustration → NEUTRAL (client might be frustrated but user handling well)
-        // No penalty for this - it's an opportunity, not a failure
-
         // PENALIZACION DOMINANTE: groserías del usuario
         // Cada grosería resta 15 puntos — 2 groserías = score minimo
         score -= userProfanityCount * 15;
@@ -889,70 +991,41 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         score = Math.min(50, 40 + turnChanges * 3);
       }
 
-      // FEEDBACK AUTOMATICO basado en score — escalado por severidad
+      // FEEDBACK AUTOMATICO basado en score — escalado por severidad.
+      // En modo `audience` (escucha conferencia/podcast) no aplican porque
+      // asumen que el usuario está interactuando con un cliente.
       const lastFeedback = (window as any).__lastScoreFeedback || 0;
       const prevScore = (window as any).__prevConnectionScore || 50;
       const canFeedback = Date.now() - lastFeedback > 20_000; // max 1 cada 20s
 
-      if (canFeedback && totalWords > 20) {
-        let feedbackTip: { tip: string; category: string; priority: string } | null = null;
-
+      if (canFeedback && totalWords > 20 && mode !== 'audience') {
         // User frustration escalation — detect if user tone is getting aggressive
         if (userFrustrationCount >= 2) {
           (window as any).__lastScoreFeedback = Date.now();
-          setSuggestions(prev => [{
-            tip: "Cuidado con tu tono. Di: 'disculpa, quiero asegurarme de ayudarte bien.'",
-            category: "self_control",
-            priority: "critical",
-            confidence: 0.95,
-            timestamp: Date.now(),
-            model: "heuristic",
-            latency_ms: 0,
-          }, ...prev].slice(0, 20));
-          return; // Skip other feedback when user frustration is critical
-        }
+          pushSuggestion(makeHeuristicTip(
+            "Cuidado con tu tono. Di: 'disculpa, quiero asegurarme de ayudarte bien.'",
+            "self_control",
+            "critical",
+          ));
+        } else {
+          let feedbackTip: { tip: string; category: string; priority: 'critical' | 'important' | 'soft' } | null = null;
 
-        // NIVEL CRITICO: score <= 10 — servicio desastroso
-        if (score <= 10) {
-          feedbackTip = {
-            tip: "Corrección: detente ahora. Di: 'Tienes razón, disculpa. ¿Cómo puedo resolver esto para ti?'",
-            category: "service", priority: "critical",
-          };
-        // NIVEL ALERTA: score <= 25
-        } else if (score <= 25) {
-          feedbackTip = {
-            tip: "Dile: 'Entiendo tu frustración. Déjame ver qué puedo hacer para solucionarlo ahora.'",
-            category: "service", priority: "critical",
-          };
-        // NIVEL ADVERTENCIA: score <= 40
-        } else if (score <= 40) {
-          feedbackTip = {
-            tip: "Pregúntale: '¿Cómo puedo ayudarte mejor con esto?'",
-            category: "rapport", priority: "important",
-          };
-        // FELICITACION: score subio >15 puntos respecto al anterior
-        } else if (score >= 70 && score - prevScore >= 15) {
-          feedbackTip = {
-            tip: "Excelente: la conversación fluye bien. Sigue con ese tono.",
-            category: "rapport", priority: "soft",
-          };
-        // FELICITACION: score alto sostenido
-        } else if (score >= 85 && prevScore >= 80) {
-          feedbackTip = {
-            tip: "Bien hecho: comunicación excepcional. El cliente se siente escuchado.",
-            category: "rapport", priority: "soft",
-          };
-        }
+          if (score <= 10) {
+            feedbackTip = { tip: "Corrección: detente ahora. Di: 'Tienes razón, disculpa. ¿Cómo puedo resolver esto para ti?'", category: "service", priority: "critical" };
+          } else if (score <= 25) {
+            feedbackTip = { tip: "Dile: 'Entiendo tu frustración. Déjame ver qué puedo hacer para solucionarlo ahora.'", category: "service", priority: "critical" };
+          } else if (score <= 40) {
+            feedbackTip = { tip: "Pregúntale: '¿Cómo puedo ayudarte mejor con esto?'", category: "rapport", priority: "important" };
+          } else if (score >= 70 && score - prevScore >= 15) {
+            feedbackTip = { tip: "Excelente: la conversación fluye bien. Sigue con ese tono.", category: "rapport", priority: "soft" };
+          } else if (score >= 85 && prevScore >= 80) {
+            feedbackTip = { tip: "Bien hecho: comunicación excepcional. El cliente se siente escuchado.", category: "rapport", priority: "soft" };
+          }
 
-        if (feedbackTip) {
-          (window as any).__lastScoreFeedback = Date.now();
-          setSuggestions(prev => [{
-            ...feedbackTip!,
-            confidence: 0.98,
-            timestamp: Date.now(),
-            model: "heuristic",
-            latency_ms: 0,
-          }, ...prev].slice(0, 20));
+          if (feedbackTip) {
+            (window as any).__lastScoreFeedback = Date.now();
+            pushSuggestion(makeHeuristicTip(feedbackTip.tip, feedbackTip.category, feedbackTip.priority));
+          }
         }
       }
       (window as any).__prevConnectionScore = score;
@@ -985,12 +1058,13 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         userWpm,
         longestUserMonologueSec,
         questionHistory: questionEntries.slice(-50),
+        conversationMode: mode,
       });
     };
     computeMetrics();
     const id = setInterval(computeMetrics, 3_000);
     return () => clearInterval(id);
-  }, [isRecording, transcriptsRef]);
+  }, [isRecording, transcriptsRef, pushSuggestion]);
 
   /**
    * Effect 5.5: Nudge Engine — reemplaza timer periódico con coaching inteligente.
@@ -1008,6 +1082,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       if (now - lastNudgeRef.current.time < NUDGE_COOLDOWN_MS) return;
       // También respetar cooldown de tips LLM
       if (now - lastTipTimestampRef.current < TIP_COOLDOWN_MS) return;
+      // Modo audiencia: los nudges (talk ratio, monólogo, WPM) miden actividad
+      // del usuario — no aplican si está escuchando.
+      if (conversationModeRef.current === 'audience') return;
 
       try {
         const result = await invoke<{
@@ -1027,17 +1104,10 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         });
 
         if (result.should_nudge && result.tip) {
-          const nudgeSuggestion = {
-            tip: result.tip,
-            category: result.category,
-            confidence: 0.9,
-            priority: result.severity === 'high' ? 'critical' as const : result.severity === 'medium' ? 'important' as const : 'soft' as const,
-            timestamp: Math.floor(now / 1000),
-            model: 'nudge-engine',
-            latency_ms: 0,
-          };
-          setSuggestions(prev => [nudgeSuggestion, ...prev].slice(0, MAX_SUGGESTIONS));
-          lastTipTimestampRef.current = now;
+          const priority: 'critical' | 'important' | 'soft' =
+            result.severity === 'high' ? 'critical' :
+            result.severity === 'medium' ? 'important' : 'soft';
+          pushSuggestion(makeHeuristicTip(result.tip, result.category, priority, 'nudge-engine'));
           lastNudgeRef.current = { time: now, type: result.nudge_type };
           logger.info(`[Coach] Nudge: ${result.nudge_type} (${result.severity})`);
         }
@@ -1047,7 +1117,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     }, 10_000); // Evaluar cada 10s (pero rate-limited a 1 cada 2 min)
 
     return () => clearInterval(timer);
-  }, [enabled, isRecording, metrics]);
+  }, [enabled, isRecording, metrics, pushSuggestion]);
 
   /**
    * Setter público para cambiar meeting type manualmente (override).

@@ -100,8 +100,8 @@ export function DownloadProgressStep() {
                   {provider.icon}
                 </div>
                 <div>
-                  <h3 className="font-medium text-[#000000]">{provider.name}</h3>
-                  <p className="text-sm text-[#6a6a6d]">{provider.description}</p>
+                  <h3 className="font-medium text-white">{provider.name}</h3>
+                  <p className="text-sm text-gray-400">{provider.description}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -118,7 +118,7 @@ export function DownloadProgressStep() {
 
         {/* Benefits */}
         <div className="w-full max-w-md bg-[#f5f5f6] rounded-lg p-4">
-          <p className="text-sm text-[#4a4a4c] text-center">
+          <p className="text-sm text-gray-200 text-center">
             Parakeet (~670 MB) se descarga automáticamente la primera vez que grabes.
             Para el Coach IA necesitas Ollama instalado con <code className="font-mono text-xs">gemma4:latest</code>.
           </p>

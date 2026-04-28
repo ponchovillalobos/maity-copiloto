@@ -386,11 +386,16 @@ pub struct PostMeetingEvaluationResult {
     pub created_at: String,
 }
 
-/// Modelo Gemma 4 sugerido por defecto. Configurable vía settings o argumento.
+/// Modelo de evaluación HARDCODEADO. El usuario no debe ver ningún selector
+/// de modelo — la app es para usuarios no-técnicos. Si en el futuro queremos
+/// distintos modelos, lo controlamos desde el código (no desde la UI).
 pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:4b";
 
-/// Genera evaluación profunda post-meeting con Gemma 4 (~12k chars JSON).
+/// Genera evaluación profunda post-meeting con el modelo local hardcodeado.
 /// Persiste en `meeting_evaluations` y devuelve el resultado completo.
+///
+/// El parámetro `evaluation_model` se mantiene en la firma por compatibilidad
+/// con el frontend, pero SIEMPRE se ignora y se usa `DEFAULT_EVALUATION_MODEL`.
 #[tauri::command]
 pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
@@ -403,14 +408,9 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         return Err("Transcripción demasiado corta para evaluación profunda (min 100 caracteres)".to_string());
     }
 
-    let model = evaluation_model
-        .or_else(|| {
-            crate::coach::commands::EVALUATION_MODEL
-                .lock()
-                .ok()
-                .map(|m| m.clone())
-        })
-        .unwrap_or_else(|| DEFAULT_EVALUATION_MODEL.to_string());
+    // Ignoramos `evaluation_model` deliberadamente — usamos el default fijo.
+    let _ = evaluation_model;
+    let model = DEFAULT_EVALUATION_MODEL.to_string();
 
     let prev_score: Option<f32> = if let Some(prev_id) = previous_session_id.as_ref() {
         if let Some(state) = app.try_state::<AppState>() {

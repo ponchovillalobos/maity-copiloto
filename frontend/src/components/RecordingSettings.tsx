@@ -156,7 +156,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-semibold mb-4">Configuración de Grabación</h3>
-        <p className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-6">
+        <p className="text-sm text-gray-200 dark:text-gray-300 mb-6">
           Configura cómo se guardan tus grabaciones de audio durante las reuniones.
         </p>
       </div>
@@ -165,7 +165,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div className="flex-1">
           <div className="font-medium">Guardar Grabaciones de Audio</div>
-          <div className="text-sm text-[#4a4a4c] dark:text-gray-300">
+          <div className="text-sm text-gray-200 dark:text-gray-300">
             Guardar automáticamente archivos de audio al detener la grabación
           </div>
         </div>
@@ -181,7 +181,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
         <div className="space-y-4">
           <div className="p-4 border rounded-lg bg-[#f5f5f6] dark:bg-gray-800">
             <div className="font-medium mb-2">Ubicación de Guardado</div>
-            <div className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-3 break-all">
+            <div className="text-sm text-gray-200 dark:text-gray-300 mb-3 break-all">
               {preferences.save_folder || 'Carpeta predeterminada'}
             </div>
             <button
@@ -217,7 +217,7 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       <div className="flex items-center justify-between p-4 border rounded-lg">
         <div className="flex-1">
           <div className="font-medium">Notificación de Inicio de Grabación</div>
-          <div className="text-sm text-[#4a4a4c] dark:text-gray-300">
+          <div className="text-sm text-gray-200 dark:text-gray-300">
             Mostrar recordatorio de aviso legal para informar a los participantes cuando inicia la grabación (cumplimiento legal)
           </div>
         </div>
@@ -230,8 +230,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
       {/* Device Preferences */}
       <div className="space-y-4">
         <div className="border-t pt-6">
-          <h4 className="text-base font-medium text-[#000000] dark:text-white mb-4">Dispositivos de Audio Predeterminados</h4>
-          <p className="text-sm text-[#4a4a4c] dark:text-gray-300 mb-4">
+          <h4 className="text-base font-medium text-white dark:text-white mb-4">Dispositivos de Audio Predeterminados</h4>
+          <p className="text-sm text-gray-200 dark:text-gray-300 mb-4">
             Configura tus dispositivos de micrófono y audio del sistema preferidos para grabar. Estos se seleccionarán automáticamente al iniciar nuevas grabaciones.
           </p>
 

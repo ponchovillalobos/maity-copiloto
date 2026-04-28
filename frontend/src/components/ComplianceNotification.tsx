@@ -76,13 +76,13 @@ export const ComplianceNotification: React.FC<ComplianceNotificationProps> = ({
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-1">
             <AlertTriangle className="h-3 w-3 text-amber-500 flex-shrink-0" />
-            <h3 className="text-xs font-semibold text-[#000000] dark:text-white">
+            <h3 className="text-xs font-semibold text-white dark:text-white">
               Aviso de Grabación
             </h3>
           </div>
           <button
             onClick={handleClose}
-            className="text-[#8a8a8d] dark:text-gray-500 hover:text-[#4a4a4c] dark:hover:text-gray-300 transition-colors p-0.5 rounded hover:bg-[#e7e7e9] dark:hover:bg-gray-700"
+            className="text-[#8a8a8d] dark:text-gray-500 hover:text-gray-200 dark:hover:text-gray-300 transition-colors p-0.5 rounded hover:bg-[#e7e7e9] dark:hover:bg-gray-700"
           >
             <X className="h-3 w-3" />
           </button>
@@ -90,7 +90,7 @@ export const ComplianceNotification: React.FC<ComplianceNotificationProps> = ({
 
         {/* Content */}
         <div className="mb-2">
-          <p className="text-xs text-[#4a4a4c] dark:text-gray-300 mb-1">
+          <p className="text-xs text-gray-200 dark:text-gray-300 mb-1">
             Informa a los participantes sobre la grabación.
           </p>
           <div className="bg-amber-50 border border-amber-200 rounded p-1">

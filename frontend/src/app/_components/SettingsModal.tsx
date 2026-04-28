@@ -65,11 +65,11 @@ export function SettingsModals({
         <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header */}
           <div className="flex justify-between items-center p-6 border-b">
-            <h3 className="text-xl font-semibold text-[#000000] dark:text-white">Preferencias</h3>
+            <h3 className="text-xl font-semibold text-white dark:text-white">Preferencias</h3>
             <button
               onClick={() => onClose("modelSettings")
               }
-              className="text-[#6a6a6d] dark:text-gray-400 hover:text-[#3a3a3c] dark:hover:text-gray-200"
+              className="text-gray-400 dark:text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -84,10 +84,10 @@ export function SettingsModals({
 
             {/* Divider */}
             <div className="border-t pt-8">
-              <h4 className="text-lg font-semibold text-[#000000] dark:text-white mb-4">Configuración de Modelo IA</h4>
+              <h4 className="text-lg font-semibold text-white dark:text-white mb-4">Configuración de Modelo IA</h4>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#3a3a3c] dark:text-gray-200 mb-1">
+                  <label className="block text-sm font-medium text-gray-100 dark:text-gray-200 mb-1">
                     Modelo de Resumen
                   </label>
                   <div className="flex space-x-2">
@@ -141,8 +141,8 @@ export function SettingsModals({
                           onClick={() => setModelConfig((prev: ModelConfig) => ({ ...prev, model: model.name }))}
                         >
                           <h3 className="font-bold">{model.name}</h3>
-                          <p className="text-[#4a4a4c] dark:text-gray-300">Tamaño: {model.size}</p>
-                          <p className="text-[#4a4a4c] dark:text-gray-300">Modificado: {model.modified}</p>
+                          <p className="text-gray-200 dark:text-gray-300">Tamaño: {model.size}</p>
+                          <p className="text-gray-200 dark:text-gray-300">Modificado: {model.modified}</p>
                         </div>
                       ))}
                     </div>
@@ -170,10 +170,10 @@ export function SettingsModals({
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-[#000000] dark:text-white">Configuración de Dispositivos de Audio</h3>
+            <h3 className="text-lg font-semibold text-white dark:text-white">Configuración de Dispositivos de Audio</h3>
             <button
               onClick={() => onClose('deviceSettings')}
-              className="text-[#6a6a6d] dark:text-gray-400 hover:text-[#3a3a3c] dark:hover:text-gray-200"
+              className="text-gray-400 dark:text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -211,10 +211,10 @@ export function SettingsModals({
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-[#000000] dark:text-white">Configuración de Idioma</h3>
+            <h3 className="text-lg font-semibold text-white dark:text-white">Configuración de Idioma</h3>
             <button
               onClick={() => onClose('languageSettings')}
-              className="text-[#6a6a6d] dark:text-gray-400 hover:text-[#3a3a3c] dark:hover:text-gray-200"
+              className="text-gray-400 dark:text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -247,12 +247,12 @@ export function SettingsModals({
         <div className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full mx-4 shadow-xl max-h-[90vh] flex flex-col">
           {/* Fixed Header */}
           <div className="flex justify-between items-center p-6 pb-4 border-b border-[#e7e7e9] dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-[#000000] dark:text-white">
+            <h3 className="text-lg font-semibold text-white dark:text-white">
               {messages.modelSelector ? 'Configuración de Reconocimiento de Voz Requerida' : 'Configuración del Modelo de Transcripción'}
             </h3>
             <button
               onClick={() => onClose('modelSelector')}
-              className="text-[#6a6a6d] dark:text-gray-400 hover:text-[#3a3a3c] dark:hover:text-gray-200"
+              className="text-gray-400 dark:text-gray-400 hover:text-gray-100 dark:hover:text-gray-200"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -283,14 +283,14 @@ export function SettingsModals({
                 <div className="w-11 h-6 bg-[#d0d0d3] dark:bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-[#d0d0d3] dark:after:border-gray-600 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3a4ac3]"></div>
               </label>
               <div>
-                <p className="text-sm font-medium text-[#3a3a3c] dark:text-gray-200">Mostrar Indicadores de Confianza</p>
-                <p className="text-xs text-[#6a6a6d] dark:text-gray-400">Muestra puntos de colores indicando la calidad de confianza de la transcripción</p>
+                <p className="text-sm font-medium text-gray-100 dark:text-gray-200">Mostrar Indicadores de Confianza</p>
+                <p className="text-xs text-gray-400 dark:text-gray-400">Muestra puntos de colores indicando la calidad de confianza de la transcripción</p>
               </div>
             </div>
 
             <button
               onClick={() => onClose('modelSelector')}
-              className="px-4 py-2 text-sm font-medium text-[#3a3a3c] dark:text-gray-200 bg-[#e7e7e9] rounded-md hover:bg-[#d0d0d3] dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              className="px-4 py-2 text-sm font-medium text-gray-100 dark:text-gray-200 bg-[#e7e7e9] rounded-md hover:bg-[#d0d0d3] dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             >
               {messages.modelSelector ? 'Cancelar' : 'Listo'}
             </button>

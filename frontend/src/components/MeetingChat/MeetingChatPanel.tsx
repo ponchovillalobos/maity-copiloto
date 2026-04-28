@@ -108,7 +108,7 @@ export function MeetingChatPanel({ meetingId }: Props) {
     <div className="flex flex-col h-full bg-[#f5f5f6] dark:bg-gray-900">
       <div className="flex-shrink-0 px-5 py-3 border-b border-[#e7e7e9] dark:border-gray-700 flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-[#485df4]" />
-        <h3 className="text-sm font-semibold text-[#3a3a3c] dark:text-gray-100">
+        <h3 className="text-sm font-semibold text-gray-100 dark:text-gray-100">
           Chat con la reunión
         </h3>
       </div>
@@ -116,7 +116,7 @@ export function MeetingChatPanel({ meetingId }: Props) {
       <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
         {history.length === 0 && !loading && (
           <div className="text-center py-10">
-            <div className="text-sm text-[#6a6a6d] dark:text-gray-400 mb-4">
+            <div className="text-sm text-gray-400 dark:text-gray-400 mb-4">
               Pregunta sobre lo que se dijo. Las respuestas citan literalmente con timestamps.
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md mx-auto">
@@ -150,13 +150,13 @@ export function MeetingChatPanel({ meetingId }: Props) {
                   {turn.content}
                 </div>
               ) : (
-                <div className="text-[14px] leading-relaxed text-[#1f2025] dark:text-gray-100">
+                <div className="text-[14px] leading-relaxed text-gray-100 dark:text-gray-100">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
                       p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                       strong: ({ children }) => (
-                        <strong className="font-semibold text-[#1f2025] dark:text-white">{children}</strong>
+                        <strong className="font-semibold text-gray-100 dark:text-white">{children}</strong>
                       ),
                       ul: ({ children }) => (
                         <ul className="list-disc list-outside pl-5 my-2 space-y-1">{children}</ul>
@@ -171,7 +171,7 @@ export function MeetingChatPanel({ meetingId }: Props) {
                         </code>
                       ),
                       blockquote: ({ children }) => (
-                        <blockquote className="border-l-2 border-[#485df4] pl-3 my-2 italic text-[#4a4a4c] dark:text-gray-300">
+                        <blockquote className="border-l-2 border-[#485df4] pl-3 my-2 italic text-gray-200 dark:text-gray-300">
                           {children}
                         </blockquote>
                       ),
@@ -193,7 +193,7 @@ export function MeetingChatPanel({ meetingId }: Props) {
                         <span className="font-mono text-[#485df4] mr-1.5">
                           [{formatTimestamp(c.audio_start_time)}]
                         </span>
-                        <span className="text-[#4a4a4c] dark:text-gray-300">{c.text}</span>
+                        <span className="text-gray-200 dark:text-gray-300">{c.text}</span>
                       </div>
                     </div>
                   ))}
@@ -204,7 +204,7 @@ export function MeetingChatPanel({ meetingId }: Props) {
         ))}
 
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-[#6a6a6d] dark:text-gray-400">
+          <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-400">
             <Loader2 className="w-4 h-4 animate-spin" /> Consultando la reunión…
           </div>
         )}

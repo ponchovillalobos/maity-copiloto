@@ -651,8 +651,8 @@ export const AISummary = ({ summary, status, error, onSummaryChange, onRegenerat
   if (!hasContent && status === 'completed') {
     return (
       <div className="w-full p-4 bg-[#f5f5f6] dark:bg-gray-800 border border-[#e7e7e9] dark:border-gray-700 rounded-lg text-center">
-        <p className="text-[#4a4a4c] dark:text-gray-300">No hay contenido de resumen disponible.</p>
-        <p className="text-[#6a6a6d] dark:text-gray-400 text-sm mt-1">Intenta generar un nuevo resumen.</p>
+        <p className="text-gray-200 dark:text-gray-300">No hay contenido de resumen disponible.</p>
+        <p className="text-gray-400 dark:text-gray-400 text-sm mt-1">Intenta generar un nuevo resumen.</p>
       </div>
     );
   }

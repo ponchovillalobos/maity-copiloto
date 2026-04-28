@@ -2,10 +2,34 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { emit } from '@tauri-apps/api/event';
+import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useTranscripts } from '@/contexts/TranscriptContext';
 import { useCoach } from '@/contexts/CoachContext';
 import type { Transcript } from '@/types';
+
+/**
+ * Broadcast cross-window robusto. Tauri 2.x: `emit()` global emite a TODAS las
+ * webviews por defecto, pero en algunas builds Windows con ventanas
+ * `transparent + decorations:false` la propagación falla silenciosamente. Como
+ * fallback iteramos las webviews y emitimos directamente. Más caro pero
+ * garantiza que la burbuja flotante reciba siempre.
+ */
+async function broadcastEvent(name: string, payload: unknown) {
+  try {
+    await emit(name, payload);
+  } catch {
+    /* ignore — caemos al fallback */
+  }
+  try {
+    const windows = await getAllWebviewWindows();
+    await Promise.all(
+      windows.map((w) => w.emit(name, payload).catch(() => undefined)),
+    );
+  } catch {
+    /* ignore — la flotante puede no estar abierta */
+  }
+}
 
 /**
  * Broadcaster sin UI: cada 2s mientras isRecording, emite el evento Tauri
@@ -61,7 +85,13 @@ export function MetricsBroadcaster() {
       const minutes = Math.max(0.05, durationSec / 60);
 
       const { userWords, interlocutorWords, userSegmentSec, interlocutorSegmentSec } = aggregates;
-      const wpm = userWords / minutes;
+      // WPM contextual: si el usuario casi no habla (escucha conferencia/audiencia)
+      // mostramos el WPM del interlocutor para que la métrica siga teniendo valor.
+      // Si ambos hablan, mostramos el del usuario (rendimiento propio).
+      const userIsListening = userWords < 20 && interlocutorWords > userWords * 3;
+      const wpm = userIsListening
+        ? interlocutorWords / minutes
+        : userWords / minutes;
 
       // Tiempo hablado por persona (segundos): preferir audio_*_time si existe,
       // sino fallback en suma de palabras→segundos (~0.4s/palabra).
@@ -82,7 +112,7 @@ export function MetricsBroadcaster() {
         .slice(-20)
         .map((q) => ({ text: q.text, timestamp: q.timestamp }));
 
-      emit('meeting-metrics', {
+      void broadcastEvent('meeting-metrics', {
         health,
         wpm,
         durationSec,
@@ -95,8 +125,7 @@ export function MetricsBroadcaster() {
         connectionScore: coachMetrics?.connectionScore ?? 50,
         connectionTrend: coachMetrics?.connectionTrend ?? 'stable',
         interlocutorQuestions,
-      }).catch(() => {
-        /* ignore — flotante puede no estar abierta */
+        listeningMode: userIsListening,
       });
     };
 
