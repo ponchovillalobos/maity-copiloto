@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  Mic, Volume2, X, Minimize2, Maximize2, Sparkles, AlertTriangle,
+  X, Minimize2, Maximize2, Sparkles, AlertTriangle,
   MessageCircle, Activity, Timer, ChevronLeft, ChevronRight, HelpCircle,
 } from 'lucide-react';
 
@@ -16,15 +16,6 @@ interface CoachTip {
   confidence?: number;
   tip_type?: string;
   timestamp?: number;
-}
-
-interface AudioLevels {
-  mic_rms?: number;
-  sys_rms?: number;
-  micRms?: number;
-  sysRms?: number;
-  mic_peak?: number;
-  sys_peak?: number;
 }
 
 interface InterlocutorQuestion {
@@ -106,38 +97,6 @@ function HealthGauge({ score }: { score: number }) {
   );
 }
 
-function AudioBar({
-  label,
-  icon,
-  level,
-  color,
-}: {
-  label: string;
-  icon: React.ReactNode;
-  level: number;
-  color: string;
-}) {
-  const pct = Math.min(100, Math.max(0, level * 200));
-  const active = level > 0.005;
-  return (
-    <div className="flex items-center gap-1.5" data-tauri-drag-region>
-      <div className={`flex items-center gap-1 text-[10px] uppercase tracking-wide ${active ? 'text-white/90' : 'text-white/40'}`}>
-        <span className={active ? 'animate-pulse' : ''}>{icon}</span>
-        <span className="font-semibold w-7">{label}</span>
-      </div>
-      <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden relative">
-        <div
-          className="absolute inset-y-0 left-0 rounded-full transition-all duration-100"
-          style={{ width: `${pct}%`, background: color }}
-        />
-      </div>
-      <div className="text-[9px] tabular-nums text-white/60 w-7 text-right">
-        {Math.round(pct)}%
-      </div>
-    </div>
-  );
-}
-
 function MetricCard({ label, value, color, icon }: { label: string; value: string; color: string; icon: React.ReactNode }) {
   return (
     <div
@@ -159,7 +118,6 @@ export default function FloatingPage() {
   const [compact, setCompact] = useState(false);
   const [tipsHistory, setTipsHistory] = useState<CoachTip[]>([]);
   const [tipIndex, setTipIndex] = useState(0); // 0 = most recent
-  const [audio, setAudio] = useState<AudioLevels>({});
   const [metrics, setMetrics] = useState<MeetingMetrics>({});
   const [section, setSection] = useState<Section>('tip');
 
@@ -171,8 +129,6 @@ export default function FloatingPage() {
       setTipIndex(0);
     }).then(u => unlisteners.push(u));
 
-    listen<AudioLevels>('audio-levels', (e) => setAudio(e.payload)).then(u => unlisteners.push(u));
-    listen<AudioLevels>('recording-audio-levels', (e) => setAudio(e.payload)).then(u => unlisteners.push(u));
     listen<MeetingMetrics>('meeting-metrics', (e) => setMetrics(e.payload)).then(u => unlisteners.push(u));
 
     return () => unlisteners.forEach(u => u());
@@ -188,6 +144,23 @@ export default function FloatingPage() {
     try { await invoke('floating_toggle_compact', { compact: next }); } catch (e) { console.error(e); }
   };
 
+  // Drag manual robusto: en Windows con transparent+decorations:false el atributo
+  // data-tauri-drag-region a veces no funciona. Llamamos startDragging() programático
+  // en cualquier mousedown que NO ocurra sobre elementos interactivos (button, a, input).
+  const handleDragMouseDown = async (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, a, input, textarea, select, [role="button"]')) {
+      return;
+    }
+    try {
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      await getCurrentWebviewWindow().startDragging();
+    } catch (err) {
+      console.warn('startDragging failed', err);
+    }
+  };
+
   const tip = tipsHistory[tipIndex];
   const totalTips = tipsHistory.length;
   const canPrev = tipIndex < totalTips - 1;
@@ -195,8 +168,6 @@ export default function FloatingPage() {
   const goPrev = () => canPrev && setTipIndex((i) => i + 1);
   const goNext = () => canNext && setTipIndex((i) => i - 1);
 
-  const micLevel = audio.mic_rms ?? audio.micRms ?? 0;
-  const sysLevel = audio.sys_rms ?? audio.sysRms ?? 0;
   const health = metrics.health ?? metrics.connectionScore ?? 50;
   const wpm = metrics.wpm ?? 0;
   const duration = metrics.durationSec ?? 0;
@@ -206,6 +177,7 @@ export default function FloatingPage() {
   if (compact) {
     return (
       <div
+        onMouseDown={handleDragMouseDown}
         className="h-screen w-screen flex flex-col p-2 select-none"
         style={{
           background: 'rgba(15, 16, 24, 0.88)',
@@ -249,6 +221,7 @@ export default function FloatingPage() {
 
   return (
     <div
+      onMouseDown={handleDragMouseDown}
       className="h-screen w-screen flex flex-col p-3 select-none text-white overflow-hidden"
       style={{
         background: 'rgba(15, 16, 24, 0.92)',
@@ -311,12 +284,7 @@ export default function FloatingPage() {
         </div>
       </div>
 
-      <div className="space-y-1.5 mb-3 flex-shrink-0 px-1" data-tauri-drag-region>
-        <AudioBar label="MIC" icon={<Mic className="w-3 h-3" />} level={micLevel} color="#485df4" />
-        <AudioBar label="SIS" icon={<Volume2 className="w-3 h-3" />} level={sysLevel} color="#1bea9a" />
-      </div>
-
-      <div className="mb-3 flex-shrink-0" data-tauri-drag-region>
+<div className="mb-3 flex-shrink-0" data-tauri-drag-region>
         <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-white/55 mb-1" data-tauri-drag-region>
           <span>Tiempo de palabra</span>
           <span className="text-white/70 tabular-nums">
