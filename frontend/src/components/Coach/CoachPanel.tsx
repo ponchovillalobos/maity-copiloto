@@ -134,7 +134,7 @@ function SuggestionCard({ suggestion, idx = 0 }: { suggestion: CoachSuggestion; 
   );
 }
 
-type CoachTab = 'tips' | 'chat';
+type CoachTab = 'tips' | 'chat' | 'questions';
 
 function HelpMenuButton() {
   const [open, setOpen] = useState(false);
@@ -392,9 +392,9 @@ export function CoachPanel() {
           <MessageSquare className="w-3 h-3" /> Chat ({chatMessages.length})
         </button>
         <button
-          onClick={() => setTab('questions' as any)}
+          onClick={() => setTab('questions')}
           className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
-            (tab as string) === 'questions'
+            tab === 'questions'
               ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
               : 'text-gray-500 hover:text-gray-300'
           }`}
