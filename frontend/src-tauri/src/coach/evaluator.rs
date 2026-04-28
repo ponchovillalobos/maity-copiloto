@@ -254,15 +254,90 @@ fn parse_evaluation_response(response: &str) -> Result<CommunicationFeedback, St
         .map_err(|e| format!("JSON inválido del evaluador: {} | raw: {}", e, json_str))
 }
 
-/// Extrae el primer bloque JSON entre `{` y `}`.
+/// Extrae el primer bloque JSON entre `{` y `}`. Si el LLM truncó la salida
+/// y dejó brackets/strings sin cerrar, los repara antes de devolver.
 fn extract_json_from_response(response: &str) -> String {
     let trimmed = response.trim();
-    if let (Some(start), Some(end)) = (trimmed.find('{'), trimmed.rfind('}')) {
+    let body = if let (Some(start), Some(end)) = (trimmed.find('{'), trimmed.rfind('}')) {
         if start < end {
-            return trimmed[start..=end].to_string();
+            trimmed[start..=end].to_string()
+        } else {
+            trimmed.to_string()
+        }
+    } else if let Some(start) = trimmed.find('{') {
+        // Solo apertura, sin cierre (LLM truncado). Tomamos desde el `{` hasta el final.
+        trimmed[start..].to_string()
+    } else {
+        trimmed.to_string()
+    };
+    repair_truncated_json(&body)
+}
+
+/// Repara JSON truncado del LLM: cierra strings, brackets y arrays abiertos.
+/// Estrategia: escanea el contenido contando contexto (string abierto, depth de
+/// `{` y `[`). Si al final del input quedan abiertos, los cierra en orden inverso.
+/// También quita comas trailing que podrían quedar pegadas a estructuras a medias.
+fn repair_truncated_json(input: &str) -> String {
+    let mut in_string = false;
+    let mut escape = false;
+    let mut stack: Vec<char> = Vec::new();
+    let mut last_meaningful = 0usize; // byte offset
+    let mut last_string_char = 0usize; // último char DENTRO de un string abierto
+
+    for (i, c) in input.char_indices() {
+        if escape {
+            escape = false;
+            last_string_char = i + c.len_utf8();
+            continue;
+        }
+        if in_string {
+            if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                in_string = false;
+                last_meaningful = i + c.len_utf8();
+            } else {
+                last_string_char = i + c.len_utf8();
+            }
+            continue;
+        }
+        match c {
+            '"' => { in_string = true; }
+            '{' | '[' => { stack.push(c); }
+            '}' => { if stack.last() == Some(&'{') { stack.pop(); } last_meaningful = i + c.len_utf8(); }
+            ']' => { if stack.last() == Some(&'[') { stack.pop(); } last_meaningful = i + c.len_utf8(); }
+            ',' | ':' => { last_meaningful = i + c.len_utf8(); }
+            c if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' => { last_meaningful = i + c.len_utf8(); }
+            _ => {}
         }
     }
-    trimmed.to_string()
+    // Si terminamos dentro de un string, conservamos el contenido y solo cerraremos comilla.
+    if in_string {
+        last_meaningful = last_string_char;
+    }
+
+    // Si todo cerró bien y no hay string abierto → input ya válido.
+    if !in_string && stack.is_empty() {
+        return input.to_string();
+    }
+
+    // Cortamos al último char "significativo" para evitar dejar valores a medias.
+    let mut repaired = input[..last_meaningful.min(input.len())].to_string();
+
+    // Eliminar coma trailing que podría quedar antes del bracket que vamos a cerrar.
+    while repaired.ends_with(',') || repaired.ends_with(':') {
+        repaired.pop();
+    }
+
+    // Cerrar string abierta si quedó.
+    if in_string {
+        repaired.push('"');
+    }
+    // Cerrar brackets/llaves en orden inverso.
+    for opener in stack.iter().rev() {
+        repaired.push(if *opener == '{' { '}' } else { ']' });
+    }
+    repaired
 }
 
 #[cfg(test)]
@@ -289,6 +364,34 @@ mod tests {
         let raw = "```json\n{\"overall_score\":7.5}\n```";
         let json = extract_json_from_response(raw);
         assert!(json.contains("overall_score"));
+    }
+
+    #[test]
+    fn test_repair_truncated_object() {
+        // LLM cortó al final: faltan 2 } de cierre.
+        let raw = r#"{"a":1, "b":{"c":2"#;
+        let repaired = extract_json_from_response(raw);
+        let parsed: serde_json::Value = serde_json::from_str(&repaired)
+            .expect(&format!("debe parsear, repaired = {}", repaired));
+        assert_eq!(parsed["a"], 1);
+        assert_eq!(parsed["b"]["c"], 2);
+    }
+
+    #[test]
+    fn test_repair_truncated_array_with_trailing_comma() {
+        let raw = r#"{"items": [1, 2, 3,"#;
+        let repaired = extract_json_from_response(raw);
+        let parsed: serde_json::Value = serde_json::from_str(&repaired).unwrap();
+        assert_eq!(parsed["items"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn test_repair_truncated_string() {
+        // Cadena abierta sin cerrar.
+        let raw = r#"{"tip": "hola este es un tip muy largo"#;
+        let repaired = extract_json_from_response(raw);
+        let parsed: serde_json::Value = serde_json::from_str(&repaired).unwrap();
+        assert!(parsed["tip"].as_str().unwrap().contains("hola"));
     }
 
     #[test]
@@ -386,10 +489,16 @@ pub struct PostMeetingEvaluationResult {
     pub created_at: String,
 }
 
-/// Modelo de evaluación HARDCODEADO. El usuario no debe ver ningún selector
-/// de modelo — la app es para usuarios no-técnicos. Si en el futuro queremos
-/// distintos modelos, lo controlamos desde el código (no desde la UI).
-pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:4b";
+/// Modelo de evaluación HARDCODEADO. Gemma 4 (8B) es necesario porque el
+/// system prompt v5 ocupa ~5k tokens y un transcript de 30min suma ~10k —
+/// no cabe en gemma3:4b (4096 contexto). gemma4:latest soporta 8k+ y da
+/// mejor análisis estructurado.
+pub const DEFAULT_EVALUATION_MODEL: &str = "gemma4:latest";
+
+/// Umbral de chars del transcript para activar chunking previo. Si el
+/// transcript supera este tamaño, primero se resume por bloques antes de
+/// pasarlo al evaluador para no exceder el contexto.
+pub const EVALUATION_CHUNK_THRESHOLD: usize = 6000;
 
 /// Genera evaluación profunda post-meeting con el modelo local hardcodeado.
 /// Persiste en `meeting_evaluations` y devuelve el resultado completo.
@@ -447,9 +556,23 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
     );
 
     let client = Client::builder()
-        .timeout(Duration::from_secs(180))
+        .timeout(Duration::from_secs(300))
         .build()
         .map_err(|e| format!("Error creando cliente HTTP: {}", e))?;
+
+    // Pre-validar que el modelo existe en Ollama. Si no, mensaje claro al usuario.
+    let tags_check = client
+        .get("http://localhost:11434/api/tags")
+        .send()
+        .await
+        .map_err(|e| format!("Ollama no responde en localhost:11434 — verifica que esté corriendo. Detalle: {}", e))?;
+    let tags_text = tags_check.text().await.unwrap_or_default();
+    if !tags_text.contains(&model) {
+        return Err(format!(
+            "El modelo de evaluación '{}' no está instalado. Ábrelo en una terminal y ejecuta: `ollama pull {}`",
+            model, model
+        ));
+    }
 
     let start = std::time::Instant::now();
 
@@ -462,7 +585,7 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         &user_prompt,
         None,
         None,
-        Some(4096),
+        Some(8192),    // num_predict — el JSON v5 completo necesita ~10k chars (~3k tokens)
         Some(0.2),
         Some(0.9),
         None,

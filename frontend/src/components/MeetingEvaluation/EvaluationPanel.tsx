@@ -119,11 +119,20 @@ interface MeetingEvaluation {
 }
 
 function buildTranscriptText(transcripts: Transcript[]): string {
+  // Formato canónico que espera el prompt v5: "Speaker: texto del turno".
+  // Mapeamos source_type → etiqueta legible para el LLM.
   return transcripts
     .map((t) => {
-      const speaker = t.source_type || 'desconocido';
-      return `[${speaker}] ${t.text}`;
+      const raw = (t.source_type || '').toLowerCase();
+      const speaker =
+        raw === 'user' || raw === 'mic' || raw === 'microphone'
+          ? 'USUARIO'
+          : raw === 'interlocutor' || raw === 'system' || raw === 'speaker'
+          ? 'INTERLOCUTOR'
+          : 'DESCONOCIDO';
+      return `${speaker}: ${(t.text ?? '').trim()}`;
     })
+    .filter((line) => line.length > line.indexOf(':') + 2)
     .join('\n');
 }
 

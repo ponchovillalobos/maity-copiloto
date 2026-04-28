@@ -223,6 +223,15 @@ pub async fn generate_summary(
         let num_predict = max_tokens.map(|v| v as i64).unwrap_or(500);
         let temp = temperature.unwrap_or(0.5);
         let top_p_val = top_p.unwrap_or(0.9);
+        // num_ctx dinámico: si necesitamos generar mucho output (max_tokens > 1500)
+        // o el prompt es largo (>3000 chars), pedimos ventana más grande para que
+        // el LLM no trunque silenciosamente. Gemma 4 soporta hasta 32k tokens.
+        let prompt_chars = system_prompt.len() + user_prompt.len();
+        let num_ctx: i64 = if num_predict > 1500 || prompt_chars > 3000 {
+            16384
+        } else {
+            4096
+        };
         serde_json::json!({
             "model": model_name,
             "messages": [
@@ -234,7 +243,7 @@ pub async fn generate_summary(
             "options": {
                 "num_gpu": -1,        // auto-detecta GPU (NVIDIA CUDA si disponible)
                 "num_thread": 4,      // CPU threads para capas fuera de GPU
-                "num_ctx": 4096,      // context window (evita que Ollama asuma más)
+                "num_ctx": num_ctx,   // ventana de contexto adaptada al tamaño del request
                 "num_predict": num_predict,
                 "temperature": temp,
                 "top_p": top_p_val,
