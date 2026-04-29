@@ -211,7 +211,6 @@ pub mod meeting_detector;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
-pub mod openrouter;
 pub mod orchestrator;
 pub mod progress_events;
 pub mod semantic_search;
@@ -924,33 +923,69 @@ pub fn run() {
                     log::info!("Skipping Summary ModelManager - using cloud provider: {}", summary_provider);
                 }
 
-                // Warm-up Ollama: send minimal prompt so model loads into memory
-                // This eliminates cold-start latency for coach suggestions
-                tauri::async_runtime::spawn(async {
-                    let model = {
-                        crate::coach::commands::get_current_model()
-                            .unwrap_or_else(|_| crate::coach::prompt::DEFAULT_MODEL.to_string())
+                // Auto-descarga del modelo Gemma 3 4B GGUF si no está presente.
+                // Crítico: garantiza que el coach IA funcione SIN intervención del
+                // usuario aunque NO haya completado el wizard de onboarding. Si el
+                // modelo ya existe (file con tamaño esperado), es no-op idempotente.
+                let app_handle_for_dl = app_handle_for_config.clone();
+                tauri::async_runtime::spawn(async move {
+                    use crate::summary::summary_engine::{model_manager::ModelManager, models};
+                    use tauri::Manager;
+                    // Esperar 4s para que la UI termine de montar antes de iniciar la descarga.
+                    tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                    let target_model = "gemma3:4b";
+                    let app_data_dir = match app_handle_for_dl.path().app_data_dir() {
+                        Ok(d) => d,
+                        Err(e) => { log::warn!("[auto-dl] No app_data_dir: {}", e); return; }
                     };
-                    log::info!("🔥 Warming up Ollama model: {}", model);
-                    let client = match reqwest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(120))
-                        .build() {
-                        Ok(c) => c,
-                        Err(e) => { log::warn!("Failed to create warm-up client: {}", e); return; }
+                    let models_dir = app_data_dir.join("models").join("summary");
+                    let manager = match ModelManager::new_with_models_dir(Some(models_dir.clone())) {
+                        Ok(m) => m,
+                        Err(e) => { log::warn!("[auto-dl] ModelManager init failed: {}", e); return; }
                     };
-                    // keep_alive: -1 = mantener modelo residente indefinidamente (reduce cold-start
-                    // de tips coach de 3-8s a ~500ms porque el KV cache queda caliente).
-                    match client.post("http://localhost:11434/api/generate")
-                        .json(&serde_json::json!({
-                            "model": model,
-                            "prompt": "hello",
-                            "stream": false,
-                            "keep_alive": -1,
-                            "options": { "num_predict": 1 }
-                        }))
-                        .send().await {
-                        Ok(_) => log::info!("✅ Ollama warm-up complete (keep_alive=-1): {} residente", model),
-                        Err(e) => log::warn!("⚠️ Ollama warm-up failed (not running?): {}", e),
+                    if let Err(e) = manager.init().await {
+                        log::warn!("[auto-dl] ModelManager.init failed: {}", e);
+                        return;
+                    }
+                    // Si ya existe en disco (refrescando scan), salir.
+                    if manager.is_model_ready(target_model, true).await {
+                        log::info!("[auto-dl] Modelo {} ya descargado", target_model);
+                        return;
+                    }
+                    let def = match models::get_model_by_name(target_model) {
+                        Some(d) => d,
+                        None => { log::warn!("[auto-dl] Modelo no en catálogo"); return; }
+                    };
+                    log::info!("[auto-dl] Iniciando descarga automática de {} ({} MB)", target_model, def.size_mb);
+                    let app_clone = app_handle_for_dl.clone();
+                    let model_name_clone = target_model.to_string();
+                    let progress_callback: Box<dyn Fn(crate::summary::summary_engine::model_manager::DownloadProgress) + Send + 'static> =
+                        Box::new(move |progress| {
+                            let _ = app_clone.emit(
+                                "builtin-ai-download-progress",
+                                serde_json::json!({
+                                    "model": &model_name_clone,
+                                    "progress": progress.percent,
+                                    "downloaded_bytes": progress.downloaded_bytes,
+                                    "total_bytes": progress.total_bytes,
+                                }),
+                            );
+                        });
+                    match manager.download_model_detailed(target_model, Some(progress_callback)).await {
+                        Ok(_) => {
+                            log::info!("[auto-dl] ✅ Descarga completa: {}", target_model);
+                            let _ = app_handle_for_dl.emit(
+                                "builtin-ai-download-complete",
+                                serde_json::json!({ "model": target_model }),
+                            );
+                        }
+                        Err(e) => {
+                            log::warn!("[auto-dl] ❌ Descarga falló: {}", e);
+                            let _ = app_handle_for_dl.emit(
+                                "builtin-ai-download-error",
+                                serde_json::json!({ "model": target_model, "error": e.to_string() }),
+                            );
+                        }
                     }
                 });
 
@@ -1163,7 +1198,6 @@ pub fn run() {
             builtin_ai::open_models_folder,
             summary::summary_engine::builtin_ai_get_available_summary_model,
             summary::summary_engine::builtin_ai_get_recommended_model,
-            openrouter::get_openrouter_models,
             audio::recording_preferences::get_recording_preferences,
             audio::recording_preferences::set_recording_preferences,
             audio::recording_preferences::get_default_recordings_folder_path,

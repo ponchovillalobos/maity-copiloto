@@ -117,8 +117,8 @@ export function PermissionsStep() {
     <OnboardingContainer
       title="Otorgar Permisos"
       description="Maity necesita acceso a tu micrófono y audio del sistema para grabar reuniones"
-      step={6}
-      totalSteps={6}
+      step={4}
+      totalSteps={4}
       hideProgress={false}
       showNavigation={allPermissionsGranted}
       canGoNext={allPermissionsGranted}

@@ -76,21 +76,6 @@ pub struct Setting {
     #[sqlx(rename = "whisperModel")]
     #[serde(rename = "whisperModel")]
     pub whisper_model: String,
-    #[sqlx(rename = "groqApiKey")]
-    #[serde(rename = "groqApiKey")]
-    pub groq_api_key: Option<String>,
-    #[sqlx(rename = "openaiApiKey")]
-    #[serde(rename = "openaiApiKey")]
-    pub openai_api_key: Option<String>,
-    #[sqlx(rename = "anthropicApiKey")]
-    #[serde(rename = "anthropicApiKey")]
-    pub anthropic_api_key: Option<String>,
-    #[sqlx(rename = "ollamaApiKey")]
-    #[serde(rename = "ollamaApiKey")]
-    pub ollama_api_key: Option<String>,
-    #[sqlx(rename = "openRouterApiKey")]
-    #[serde(rename = "openRouterApiKey")]
-    pub open_router_api_key: Option<String>,
     #[sqlx(rename = "ollamaEndpoint")]
     #[serde(rename = "ollamaEndpoint")]
     pub ollama_endpoint: Option<String>,
@@ -250,11 +235,6 @@ mod tests {
             provider: "openai".to_string(),
             model: "gpt-4o".to_string(),
             whisper_model: "large-v3".to_string(),
-            groq_api_key: None,
-            openai_api_key: Some("sk-test-key".to_string()),
-            anthropic_api_key: None,
-            ollama_api_key: None,
-            open_router_api_key: None,
             ollama_endpoint: Some("http://localhost:11434".to_string()),
             custom_openai_config: None,
         };
@@ -265,7 +245,7 @@ mod tests {
 
         assert_eq!(setting.id, deserialized.id);
         assert_eq!(setting.provider, deserialized.provider);
-        assert_eq!(setting.openai_api_key, deserialized.openai_api_key);
+        assert_eq!(setting.ollama_endpoint, deserialized.ollama_endpoint);
     }
 
     #[test]
@@ -275,11 +255,6 @@ mod tests {
             provider: "builtin-ai".to_string(),
             model: "builtin".to_string(),
             whisper_model: "base".to_string(),
-            groq_api_key: None,
-            openai_api_key: None,
-            anthropic_api_key: None,
-            ollama_api_key: None,
-            open_router_api_key: None,
             ollama_endpoint: None,
             custom_openai_config: None,
         };
@@ -288,8 +263,8 @@ mod tests {
         let deserialized: Setting =
             serde_json::from_str(&json).expect("deserialization failed");
 
-        assert!(deserialized.openai_api_key.is_none());
         assert!(deserialized.ollama_endpoint.is_none());
+        assert!(deserialized.custom_openai_config.is_none());
     }
 
     #[test]
@@ -391,8 +366,6 @@ mod tests {
             id: "1".to_string(),
             provider: "parakeet".to_string(),
             model: "parakeet-tdt-0.6b-v3-int8".to_string(),
-            whisper_api_key: None,
-            deepgram_api_key: None,
             eleven_labs_api_key: None,
             groq_api_key: None,
             openai_api_key: None,
@@ -440,12 +413,6 @@ pub struct TranscriptSetting {
     pub id: String,
     pub provider: String,
     pub model: String,
-    #[sqlx(rename = "whisperApiKey")]
-    #[serde(rename = "whisperApiKey")]
-    pub whisper_api_key: Option<String>,
-    #[sqlx(rename = "deepgramApiKey")]
-    #[serde(rename = "deepgramApiKey")]
-    pub deepgram_api_key: Option<String>,
     #[sqlx(rename = "elevenLabsApiKey")]
     #[serde(rename = "elevenLabsApiKey")]
     pub eleven_labs_api_key: Option<String>,

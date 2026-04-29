@@ -93,7 +93,7 @@ export function ModelSettingsModal({ showModelSettings, setShowModelSettings }: 
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-50">IA Local de Maity</h2>
             <p className="text-xs text-gray-400 mt-1">
-              Modelo Gemma 3 (4B) corriendo 100% en tu equipo. Sin internet, sin terceros.
+              Modelo Gemma 3n E2B corriendo 100% en tu equipo. Sin internet, sin terceros.
             </p>
           </div>
         </div>

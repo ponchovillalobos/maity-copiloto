@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { TranscriptSettings, TranscriptModelProps } from '@/components/TranscriptSettings';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
-// SummaryModelSettings eliminado: la app usa un único modelo local (Gemma 3 4B).
+// SummaryModelSettings eliminado: la app usa un único modelo local (Gemma 3n E2B).
 // El usuario no debe elegir provider/modelo (es un usuario no-técnico).
 import { AIInfoPanel } from '@/components/AIInfoPanel';
 import { CustomPromptsPanel } from '@/components/CustomPrompts/CustomPromptsPanel';

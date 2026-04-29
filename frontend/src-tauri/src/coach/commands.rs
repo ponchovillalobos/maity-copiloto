@@ -253,15 +253,24 @@ pub async fn coach_suggest(
         backoff_multiplier: 2.0,
     };
 
+    // Resolvemos app_data_dir UNA VEZ; el sidecar BuiltInAI lo necesita para
+    // ubicar el GGUF (no asume valor por defecto, falla rápido si no se pasa).
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
+
     let raw_result = with_backoff(&retry_config, "coach_suggest", |_attempt| {
-        // Crear cliente local con timeout corto (8s) para coach_suggest
+        // Crear cliente local con timeout corto (60s para BuiltInAI: el sidecar
+        // arranca lazy y la primera llamada puede tardar ~10-30s).
         let client = Client::builder()
-            .timeout(Duration::from_secs(8))
+            .timeout(Duration::from_secs(60))
             .pool_max_idle_per_host(2)
             .build();
 
         let user_prompt_clone = user_prompt.clone();
         let model_clone = model.clone();
+        let data_dir_clone = app_data_dir.clone();
 
         async move {
             let client = client.map_err(|e| format!("Failed to create HTTP client: {}", e))?;
@@ -274,10 +283,14 @@ pub async fn coach_suggest(
                 &user_prompt_clone,
                 None,
                 None,
-                Some(200), // v3: un poco más para caber subcategory+technique
-                Some(0.5), // menos temperatura: queremos tips consistentes y basados en frameworks
-                Some(0.9),
-                None,
+                // Optimización P0 (perf-oracle): tips ultra-cortos.
+                // max_tokens 200→80 (suficiente para 1-2 oraciones),
+                // temp 0.5→0.3 (determinístico), top_p 0.9→0.7
+                // (menos sampling waste). 30-50% menos latencia.
+                Some(80),
+                Some(0.3),
+                Some(0.7),
+                Some(&data_dir_clone),
                 None,
             )
             .await

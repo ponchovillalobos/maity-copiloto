@@ -37,7 +37,7 @@ export function SetupOverviewStep() {
     {
       icon: <FileText className="w-5 h-5 text-[#16bb7b]" />,
       title: 'Coach IA + Resúmenes',
-      description: 'Ollama local (gemma4) - sin API keys',
+      description: 'Modelo Gemma 3n E2B local',
     },
     {
       icon: <Zap className="w-5 h-5 text-[#3a4ac3]" />,
@@ -53,7 +53,7 @@ export function SetupOverviewStep() {
   return (
     <OnboardingContainer
       title="Resumen de Configuración"
-      description="Maity transcribe tus reuniones con Parakeet local y te da sugerencias en vivo con Ollama. 100% en tu equipo, sin cloud, sin API keys."
+      description="Maity transcribe tus reuniones con Parakeet local y te da sugerencias en vivo con IA local. 100% en tu equipo, sin cloud, sin API keys."
       step={2}
       totalSteps={isMac ? 6 : 5}
     >

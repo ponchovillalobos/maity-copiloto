@@ -1,5 +1,4 @@
 use reqwest::{header, Client};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio_util::sync::CancellationToken;
@@ -7,85 +6,20 @@ use tracing::info;
 
 const REQUEST_TIMEOUT_DURATION: Duration = Duration::from_secs(300);
 
-// Generic structure for OpenAI-compatible API chat messages
-#[derive(Debug, Serialize)]
-pub struct ChatMessage {
-    pub role: String,
-    pub content: String,
-}
 
-// Generic structure for OpenAI-compatible API chat requests
-#[derive(Debug, Serialize)]
-pub struct ChatRequest {
-    pub model: String,
-    pub messages: Vec<ChatMessage>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_tokens: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<f32>,
-}
-
-// Generic structure for OpenAI-compatible API chat responses
-#[derive(Deserialize, Debug)]
-pub struct ChatResponse {
-    pub choices: Vec<Choice>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct Choice {
-    pub message: MessageContent,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct MessageContent {
-    pub content: String,
-}
-
-// Claude-specific request structure
-#[derive(Debug, Serialize)]
-pub struct ClaudeRequest {
-    pub model: String,
-    pub max_tokens: u32,
-    pub system: String,
-    pub messages: Vec<ChatMessage>,
-}
-
-// Claude-specific response structure
-#[derive(Deserialize, Debug)]
-pub struct ClaudeChatResponse {
-    pub content: Vec<ClaudeChatContent>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct ClaudeChatContent {
-    pub text: String,
-}
-
-/// LLM Provider enumeration for multi-provider support
+/// LLM Provider enumeration (local providers only)
 #[derive(Debug, Clone, PartialEq)]
 pub enum LLMProvider {
-    OpenAI,
-    Claude,
-    Groq,
     Ollama,
-    OpenRouter,
     BuiltInAI,
-    CustomOpenAI,
 }
 
 impl LLMProvider {
     /// Parse provider from string (case-insensitive)
     pub fn from_str(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
-            "openai" => Ok(Self::OpenAI),
-            "claude" => Ok(Self::Claude),
-            "groq" => Ok(Self::Groq),
             "ollama" => Ok(Self::Ollama),
-            "openrouter" => Ok(Self::OpenRouter),
             "builtin-ai" | "local-llama" | "localllama" => Ok(Self::BuiltInAI),
-            "custom-openai" => Ok(Self::CustomOpenAI),
             _ => Err(format!("Unsupported LLM provider: {}", s)),
         }
     }
@@ -149,18 +83,6 @@ pub async fn generate_summary(
     }
 
     let (api_url, mut headers) = match provider {
-        LLMProvider::OpenAI => (
-            "https://api.openai.com/v1/chat/completions".to_string(),
-            header::HeaderMap::new(),
-        ),
-        LLMProvider::Groq => (
-            "https://api.groq.com/openai/v1/chat/completions".to_string(),
-            header::HeaderMap::new(),
-        ),
-        LLMProvider::OpenRouter => (
-            "https://openrouter.ai/api/v1/chat/completions".to_string(),
-            header::HeaderMap::new(),
-        ),
         LLMProvider::Ollama => {
             // /api/chat nativo (no OpenAI-compat): soporta options de bajo nivel
             // como num_gpu, num_thread, num_ctx, num_predict, keep_alive,
@@ -170,38 +92,14 @@ pub async fn generate_summary(
                 .unwrap_or_else(|| "http://localhost:11434".to_string());
             (format!("{}/api/chat", host), header::HeaderMap::new())
         }
-        LLMProvider::CustomOpenAI => {
-            let endpoint = custom_openai_endpoint
-                .ok_or_else(|| "Custom OpenAI endpoint not configured".to_string())?;
-            (
-                format!("{}/chat/completions", endpoint.trim_end_matches('/')),
-                header::HeaderMap::new(),
-            )
-        }
-        LLMProvider::Claude => {
-            let mut header_map = header::HeaderMap::new();
-            header_map.insert(
-                "x-api-key",
-                api_key
-                    .parse()
-                    .map_err(|_| "Invalid API key format".to_string())?,
-            );
-            header_map.insert(
-                "anthropic-version",
-                "2023-06-01"
-                    .parse()
-                    .map_err(|_| "Invalid anthropic version".to_string())?,
-            );
-            ("https://api.anthropic.com/v1/messages".to_string(), header_map)
-        }
         LLMProvider::BuiltInAI => {
             // This case is handled earlier with early returns
             unreachable!("BuiltInAI is handled before this match statement")
         }
     };
 
-    // Add authorization header for non-Claude providers
-    if provider != &LLMProvider::Claude {
+    // Add authorization header for Ollama
+    if provider == &LLMProvider::Ollama {
         headers.insert(
             header::AUTHORIZATION,
             format!("Bearer {}", api_key)
@@ -216,7 +114,7 @@ pub async fn generate_summary(
             .map_err(|_| "Invalid content type".to_string())?,
     );
 
-    // Build request body based on provider
+    // Build request body for Ollama
     let request_body = if provider == &LLMProvider::Ollama {
         // Body nativo de /api/chat — expone num_gpu, num_thread, num_ctx, num_predict,
         // keep_alive, flash_attention. Estos aceleran 30-60% vs /v1/chat/completions.
@@ -250,38 +148,9 @@ pub async fn generate_summary(
                 "flash_attention": true
             }
         })
-    } else if provider != &LLMProvider::Claude {
-        let (max_tokens_val, temperature_val, top_p_val) = match provider {
-            LLMProvider::CustomOpenAI => (max_tokens, temperature, top_p),
-            _ => (None, None, None),
-        };
-
-        serde_json::json!(ChatRequest {
-            model: model_name.to_string(),
-            messages: vec![
-                ChatMessage {
-                    role: "system".to_string(),
-                    content: system_prompt.to_string(),
-                },
-                ChatMessage {
-                    role: "user".to_string(),
-                    content: user_prompt.to_string(),
-                }
-            ],
-            max_tokens: max_tokens_val,
-            temperature: temperature_val,
-            top_p: top_p_val,
-        })
     } else {
-        serde_json::json!(ClaudeRequest {
-            system: system_prompt.to_string(),
-            model: model_name.to_string(),
-            max_tokens: 2048,
-            messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: user_prompt.to_string(),
-            }]
-        })
+        // Unreachable: BuiltInAI is handled earlier
+        unreachable!()
     };
 
     info!("🐞 LLM Request to {}: model={}", provider_name(provider), model_name);
@@ -328,64 +197,25 @@ pub async fn generate_summary(
         return Err(format!("LLM API request failed: {}", error_body));
     }
 
-    // Parse response based on provider
-    if provider == &LLMProvider::Claude {
-        let chat_response = response
-            .json::<ClaudeChatResponse>()
-            .await
-            .map_err(|e| format!("Failed to parse LLM response: {}", e))?;
-
-        info!("🐞 LLM Response received from Claude");
-
-        let content = chat_response
-            .content
-            .get(0)
-            .ok_or("No content in LLM response")?
-            .text
-            .trim();
-        Ok(content.to_string())
-    } else if provider == &LLMProvider::Ollama {
-        // /api/chat response format: { "message": { "role": "assistant", "content": "..." }, "done": true, ... }
-        let value: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
-        info!("🐞 LLM Response received from Ollama (native /api/chat)");
-        let content = value
-            .get("message")
-            .and_then(|m| m.get("content"))
-            .and_then(|c| c.as_str())
-            .ok_or_else(|| format!("No message.content in Ollama response: {}", value))?
-            .trim();
-        Ok(content.to_string())
-    } else {
-        let chat_response = response
-            .json::<ChatResponse>()
-            .await
-            .map_err(|e| format!("Failed to parse LLM response: {}", e))?;
-
-        info!("🐞 LLM Response received from {}", provider_name(provider));
-
-        let content = chat_response
-            .choices
-            .get(0)
-            .ok_or("No content in LLM response")?
-            .message
-            .content
-            .trim();
-        Ok(content.to_string())
-    }
+    // Parse response for Ollama
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+    info!("🐞 LLM Response received from Ollama (native /api/chat)");
+    let content = value
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or_else(|| format!("No message.content in Ollama response: {}", value))?
+        .trim();
+    Ok(content.to_string())
 }
 
 /// Helper function to get provider name for logging
 fn provider_name(provider: &LLMProvider) -> &str {
     match provider {
-        LLMProvider::OpenAI => "OpenAI",
-        LLMProvider::Claude => "Claude",
-        LLMProvider::Groq => "Groq",
         LLMProvider::Ollama => "Ollama",
         LLMProvider::BuiltInAI => "Built-in AI",
-        LLMProvider::OpenRouter => "OpenRouter",
-        LLMProvider::CustomOpenAI => "Custom OpenAI",
     }
 }

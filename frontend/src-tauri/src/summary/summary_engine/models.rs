@@ -83,22 +83,31 @@ pub fn get_available_models() -> Vec<ModelDef> {
             },
             description: "Fastest model. Runs on any hardware with ~1GB RAM. Good for quick summaries.".to_string(),
         },
+        // Gemma 3n E2B: edge model — 3-4x más rápido que Gemma 3 4B en CPU,
+        // misma o mejor calidad para tips cortos. Mantenemos el id "gemma3:4b"
+        // por compat (todo el resto del código lo referencia), pero el GGUF
+        // que se descarga es realmente Gemma 3n Edge 2B.
+        //
+        // Optimización P0 (perf-oracle): context_size reducido de 32768 → 4096.
+        // Para tips de coach (max ~80 tokens out, ~1500 tokens in) el 32k es
+        // overkill y agrega 400-600ms de prefill. Con 4096 cabe holgado
+        // y prefill es ~80x más rápido.
         ModelDef {
             name: "gemma3:4b".to_string(),
-            display_name: "Gemma 3 4B (Balanced)".to_string(),
-            gguf_file: "gemma-3-4b-it-Q4_K_M.gguf".to_string(),
+            display_name: "Gemma 3n E2B (Edge — Ultrarrápido)".to_string(),
+            gguf_file: "gemma-3n-E2B-it-Q4_K_M.gguf".to_string(),
             template: "gemma3".to_string(),
-            download_url: "https://meetily.towardsgeneralintelligence.com/models/gemma-3-4b-it-Q4_K_M.gguf".to_string(),
-            size_mb: 2374,
-            context_size: 32768, // Supports 128k, but 32k is good for local·
-            layer_count: 35,
+            download_url: "https://huggingface.co/unsloth/gemma-3n-E2B-it-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf".to_string(),
+            size_mb: 2886,
+            context_size: 4096,
+            layer_count: 30,
             sampling: SamplingParams {
-                temperature: 1.0,
-                top_k: 64,
-                top_p: 0.95,
+                temperature: 0.3,
+                top_k: 20,
+                top_p: 0.7,
                 stop_tokens: vec!["<end_of_turn>".to_string()],
             },
-            description: "Balanced model. Great quality/speed trade-off. Requires ~3.5GB RAM.".to_string(),
+            description: "Modelo Edge ultra rápido. Optimizado para CPU sin GPU. 3-4x más rápido que Gemma 3 4B con calidad similar.".to_string(),
         },
     ]
 }

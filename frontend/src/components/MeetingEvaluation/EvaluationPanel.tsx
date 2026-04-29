@@ -450,7 +450,7 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
           previousSessionId: previousMeetingId ?? null,
           evaluationModel: null,
         },
-        'No se pudo generar la evaluación. Verifica que Ollama esté corriendo y que tengas el modelo gemma3:4b instalado.',
+        'No se pudo generar la evaluación. Verifica que el modelo de IA esté descargado (ve a Configuración → IA Local).',
       );
       if (res) setResult(res);
       else {

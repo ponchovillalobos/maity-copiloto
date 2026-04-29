@@ -1,0 +1,10 @@
+# Workspace-wide Cargo configuration. Aplica a src-tauri + llama-helper.
+#
+# Critical: linkear estáticamente la C++ Runtime de MSVC en builds de Windows
+# para que los binarios distribuidos NO requieran que el usuario tenga
+# instalado el Visual C++ Redistributable. Sin este flag, la app falla al
+# arrancar con "MSVCP140.dll missing".
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "target-feature=+crt-static",
+]

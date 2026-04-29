@@ -88,7 +88,7 @@ export function MeetingChatPanel({ meetingId }: Props) {
       if (errorMsg.toLowerCase().includes('embedding') || errorMsg.toLowerCase().includes('index')) {
         friendlyError = 'Esta reunión aún no está indexada para chat. Genera el índice primero.';
       } else if (errorMsg.toLowerCase().includes('ollama') || errorMsg.toLowerCase().includes('model')) {
-        friendlyError = 'Coach IA no responde. Verifica Ollama.';
+        friendlyError = 'Coach IA no responde. Reinicia la aplicación.';
         if (typeof globalThis !== 'undefined' && globalThis.window) {
           globalThis.window.dispatchEvent(new CustomEvent('verify-ollama-status'));
         }

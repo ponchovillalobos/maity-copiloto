@@ -286,8 +286,8 @@ export function MicTestStep() {
           ? 'Habla normalmente. Si la barra se mueve, tu micrófono funciona ✓'
           : 'Tu micrófono está configurado correctamente'
       }
-      step={6}
-      totalSteps={6}
+      step={3}
+      totalSteps={4}
       hideProgress={false}
       showNavigation={phase === 'complete' || (phase === 'level-monitoring' && levelDetected)}
       canGoNext={phase === 'complete' || (phase === 'level-monitoring' && levelDetected)}

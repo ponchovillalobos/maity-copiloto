@@ -201,7 +201,7 @@ function StatusIndicator({ ollama_running }: { ollama_running?: boolean }) {
       className="inline-block w-1.5 h-1.5 rounded-full bg-green-400"
       animate={{ opacity: [1, 0.4, 1] }}
       transition={{ repeat: Infinity, duration: 2 }}
-      title="Ollama activo"
+      title="IA local activa"
     />
   );
 }
@@ -301,7 +301,9 @@ export function CoachPanel() {
 
   // Tips persistentes: TODAS las sugerencias de la sesión, más recientes arriba
   const visible = [...suggestions].reverse();
-  const ollamaDown = status && !status.ollama_running;
+  // Banner de "IA inicializando" deshabilitado: la app usa runtime local
+  // embebido (llama-helper); el primer prompt arranca el modelo lazy.
+  const ollamaDown = false;
 
   const handleSend = async () => {
     const msg = chatInput.trim();
@@ -409,7 +411,7 @@ export function CoachPanel() {
       {ollamaDown && (
         <div className="mx-4 mt-3 p-2 rounded border border-yellow-600/40 bg-yellow-900/20 text-yellow-200 text-xs flex items-center gap-2">
           <WifiOff className="w-3 h-3" />
-          <span>Ollama no detectado. Inicia Ollama para activar el coach.</span>
+          <span>Inicializando motor de IA local…</span>
         </div>
       )}
 
@@ -528,12 +530,8 @@ export function CoachPanel() {
       {status && (
         <div className="px-4 py-2 border-t border-gray-800 text-[10px] text-gray-500 flex items-center justify-between">
           <span className="flex items-center gap-1">
-            <span
-              className={`inline-block w-1.5 h-1.5 rounded-full ${
-                status.ollama_running ? 'bg-green-400' : 'bg-red-400'
-              }`}
-            />
-            {status.ollama_running ? 'Ollama OK' : 'Ollama OFF'}
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400" />
+            IA local
           </span>
           {status.last_latency_ms > 0 && (
             <span>último: {status.last_latency_ms}ms</span>

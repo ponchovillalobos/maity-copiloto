@@ -76,7 +76,7 @@ export function AIInfoPanel() {
             <div className="flex-1">
               <div className="font-semibold text-amber-100">Falta descargar el modelo de IA</div>
               <div className="text-amber-100/80 text-xs leading-relaxed mt-1">
-                El modelo Gemma 3 4B (~2.4 GB) se descarga una sola vez. Después funciona sin
+                El modelo Gemma 3n E2B (~2.8 GB) se descarga una sola vez. Después funciona sin
                 internet.
               </div>
             </div>
@@ -95,12 +95,12 @@ export function AIInfoPanel() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-lg border border-white/10 bg-white/5 p-4">
           <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Tips en vivo</div>
-          <div className="text-sm font-semibold text-gray-50">Gemma 3 4B</div>
+          <div className="text-sm font-semibold text-gray-50">Gemma 3n E2B</div>
           <div className="text-xs text-gray-400 mt-1">Sugerencias rápidas mientras hablas.</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-white/5 p-4">
           <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Evaluación post-meeting</div>
-          <div className="text-sm font-semibold text-gray-50">Gemma 3 4B</div>
+          <div className="text-sm font-semibold text-gray-50">Gemma 3n E2B</div>
           <div className="text-xs text-gray-400 mt-1">Análisis profundo al terminar la reunión.</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-white/5 p-4">

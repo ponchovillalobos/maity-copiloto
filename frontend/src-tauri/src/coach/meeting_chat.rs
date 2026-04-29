@@ -161,10 +161,14 @@ pub async fn chat_with_meeting(
         query.trim()
     );
 
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
     let start = std::time::Instant::now();
     let raw = generate_summary(
         client,
-        &LLMProvider::Ollama,
+        &LLMProvider::BuiltInAI,
         &chat_model,
         "",
         MEETING_CHAT_SYSTEM_PROMPT,
@@ -174,7 +178,7 @@ pub async fn chat_with_meeting(
         Some(800),
         Some(0.4),
         Some(0.9),
-        None,
+        Some(&app_data_dir),
         None,
     )
     .await
@@ -323,10 +327,14 @@ pub async fn chat_with_history(
         query.trim()
     );
 
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
     let start = std::time::Instant::now();
     let raw = generate_summary(
         client,
-        &LLMProvider::Ollama,
+        &LLMProvider::BuiltInAI,
         &chat_model,
         "",
         GLOBAL_CHAT_SYSTEM_PROMPT,
@@ -336,7 +344,7 @@ pub async fn chat_with_history(
         Some(900),
         Some(0.4),
         Some(0.9),
-        None,
+        Some(&app_data_dir),
         None,
     )
     .await

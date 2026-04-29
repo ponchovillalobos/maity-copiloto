@@ -81,7 +81,9 @@ impl SettingsRepository {
 
         // Validate provider and handle early returns
         match provider {
-            "openai" | "claude" | "ollama" | "groq" | "openrouter" => {},
+            // Cloud summary providers (openai, claude, groq, openrouter) no longer store API keys
+            // They are legacy and no longer supported for cloud-based summaries
+            "openai" | "claude" | "ollama" | "groq" | "openrouter" => return Ok(()),
             "builtin-ai" => return Ok(()), // No API key needed
             _ => {
                 return Err(sqlx::Error::Protocol(
@@ -89,38 +91,6 @@ impl SettingsRepository {
                 ))
             }
         };
-
-        let query = match provider {
-            "openai" => r#"
-            INSERT INTO settings (id, provider, model, whisperModel, "openaiApiKey")
-            VALUES ('1', 'openai', 'gpt-4o-2024-11-20', 'large-v3', $1)
-            ON CONFLICT(id) DO UPDATE SET "openaiApiKey" = $1
-            "#,
-            "claude" => r#"
-            INSERT INTO settings (id, provider, model, whisperModel, "anthropicApiKey")
-            VALUES ('1', 'openai', 'gpt-4o-2024-11-20', 'large-v3', $1)
-            ON CONFLICT(id) DO UPDATE SET "anthropicApiKey" = $1
-            "#,
-            "ollama" => r#"
-            INSERT INTO settings (id, provider, model, whisperModel, "ollamaApiKey")
-            VALUES ('1', 'openai', 'gpt-4o-2024-11-20', 'large-v3', $1)
-            ON CONFLICT(id) DO UPDATE SET "ollamaApiKey" = $1
-            "#,
-            "groq" => r#"
-            INSERT INTO settings (id, provider, model, whisperModel, "groqApiKey")
-            VALUES ('1', 'openai', 'gpt-4o-2024-11-20', 'large-v3', $1)
-            ON CONFLICT(id) DO UPDATE SET "groqApiKey" = $1
-            "#,
-            "openrouter" => r#"
-            INSERT INTO settings (id, provider, model, whisperModel, "openRouterApiKey")
-            VALUES ('1', 'openai', 'gpt-4o-2024-11-20', 'large-v3', $1)
-            ON CONFLICT(id) DO UPDATE SET "openRouterApiKey" = $1
-            "#,
-            _ => unreachable!(), // Already validated above
-        };
-        sqlx::query(query).bind(api_key).execute(pool).await?;
-
-        Ok(())
     }
 
     pub async fn get_api_key(
@@ -135,7 +105,8 @@ impl SettingsRepository {
 
         // Validate provider and handle early returns
         match provider {
-            "openai" | "ollama" | "groq" | "claude" | "openrouter" => {},
+            // Cloud summary providers (openai, claude, groq, openrouter, ollama) no longer store API keys
+            "openai" | "ollama" | "groq" | "claude" | "openrouter" => return Ok(None),
             "builtin-ai" => return Ok(None), // No API key needed
             _ => {
                 return Err(sqlx::Error::Protocol(
@@ -143,17 +114,6 @@ impl SettingsRepository {
                 ))
             }
         };
-
-        let query = match provider {
-            "openai" => "SELECT openaiApiKey FROM settings WHERE id = '1' LIMIT 1",
-            "ollama" => "SELECT ollamaApiKey FROM settings WHERE id = '1' LIMIT 1",
-            "groq" => "SELECT groqApiKey FROM settings WHERE id = '1' LIMIT 1",
-            "claude" => "SELECT anthropicApiKey FROM settings WHERE id = '1' LIMIT 1",
-            "openrouter" => "SELECT openRouterApiKey FROM settings WHERE id = '1' LIMIT 1",
-            _ => unreachable!(), // Already validated above
-        };
-        let api_key = sqlx::query_scalar(query).fetch_optional(pool).await?;
-        Ok(api_key)
     }
 
     pub async fn get_transcript_config(
@@ -269,7 +229,8 @@ impl SettingsRepository {
 
         // Validate provider and handle early returns
         match provider {
-            "openai" | "ollama" | "groq" | "claude" | "openrouter" => {},
+            // Cloud summary providers (openai, claude, groq, openrouter, ollama) no longer store API keys
+            "openai" | "ollama" | "groq" | "claude" | "openrouter" => return Ok(()),
             "builtin-ai" => return Ok(()), // No API key needed
             _ => {
                 return Err(sqlx::Error::Protocol(
@@ -277,18 +238,6 @@ impl SettingsRepository {
                 ))
             }
         };
-
-        let query = match provider {
-            "openai" => "UPDATE settings SET openaiApiKey = NULL WHERE id = '1'",
-            "ollama" => "UPDATE settings SET ollamaApiKey = NULL WHERE id = '1'",
-            "groq" => "UPDATE settings SET groqApiKey = NULL WHERE id = '1'",
-            "claude" => "UPDATE settings SET anthropicApiKey = NULL WHERE id = '1'",
-            "openrouter" => "UPDATE settings SET openRouterApiKey = NULL WHERE id = '1'",
-            _ => unreachable!(), // Already validated above
-        };
-        sqlx::query(query).execute(pool).await?;
-
-        Ok(())
     }
 
     // ===== CUSTOM OPENAI CONFIG METHODS =====

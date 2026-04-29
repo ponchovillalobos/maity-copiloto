@@ -3,8 +3,6 @@ import { useOnboarding } from '@/contexts/OnboardingContext';
 import {
   WelcomeStep,
   PermissionsStep,
-  DownloadProgressStep,
-  SetupOverviewStep,
   AutoModelSetupStep,
   MicTestStep,
 } from './steps';
@@ -18,38 +16,35 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [isMac, setIsMac] = React.useState(false);
 
   useEffect(() => {
-    // Check if running on macOS
     const checkPlatform = async () => {
       try {
-        // Dynamic import to avoid SSR issues if any
         const { platform } = await import('@tauri-apps/plugin-os');
         setIsMac(platform() === 'macos');
       } catch (e) {
         console.error('Failed to detect platform:', e);
-        // Fallback
         setIsMac(navigator.userAgent.includes('Mac'));
       }
     };
     checkPlatform();
   }, []);
 
-  // Onboarding minimalista para usuarios no-técnicos:
-  // Step 1: Bienvenida — qué hace Maity
-  // Step 2: Resumen del setup (qué se va a instalar y por qué)
-  // Step 3: Descarga del modelo de IA local (Gemma 3 4B, ~2.4 GB)
-  // Step 4: Descarga del modelo de transcripción (Parakeet, auto)
-  // Step 5: Prueba de micrófono
-  // Step 6: Permisos (solo macOS)
-  // Sin selector de provider, sin Ollama, sin API keys.
+  // Flow ULTRA simple para usuarios no-técnicos. Cero opciones, cero clicks
+  // técnicos. Sólo 3 pantallas (4 en macOS):
+  //   1. Bienvenida ("Comenzar")
+  //   2. Descarga AUTO de los 2 modelos (Gemma + Parakeet, en paralelo,
+  //      avanza solo al terminar)
+  //   3. Prueba de micrófono
+  //   4. Permisos (solo macOS)
+  //
+  // El Setup Overview y el Download Progress separados ya no existen — todo
+  // se consolida en AutoModelSetupStep.
 
   return (
     <div className="onboarding-flow">
       {currentStep === 1 && <WelcomeStep />}
-      {currentStep === 2 && <SetupOverviewStep />}
-      {currentStep === 3 && <AutoModelSetupStep />}
-      {currentStep === 4 && <DownloadProgressStep />}
-      {currentStep === 5 && <MicTestStep />}
-      {currentStep === 6 && isMac && <PermissionsStep />}
+      {currentStep === 2 && <AutoModelSetupStep />}
+      {currentStep === 3 && <MicTestStep />}
+      {currentStep === 4 && isMac && <PermissionsStep />}
     </div>
   );
 }

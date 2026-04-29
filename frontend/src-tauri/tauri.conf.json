@@ -101,21 +101,18 @@
     "bundle": {
         "active": true,
         "targets": [
-            "deb",
-            "appimage",
             "msi",
-            "nsis",
-            "app",
-            "dmg"
+            "nsis"
         ],
-        "createUpdaterArtifacts": true,
+        "createUpdaterArtifacts": false,
         "icon": [
             "icons/icon.png",
             "icons/app_icon.icns",
             "icons/app_icon.ico"
         ],
         "resources": [
-            "templates/*.json"
+            "templates/*.json",
+            "runtime-libs/*.dll"
         ],
         "externalBin": [
             "binaries/llama-helper"
@@ -126,15 +123,18 @@
             "hardenedRuntime": true
         },
         "windows": {
-            "signCommand": "powershell -ExecutionPolicy Bypass -File scripts/sign-windows.ps1 -FilePath %1"
-        }
-    },
-    "plugins": {
-        "updater": {
-            "endpoints": [
-                "https://github.com/ponchovillalobos/maity-desktop/releases/latest/download/latest.json"
-            ],
-            "pubkey": ""
+            "webviewInstallMode": {
+                "type": "embedBootstrapper",
+                "silent": true
+            },
+            "wix": {
+                "language": ["es-ES", "en-US"]
+            },
+            "nsis": {
+                "languages": ["Spanish", "English"],
+                "displayLanguageSelector": false,
+                "installMode": "perMachine"
+            }
         }
     }
 }

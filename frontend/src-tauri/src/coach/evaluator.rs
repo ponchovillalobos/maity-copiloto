@@ -560,10 +560,14 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         .build()
         .map_err(|e| format!("Error creando cliente HTTP: {}", e))?;
 
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
+
     let start = std::time::Instant::now();
 
     // Usamos el runtime LOCAL embebido (llama-helper + GGUF). NO depende de Ollama.
-    // El modelo se descarga durante el onboarding y se reusa entre sesiones.
     let raw = generate_summary(
         &client,
         &LLMProvider::BuiltInAI,
@@ -573,10 +577,10 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         &user_prompt,
         None,
         None,
-        Some(8192),    // num_predict — el JSON v5 completo necesita ~10k chars (~3k tokens)
+        Some(8192),
         Some(0.2),
         Some(0.9),
-        None,
+        Some(&app_data_dir),
         None,
     )
     .await
