@@ -68,9 +68,9 @@ impl SettingsRepository {
     }
 
     pub async fn save_api_key(
-        pool: &SqlitePool,
+        _pool: &SqlitePool,
         provider: &str,
-        api_key: &str,
+        _api_key: &str,
     ) -> std::result::Result<(), sqlx::Error> {
         // Custom OpenAI uses JSON config (customOpenAIConfig) instead of a separate API key column
         if provider == "custom-openai" {

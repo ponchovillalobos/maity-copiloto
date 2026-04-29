@@ -52,7 +52,7 @@ pub async fn generate_summary(
     system_prompt: &str,
     user_prompt: &str,
     ollama_endpoint: Option<&str>,
-    custom_openai_endpoint: Option<&str>,
+    _custom_openai_endpoint: Option<&str>,
     max_tokens: Option<u32>,
     temperature: Option<f32>,
     top_p: Option<f32>,

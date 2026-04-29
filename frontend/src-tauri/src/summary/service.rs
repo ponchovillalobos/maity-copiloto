@@ -135,7 +135,7 @@ impl SummaryService {
         };
 
         // CustomOpenAI provider is not supported in current LLMProvider enum
-        let (custom_openai_endpoint, custom_openai_api_key, custom_openai_max_tokens, custom_openai_temperature, custom_openai_top_p) =
+        let (custom_openai_endpoint, _custom_openai_api_key, custom_openai_max_tokens, custom_openai_temperature, custom_openai_top_p) =
             (None::<String>, None::<String>, None::<u32>, None::<f32>, None::<f32>);
 
         // Use api_key as final key (no CustomOpenAI variant to override it)

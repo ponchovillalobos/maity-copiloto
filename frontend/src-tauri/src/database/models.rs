@@ -385,8 +385,6 @@ mod tests {
             id: "1".to_string(),
             provider: "groq".to_string(),
             model: "parakeet-tdt-0.6b-v3-int8".to_string(),
-            whisper_api_key: None,
-            deepgram_api_key: None,
             eleven_labs_api_key: None,
             groq_api_key: Some("groq-key-123".to_string()),
             openai_api_key: Some("openai-key-456".to_string()),
