@@ -391,6 +391,117 @@ impl SidecarManager {
         }
     }
 
+    /// Streaming send: writes request, then reads NDJSON lines from stdout.
+    /// For each `Token { text }` line, pushes `Ok(text)` to the channel.
+    /// On `StreamDone { error }` line, closes the channel (with `Err(...)` if error set).
+    /// Holds the stdout lock for the duration of the stream — safe because sidecar
+    /// is single-threaded request/response (caller awaits this future to completion).
+    pub async fn send_request_streaming(
+        &self,
+        request_json: String,
+        timeout: Duration,
+        sender: tokio::sync::mpsc::Sender<Result<String, String>>,
+    ) -> Result<()> {
+        let _guard = RequestGuard::new(self.active_request_count.clone());
+
+        // Write request
+        {
+            let mut stdin_lock = self.stdin_writer.lock().await;
+            let stdin = stdin_lock
+                .as_mut()
+                .ok_or_else(|| anyhow!("Sidecar not running"))?;
+
+            stdin
+                .write_all(request_json.as_bytes())
+                .await
+                .context("Failed to write request to stdin")?;
+            stdin
+                .write_all(b"\n")
+                .await
+                .context("Failed to write newline")?;
+            stdin.flush().await.context("Failed to flush stdin")?;
+        }
+
+        // Read NDJSON stream until StreamDone (with overall timeout).
+        let read_fut = async {
+            let mut stdout_lock = self.stdout_reader.lock().await;
+            let reader = stdout_lock
+                .as_mut()
+                .ok_or_else(|| anyhow!("Sidecar not running"))?;
+
+            loop {
+                let mut line = String::new();
+                let n = reader
+                    .read_line(&mut line)
+                    .await
+                    .context("Failed to read from sidecar stdout")?;
+                if n == 0 {
+                    return Err(anyhow!("Sidecar closed stdout mid-stream"));
+                }
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                let val: serde_json::Value = match serde_json::from_str(trimmed) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::warn!("Skipping unparsable sidecar line: {} ({})", trimmed, e);
+                        continue;
+                    }
+                };
+
+                match val.get("type").and_then(|t| t.as_str()) {
+                    Some("token") => {
+                        if let Some(text) = val.get("text").and_then(|t| t.as_str()) {
+                            if sender.send(Ok(text.to_string())).await.is_err() {
+                                // Receiver dropped — bail (frontend cancelled).
+                                return Err(anyhow!("Stream receiver dropped"));
+                            }
+                        }
+                    }
+                    Some("stream_done") => {
+                        let err = val
+                            .get("error")
+                            .and_then(|e| e.as_str())
+                            .map(|s| s.to_string());
+                        if let Some(e) = err {
+                            let _ = sender.send(Err(e)).await;
+                        }
+                        return Ok(());
+                    }
+                    Some("error") => {
+                        let msg = val
+                            .get("message")
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("unknown")
+                            .to_string();
+                        let _ = sender.send(Err(msg)).await;
+                        return Ok(());
+                    }
+                    other => {
+                        log::warn!("Unexpected sidecar response type: {:?}", other);
+                    }
+                }
+            }
+        };
+
+        match tokio::time::timeout(timeout, read_fut).await {
+            Ok(Ok(())) => {
+                self.update_activity().await;
+                Ok(())
+            }
+            Ok(Err(e)) => Err(e),
+            Err(_) => {
+                log::error!("Streaming request timeout after {:?}", timeout);
+                if let Err(shutdown_err) = self.shutdown().await {
+                    log::error!("Shutdown error after timeout: {}", shutdown_err);
+                }
+                Err(anyhow!("Streaming request timed out after {:?}", timeout))
+            }
+        }
+    }
+
     /// Read a single line response from stdout
     async fn read_response(&self) -> Result<String> {
         let mut stdout_lock = self.stdout_reader.lock().await;

@@ -33,6 +33,17 @@ enum Request {
         top_p: Option<f32>,
         stop_tokens: Option<Vec<String>>,
     },
+    /// Streaming variant — emits one `Token` per token, then `StreamDone`.
+    GenerateStream {
+        prompt: String,
+        max_tokens: Option<i32>,
+        context_size: Option<u32>,
+        model_path: Option<String>,
+        temperature: Option<f32>,
+        top_k: Option<i32>,
+        top_p: Option<f32>,
+        stop_tokens: Option<Vec<String>>,
+    },
     Ping,
     Shutdown,
 }
@@ -41,6 +52,10 @@ enum Request {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Response {
     Response { text: String, error: Option<String> },
+    /// Streaming token (one per generated piece of text).
+    Token { text: String },
+    /// Stream completion marker (with optional error if generation failed).
+    StreamDone { error: Option<String> },
     Pong,
     Goodbye,
     Error { message: String },
@@ -280,12 +295,13 @@ impl ModelState {
         let start_time = Instant::now();
         let model = self.model.as_ref().context("Model not loaded")?;
 
-        // Calculate thread count (conservative default: max(1, (Cores / 2) + 2))
-        // This ensures the UI thread is never starved
+        // n_threads = cores - 1 (leave 1 core for UI/OS).
+        // Anterior `(cores/2) + 2` subutilizaba CPUs ≥ 6 cores; en Ryzen 9 8c
+        // pasamos de 6 → 7 threads (+15-20% throughput según perf-oracle).
         let threads: i32 = std::thread::available_parallelism()
             .map(|n| {
                 let cores = n.get() as i32;
-                ((cores / 2) + 2).max(1)
+                (cores - 1).max(1)
             })
             .unwrap_or(2);
 
@@ -426,6 +442,180 @@ impl ModelState {
         self.update_activity();
         Ok(output)
     }
+
+    /// Streaming variant: emite cada token via `emit_token` as soon as decoded.
+    /// Returns `Ok(())` on normal completion (EOG / max_tokens / stop_token).
+    fn generate_stream<F>(
+        &mut self,
+        prompt: String,
+        max_tokens: i32,
+        temperature: f32,
+        top_k: i32,
+        top_p: f32,
+        stop_tokens: Vec<String>,
+        mut emit_token: F,
+    ) -> Result<()>
+    where
+        F: FnMut(&str) -> Result<()>,
+    {
+        let start_time = Instant::now();
+        let model = self.model.as_ref().context("Model not loaded")?;
+
+        let threads: i32 = std::thread::available_parallelism()
+            .map(|n| {
+                let cores = n.get() as i32;
+                (cores - 1).max(1)
+            })
+            .unwrap_or(2);
+
+        let ctx_params = LlamaContextParams::default()
+            .with_n_ctx(Some(
+                NonZeroU32::new(self.context_size).context("Invalid ctx size")?,
+            ))
+            .with_n_batch(self.context_size)
+            .with_n_threads(threads)
+            .with_n_threads_batch(threads);
+
+        let mut ctx = model
+            .new_context(&self.backend, ctx_params)
+            .context("unable to create the llama_context")?;
+
+        let tokens_list = model
+            .str_to_token(&prompt, AddBos::Always)
+            .with_context(|| "failed to tokenize prompt")?;
+
+        eprintln!("📝 [stream] Tokenized prompt: {} tokens", tokens_list.len());
+
+        let batch_size = self.context_size as usize;
+        let mut batch = LlamaBatch::new(batch_size, 1);
+
+        let last_index: i32 = (tokens_list.len() - 1) as i32;
+        for (i, token) in (0_i32..).zip(tokens_list.into_iter()) {
+            let is_last = i == last_index;
+            batch
+                .add(token, i, &[0], is_last)
+                .context("Failed to add token to batch")?;
+        }
+
+        ctx.decode(&mut batch).context("llama_decode() failed")?;
+        let prompt_time = start_time.elapsed();
+
+        let n_prompt_tokens = batch.n_tokens();
+        let mut n_cur = n_prompt_tokens;
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
+        // Acumulado para detección multi-token de stop sequences.
+        let mut buffered_tail = String::new();
+
+        eprintln!("🔄 [stream] Starting generation (max_tokens: {})", max_tokens);
+
+        loop {
+            if (n_cur - n_prompt_tokens) >= max_tokens {
+                eprintln!("✓ [stream] Reached max_tokens limit");
+                break;
+            }
+
+            use llama_cpp_2::sampling::LlamaSampler;
+
+            let sampler = if temperature <= 0.0 {
+                LlamaSampler::chain_simple([LlamaSampler::greedy()])
+            } else {
+                let seed = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u32;
+
+                LlamaSampler::chain_simple([
+                    LlamaSampler::top_k(top_k),
+                    LlamaSampler::top_p(top_p, 1),
+                    LlamaSampler::temp(temperature),
+                    LlamaSampler::dist(seed),
+                ])
+            };
+
+            let mut sampler = pin!(sampler);
+            let token = sampler.as_mut().sample(&ctx, batch.n_tokens() - 1);
+            sampler.as_mut().accept(token);
+
+            if model.is_eog_token(token) {
+                eprintln!("✓ [stream] EOG token reached");
+                break;
+            }
+
+            let output_bytes = model
+                .token_to_bytes(token, Special::Tokenize)
+                .context("Failed to convert token to bytes")?;
+
+            let mut token_text = String::with_capacity(32);
+            let _ = decoder.decode_to_string(&output_bytes, &mut token_text, false);
+
+            // Stop-token detection: keep a small tail buffer (max len of any stop token + token_text)
+            // to detect cross-token stop sequences. If found, truncate and stop.
+            buffered_tail.push_str(&token_text);
+            let max_stop_len = stop_tokens.iter().map(|s| s.len()).max().unwrap_or(0);
+            let mut hit_stop = false;
+            let mut emit_text = token_text.clone();
+            for stop_token in &stop_tokens {
+                if buffered_tail.contains(stop_token) {
+                    // Found stop sequence — strip from emission and bail out.
+                    let cut = buffered_tail.find(stop_token).unwrap();
+                    let stripped_tail: String = buffered_tail.chars().take(cut).collect();
+                    // Calculate how much of the current token's text actually got emitted.
+                    let already_emitted_in_tail =
+                        buffered_tail.len() - emit_text.len();
+                    if cut > already_emitted_in_tail {
+                        let to_emit = &stripped_tail[already_emitted_in_tail..];
+                        emit_text = to_emit.to_string();
+                    } else {
+                        emit_text.clear();
+                    }
+                    eprintln!("✓ [stream] Stop token '{}' detected", stop_token);
+                    hit_stop = true;
+                    break;
+                }
+            }
+
+            if !emit_text.is_empty() {
+                emit_token(&emit_text)?;
+            }
+
+            // Trim tail buffer to bounded size.
+            if buffered_tail.len() > max_stop_len * 2 + 64 {
+                let drain = buffered_tail.len() - (max_stop_len + 32);
+                buffered_tail.drain(..drain);
+            }
+
+            if hit_stop {
+                break;
+            }
+
+            batch.clear();
+            batch
+                .add(token, n_cur, &[0], true)
+                .context("Failed to add generated token to batch")?;
+            n_cur += 1;
+            ctx.decode(&mut batch).context("failed to eval")?;
+        }
+
+        let total_time = start_time.elapsed();
+        let gen_time = total_time.saturating_sub(prompt_time);
+        let output_tokens = (n_cur - n_prompt_tokens) as u64;
+        let tokens_per_sec = if gen_time.as_secs_f64() > 0.0 {
+            output_tokens as f64 / gen_time.as_secs_f64()
+        } else {
+            0.0
+        };
+
+        eprintln!(
+            "📊 [stream] Done — {} tok in {:.2}s ({:.2} tok/s, prefill {:.2}s)",
+            output_tokens,
+            gen_time.as_secs_f64(),
+            tokens_per_sec,
+            prompt_time.as_secs_f64()
+        );
+
+        self.update_activity();
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -527,6 +717,58 @@ fn main() -> Result<()> {
                             Err(e) => {
                                 send_response(&Response::Response {
                                     text: String::new(),
+                                    error: Some(format!("Generation failed: {}", e)),
+                                })?;
+                            }
+                        }
+                    }
+                    Ok(Request::GenerateStream {
+                        prompt,
+                        max_tokens,
+                        context_size,
+                        model_path,
+                        temperature,
+                        top_k,
+                        top_p,
+                        stop_tokens,
+                    }) => {
+                        let max_tokens = max_tokens.unwrap_or(512);
+                        let context_size = context_size.unwrap_or(2048);
+                        let temperature = temperature.unwrap_or(1.0);
+                        let top_k = top_k.unwrap_or(64);
+                        let top_p = top_p.unwrap_or(0.95);
+                        let stop_tokens = stop_tokens.unwrap_or_else(Vec::new);
+
+                        if let Some(path_str) = model_path {
+                            let path = PathBuf::from(path_str);
+                            if let Err(e) = state.load_model_if_needed(path, context_size) {
+                                send_response(&Response::StreamDone {
+                                    error: Some(format!("Failed to load model: {}", e)),
+                                })?;
+                                continue;
+                            }
+                        }
+
+                        let result = state.generate_stream(
+                            prompt,
+                            max_tokens,
+                            temperature,
+                            top_k,
+                            top_p,
+                            stop_tokens,
+                            |chunk| {
+                                send_response(&Response::Token {
+                                    text: chunk.to_string(),
+                                })
+                            },
+                        );
+
+                        match result {
+                            Ok(()) => {
+                                send_response(&Response::StreamDone { error: None })?;
+                            }
+                            Err(e) => {
+                                send_response(&Response::StreamDone {
                                     error: Some(format!("Generation failed: {}", e)),
                                 })?;
                             }

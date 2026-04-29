@@ -277,73 +277,87 @@ pub async fn coach_chat_stream(
         .app_data_dir()
         .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
 
-    // Migración: ya NO usamos Ollama streaming HTTP (el runtime es local
-    // BuiltInAI vía sidecar llama-helper). El sidecar no soporta streaming
-    // SSE, así que devolvemos la respuesta completa de una vez como un único
-    // delta seguido de complete. El frontend ya escucha estos eventos.
+    // Streaming real via llama-helper sidecar (Token/StreamDone NDJSON protocol).
+    // Cada token llega ~30-100ms, frontend concatena deltas en vivo.
     tauri::async_runtime::spawn(async move {
-        let client = &*SHARED_CLIENT;
         let start = std::time::Instant::now();
+        let mut first_token_ms: Option<u64> = None;
+        let mut accumulated = String::new();
 
-        let result = generate_summary(
-            client,
+        let stream_result = crate::summary::llm_client::generate_summary_stream(
             &LLMProvider::BuiltInAI,
             &model_to_use,
-            "",
             CHAT_SYSTEM_PROMPT,
             &user_prompt,
-            None,
-            None,
             Some(500),
-            Some(0.5),
-            Some(0.9),
             Some(&app_data_dir_for_stream),
-            None,
         )
         .await;
 
-        match result {
-            Ok(answer) => {
-                let latency_ms = start.elapsed().as_millis() as u64;
-                let total_tokens = answer.split_whitespace().count();
-                let trimmed = answer.trim().to_string();
-                if !trimmed.is_empty() {
+        let mut rx = match stream_result {
+            Ok(rx) => rx,
+            Err(e) => {
+                let _ = app_handle.emit(
+                    "coach-chat-error",
+                    serde_json::json!({ "stream_id": sid, "error": e }),
+                );
+                return;
+            }
+        };
+
+        let mut stream_error: Option<String> = None;
+        while let Some(chunk) = rx.recv().await {
+            match chunk {
+                Ok(text) => {
+                    if first_token_ms.is_none() {
+                        first_token_ms = Some(start.elapsed().as_millis() as u64);
+                    }
+                    accumulated.push_str(&text);
                     let _ = app_handle.emit(
                         "coach-chat-token",
                         ChatStreamToken {
                             stream_id: sid.clone(),
-                            delta: trimmed,
+                            delta: text,
                             done: false,
                         },
                     );
                 }
-                let _ = app_handle.emit(
-                    "coach-chat-token",
-                    ChatStreamToken {
-                        stream_id: sid.clone(),
-                        delta: String::new(),
-                        done: true,
-                    },
-                );
-                let _ = app_handle.emit(
-                    "coach-chat-complete",
-                    ChatStreamComplete {
-                        stream_id: sid.clone(),
-                        model: model_to_use.clone(),
-                        latency_ms,
-                        first_token_ms: latency_ms,
-                        total_tokens,
-                        context_chars,
-                    },
-                );
-            }
-            Err(e) => {
-                let _ = app_handle.emit(
-                    "coach-chat-error",
-                    serde_json::json!({ "stream_id": sid, "error": e.to_string() }),
-                );
+                Err(e) => {
+                    stream_error = Some(e);
+                    break;
+                }
             }
         }
+
+        if let Some(err) = stream_error {
+            let _ = app_handle.emit(
+                "coach-chat-error",
+                serde_json::json!({ "stream_id": sid, "error": err }),
+            );
+            return;
+        }
+
+        let latency_ms = start.elapsed().as_millis() as u64;
+        let total_tokens = accumulated.split_whitespace().count();
+        let _ = app_handle.emit(
+            "coach-chat-token",
+            ChatStreamToken {
+                stream_id: sid.clone(),
+                delta: String::new(),
+                done: true,
+            },
+        );
+        let _ = app_handle.emit(
+            "coach-chat-complete",
+            ChatStreamComplete {
+                stream_id: sid.clone(),
+                model: model_to_use.clone(),
+                latency_ms,
+                first_token_ms: first_token_ms.unwrap_or(latency_ms),
+                total_tokens,
+                context_chars,
+            },
+        );
     });
 
     Ok(stream_id)

@@ -34,12 +34,25 @@ enum Request {
         top_p: Option<f32>,
         stop_tokens: Option<Vec<String>>,
     },
+    /// Streaming variant — sidecar emits one `Token` per generated piece, then `StreamDone`.
+    GenerateStream {
+        prompt: String,
+        max_tokens: Option<i32>,
+        context_size: Option<u32>,
+        model_path: Option<String>,
+        temperature: Option<f32>,
+        top_k: Option<i32>,
+        top_p: Option<f32>,
+        stop_tokens: Option<Vec<String>>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Response {
     Response { text: String, error: Option<String> },
+    Token { text: String },
+    StreamDone { error: Option<String> },
     Error { message: String },
 }
 
@@ -233,7 +246,69 @@ pub async fn generate_with_builtin(
             }
         }
         Response::Error { message } => Err(anyhow!("Sidecar error: {}", message)),
+        Response::Token { .. } | Response::StreamDone { .. } => {
+            Err(anyhow!("Unexpected streaming response in non-streaming call"))
+        }
     }
+}
+
+/// Streaming variant: launches sidecar generation and returns a channel of token chunks.
+///
+/// The receiver yields `Ok(text)` for each token, terminates with `Ok("")` + closes
+/// when generation completes normally, or yields `Err(...)` if the model fails.
+///
+/// Frontend code should consume the receiver and emit tokens to the UI as they arrive.
+pub async fn generate_stream_with_builtin(
+    app_data_dir: &PathBuf,
+    model_name: &str,
+    system_prompt: &str,
+    user_prompt: &str,
+    max_tokens_override: Option<i32>,
+) -> Result<tokio::sync::mpsc::Receiver<Result<String, String>>> {
+    log::info!("Built-in AI streaming request — model: {}", model_name);
+
+    let model_def = models::get_model_by_name(model_name)
+        .ok_or_else(|| anyhow!("Unknown model: {}", model_name))?;
+    let model_path = get_cached_model_path(app_data_dir, model_name)?;
+    let formatted_prompt =
+        models::format_prompt(&model_def.template, system_prompt, user_prompt)?;
+
+    let manager = {
+        let mut global_manager = SIDECAR_MANAGER.lock().await;
+        if global_manager.is_none() {
+            log::info!("Initializing sidecar manager");
+            let new_manager = SidecarManager::new(app_data_dir.clone())?;
+            *global_manager = Some(Arc::new(new_manager));
+        }
+        global_manager.clone().unwrap()
+    };
+    manager.ensure_running(model_path.clone()).await?;
+
+    let request = Request::GenerateStream {
+        prompt: formatted_prompt,
+        max_tokens: Some(max_tokens_override.unwrap_or(models::DEFAULT_MAX_TOKENS)),
+        context_size: Some(model_def.context_size),
+        model_path: Some(model_path.to_string_lossy().to_string()),
+        temperature: Some(model_def.sampling.temperature),
+        top_k: Some(model_def.sampling.top_k),
+        top_p: Some(model_def.sampling.top_p),
+        stop_tokens: Some(model_def.sampling.stop_tokens.clone()),
+    };
+    let request_json = serde_json::to_string(&request)?;
+
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, String>>(256);
+    let timeout = Duration::from_secs(models::GENERATION_TIMEOUT_SECS);
+
+    tokio::spawn(async move {
+        if let Err(e) = manager
+            .send_request_streaming(request_json, timeout, tx.clone())
+            .await
+        {
+            let _ = tx.send(Err(format!("stream error: {}", e))).await;
+        }
+    });
+
+    Ok(rx)
 }
 
 /// Shutdown the global sidecar (graceful cleanup)
