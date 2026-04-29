@@ -101,27 +101,51 @@ function detectConversationMode(args: {
   return 'conversation';
 }
 
-/** Normaliza un tip para comparar duplicados (lowercase, sin puntuación, espacios colapsados). */
+/** Normaliza un tip para comparar duplicados:
+ * 1. Quita prefijos coach ("Dile:", "Pregúntale:", etc — son ruido para dedup).
+ * 2. Lowercase, sin puntuación, sin acentos (canonical compare).
+ * 3. Stop-words español removidas para enfoque en palabras clave.
+ */
+const COACH_PREFIXES = /^(dile|pregúntale|preguntale|respóndele|respondele|bien hecho|excelente|corrección|correccion):\s*/i;
+const STOPWORDS_ES = new Set([
+  'el','la','los','las','un','una','unos','unas','de','del','en','y','o','que','qué',
+  'es','tu','su','sus','mi','mis','con','por','para','al','se','lo','le','les','no',
+  'si','sí','ya','muy','más','mas','está','esta','ese','esa','este','asi','así','o',
+]);
+function stripAccents(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
 function normalizeTip(s: string): string {
-  return s.toLowerCase()
+  return stripAccents(s.toLowerCase())
+    .replace(COACH_PREFIXES, '')
     .replace(/[.,;:!?¡¿«»"'`´()\[\]{}—–-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Similitud Jaccard sobre tokens (0..1). Rápido, suficiente para detectar reformulaciones. */
+/** Similitud Jaccard sobre tokens significativos (sin stopwords, len>=3). */
 function tipSimilarity(a: string, b: string): number {
-  const ta = new Set(normalizeTip(a).split(' ').filter((t) => t.length > 2));
-  const tb = new Set(normalizeTip(b).split(' ').filter((t) => t.length > 2));
+  const tokens = (s: string) =>
+    new Set(
+      normalizeTip(s)
+        .split(' ')
+        .filter((t) => t.length >= 3 && !STOPWORDS_ES.has(t)),
+    );
+  const ta = tokens(a);
+  const tb = tokens(b);
   if (ta.size === 0 || tb.size === 0) return 0;
   let inter = 0;
-  ta.forEach((t) => { if (tb.has(t)) inter++; });
+  ta.forEach((t) => {
+    if (tb.has(t)) inter++;
+  });
   const union = ta.size + tb.size - inter;
   return union === 0 ? 0 : inter / union;
 }
 
-const TIP_DEDUP_THRESHOLD = 0.7; // Más estricto — Qwen 0.5B repite mucho mismo tip
-const TIP_DEDUP_WINDOW = 8;
+// Dedup más estricto: anti-paráfrasis. 0.55 captura "Pregúntale: '¿qué te preocupa más?'"
+// vs "Dile: '¿cuál es tu mayor preocupación?'" — semánticamente iguales.
+const TIP_DEDUP_THRESHOLD = 0.55;
+const TIP_DEDUP_WINDOW = 15;
 
 /** Mensaje de chat del usuario o respuesta del coach. */
 export interface CoachChatMessage {

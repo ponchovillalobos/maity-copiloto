@@ -933,7 +933,7 @@ pub fn run() {
                     tokio::time::sleep(std::time::Duration::from_secs(4)).await;
                     // Auto-descarga: Qwen 2.5 1.5B (1 GB, ~30 tok/s CPU, calidad JSON OK).
                     // Gemma 3n E2B se descarga lazy en primera evaluación post-meeting.
-                    let target_model = "gemma3:1b";
+                    let target_model = "qwen3:0.6b";
                     let app_data_dir = match app_handle_for_dl.path().app_data_dir() {
                         Ok(d) => d,
                         Err(e) => { log::warn!("[auto-dl] No app_data_dir: {}", e); return; }

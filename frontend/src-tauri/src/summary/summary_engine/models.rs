@@ -65,52 +65,64 @@ pub struct ModelDef {
 /// Add new models here - the system will automatically detect and manage them
 pub fn get_available_models() -> Vec<ModelDef> {
     vec![
-        // **Gemma 3 1B Q8_0** — DEFAULT para tips/chat/summary/eval.
-        // 1 GB, mejor calidad/velocidad balance que Qwen 0.5B (que copiaba schema).
-        // Contexto 32k (vs Qwen 4k) — suficiente para summary chunks completos.
-        // Sampling tuned para JSON estricto (temp 0.3 vs default 1.0).
+        // **Qwen3-0.6B Q4_K_M** — DEFAULT para tips/chat live (CPU only).
+        // 397 MB, ~50 tok/s CPU. Apache 2.0. Soporta `/no_think` (modo no-thinking)
+        // que reduce 30-50% latencia para tips cortos. Vocabulario español OK.
+        // ChatML template estándar.
         ModelDef {
-            name: "gemma3:1b".to_string(),
-            display_name: "Gemma 3 1B (Default)".to_string(),
-            gguf_file: "gemma-3-1b-it-Q8_0.gguf".to_string(),
-            template: "gemma3".to_string(),
-            download_url: "https://meetily.towardsgeneralintelligence.com/models/gemma-3-1b-it-Q8_0.gguf".to_string(),
-            size_mb: 1019,
+            name: "qwen3:0.6b".to_string(),
+            display_name: "Qwen 3 0.6B (Tips ultra-rápido)".to_string(),
+            gguf_file: "Qwen3-0.6B-Q4_K_M.gguf".to_string(),
+            template: "qwen3".to_string(),
+            download_url: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf".to_string(),
+            size_mb: 397,
             context_size: 8192,
-            layer_count: 26,
+            layer_count: 28,
             sampling: SamplingParams {
                 temperature: 0.3,
                 top_k: 20,
                 top_p: 0.7,
-                stop_tokens: vec!["<end_of_turn>".to_string()],
+                stop_tokens: vec!["<|im_end|>".to_string(), "<|endoftext|>".to_string()],
             },
-            description: "Default Maity. 1 GB, balance calidad/velocidad CPU. Sigue JSON.".to_string(),
+            description: "Default Maity tips/chat live. 397 MB Q4_K_M. ~50 tok/s CPU. /no_think rápido.".to_string(),
         },
-        // Gemma 3n E2B: edge model — 3-4x más rápido que Gemma 3 4B en CPU,
-        // misma o mejor calidad para tips cortos. Mantenemos el id "gemma3:4b"
-        // por compat (todo el resto del código lo referencia), pero el GGUF
-        // que se descarga es realmente Gemma 3n Edge 2B.
-        //
-        // Optimización P0 (perf-oracle): context_size reducido de 32768 → 4096.
-        // Para tips de coach (max ~80 tokens out, ~1500 tokens in) el 32k es
-        // overkill y agrega 400-600ms de prefill. Con 4096 cabe holgado
-        // y prefill es ~80x más rápido.
+        // **Qwen3-1.7B Q4_K_M** — modelo de CALIDAD para evaluación post-meeting + chat profundo.
+        // 1.1 GB, ~25-30 tok/s CPU. Apache 2.0. Mejor razonamiento que 0.6B.
         ModelDef {
-            name: "gemma3:4b".to_string(),
-            display_name: "Gemma 3n E2B (Edge — Ultrarrápido)".to_string(),
-            gguf_file: "gemma-3n-E2B-it-Q4_K_M.gguf".to_string(),
-            template: "gemma3".to_string(),
-            download_url: "https://huggingface.co/unsloth/gemma-3n-E2B-it-GGUF/resolve/main/gemma-3n-E2B-it-Q4_K_M.gguf".to_string(),
-            size_mb: 2886,
-            context_size: 4096,
-            layer_count: 30,
+            name: "qwen3:1.7b".to_string(),
+            display_name: "Qwen 3 1.7B (Calidad)".to_string(),
+            gguf_file: "Qwen3-1.7B-Q4_K_M.gguf".to_string(),
+            template: "qwen3".to_string(),
+            download_url: "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf".to_string(),
+            size_mb: 1057,
+            context_size: 8192,
+            layer_count: 28,
             sampling: SamplingParams {
                 temperature: 0.3,
                 top_k: 20,
                 top_p: 0.7,
-                stop_tokens: vec!["<end_of_turn>".to_string()],
+                stop_tokens: vec!["<|im_end|>".to_string(), "<|endoftext|>".to_string()],
             },
-            description: "Modelo Edge ultra rápido. Optimizado para CPU sin GPU. 3-4x más rápido que Gemma 3 4B con calidad similar.".to_string(),
+            description: "Calidad superior. 1.1 GB. Para evaluación post-meeting + chat profundo. Apache 2.0.".to_string(),
+        },
+        // **Granite 4.0-1B Q4_K_M** — long-context para reuniones >40 min.
+        // 1 GB, 128k contexto real (32k operativo en CPU). Apache 2.0. IBM enterprise-grade.
+        ModelDef {
+            name: "granite4:1b".to_string(),
+            display_name: "Granite 4.0 1B (Long-context)".to_string(),
+            gguf_file: "granite-4.0-1b-Q4_K_M.gguf".to_string(),
+            template: "granite".to_string(),
+            download_url: "https://huggingface.co/ibm-granite/granite-4.0-1b-GGUF/resolve/main/granite-4.0-1b-Q4_K_M.gguf".to_string(),
+            size_mb: 977,
+            context_size: 32768,
+            layer_count: 32,
+            sampling: SamplingParams {
+                temperature: 0.3,
+                top_k: 20,
+                top_p: 0.7,
+                stop_tokens: vec!["<|end_of_text|>".to_string(), "<|endoftext|>".to_string()],
+            },
+            description: "Long-context 32k. 1 GB. Resumen acumulativo + reuniones largas. Apache 2.0.".to_string(),
         },
     ]
 }
@@ -166,6 +178,23 @@ pub const QWEN2_TEMPLATE: &str = "\
 <|im_start|>assistant
 ";
 
+/// Qwen 3 chat template (ChatML + /no_think prepend para skip thinking → -30-50% latencia).
+/// El /no_think es interpretado por Qwen3 como instrucción para NO emitir reasoning interno.
+pub const QWEN3_TEMPLATE: &str = "\
+<|im_start|>system
+/no_think
+{system_prompt}<|im_end|>
+<|im_start|>user
+{user_prompt}<|im_end|>
+<|im_start|>assistant
+";
+
+/// Granite 4.0 chat template (instruct-tuned).
+pub const GRANITE_TEMPLATE: &str = "\
+<|start_of_role|>system<|end_of_role|>{system_prompt}<|end_of_text|>
+<|start_of_role|>user<|end_of_role|>{user_prompt}<|end_of_text|>
+<|start_of_role|>assistant<|end_of_role|>";
+
 /// Format a prompt using the specified template
 ///
 /// # Arguments
@@ -183,6 +212,8 @@ pub fn format_prompt(
     let template = match template_name {
         "gemma3" => GEMMA3_TEMPLATE,
         "qwen2" => QWEN2_TEMPLATE,
+        "qwen3" => QWEN3_TEMPLATE,
+        "granite" => GRANITE_TEMPLATE,
         _ => return Err(anyhow!("Unknown template: {}", template_name)),
     };
 

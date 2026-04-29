@@ -3,17 +3,12 @@
 //! Solo contiene el prompt V3 LITE optimizado para latencia ultra-baja.
 //! Los prompts V2 y V3 completo fueron eliminados (código muerto).
 
-/// Modelo Ollama por defecto para tips + chat.
-// Tips + chat usan Qwen 2.5 1.5B Q4 (1 GB, ~30 tok/s CPU).
-// Antes probamos 0.5B pero copiaba el JSON schema literal en lugar de rellenar.
-// 1.5B sí sigue instrucciones JSON correctamente.
-// Evaluación post-meeting (calidad superior) sigue usando gemma3:4b.
-pub const DEFAULT_MODEL: &str = "gemma3:1b";
+/// Modelo DEFAULT para tips + chat live (CPU-only, sin GPU).
+/// Qwen3-0.6B Q4_K_M: 397 MB, ~50 tok/s CPU, soporta /no_think para latencia <2s.
+pub const DEFAULT_MODEL: &str = "qwen3:0.6b";
 
-/// Modelo secundario para detección rápida de tipo de reunión.
-/// Antes era gemma3:4b (2.8 GB) — cambiado a gemma3:1b (380 MB) para
-/// evitar cargar 2 modelos en RAM. Detección de tipo es 1 palabra, calidad sobra.
-pub const SECONDARY_MODEL: &str = "gemma3:1b";
+/// Modelo secundario para detección rápida de tipo de reunión (comparte cache con default).
+pub const SECONDARY_MODEL: &str = "qwen3:0.6b";
 
 /// Tipos de reunión soportados por el copiloto.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]

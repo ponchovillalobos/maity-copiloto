@@ -486,12 +486,22 @@ async fn check_ollama_running() -> bool {
         .unwrap_or(false)
 }
 
-/// Parsea la salida del LLM. Tolerante a markdown wrapping y ruido alrededor del JSON.
-/// Strip ```json/``` fences (Qwen 0.5B y otros modelos pequeños envuelven JSON en markdown).
+/// Parsea la salida del LLM. Tolerante a markdown wrapping, thinking tags y ruido alrededor del JSON.
 fn parse_llm_output(raw: &str) -> Result<RawSuggestion, String> {
     let mut cleaned = raw.trim().to_string();
 
+    // Strip <think>...</think> tags de Qwen3 (modo thinking residual).
+    while let Some(start) = cleaned.find("<think>") {
+        if let Some(end_rel) = cleaned[start..].find("</think>") {
+            let end = start + end_rel + "</think>".len();
+            cleaned.replace_range(start..end, "");
+        } else {
+            break;
+        }
+    }
+
     // Strip markdown code fences si existen.
+    let mut cleaned = cleaned.trim().to_string();
     if let Some(stripped) = cleaned.strip_prefix("```json") {
         cleaned = stripped.trim_start().to_string();
     } else if let Some(stripped) = cleaned.strip_prefix("```") {

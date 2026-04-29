@@ -499,7 +499,7 @@ pub struct PostMeetingEvaluationResult {
 // Default fallback de evaluación: si Gemma 3n E2B (4.5B) no está descargado,
 // usamos Qwen 0.5B que SÍ está auto-descargado al inicio (380 MB).
 // Calidad inferior pero garantiza que evaluación NO falle por modelo faltante.
-pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:1b";
+pub const DEFAULT_EVALUATION_MODEL: &str = "qwen3:1.7b";
 
 /// Umbral de chars del transcript para activar chunking previo. Si el
 /// transcript supera este tamaño, primero se resume por bloques antes de

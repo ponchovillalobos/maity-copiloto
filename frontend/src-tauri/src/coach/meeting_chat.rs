@@ -19,7 +19,7 @@ use crate::summary::llm_client::{generate_summary, LLMProvider};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
-const DEFAULT_CHAT_MODEL: &str = "gemma3:1b";
+const DEFAULT_CHAT_MODEL: &str = "qwen3:1.7b";
 const DEFAULT_TOP_K: usize = 5;
 
 const MEETING_CHAT_SYSTEM_PROMPT: &str = r#"Eres un asistente que responde preguntas sobre una reunión específica que ya ocurrió. Tienes acceso a fragmentos relevantes del transcript con timestamps.
