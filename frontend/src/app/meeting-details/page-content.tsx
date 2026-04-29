@@ -76,7 +76,14 @@ export default function PageContent({
   const [customPrompt, setCustomPrompt] = useState<string>('');
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
-  const [rightTab, setRightTab] = useState<'summary' | 'evaluation' | 'chat' | 'prospecting'>('summary');
+  // Si entró desde stop de grabación (?source=recording) abrir directo en evaluación.
+  const [rightTab, setRightTab] = useState<'summary' | 'evaluation' | 'chat' | 'prospecting'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('source') === 'recording') return 'evaluation';
+    }
+    return 'summary';
+  });
 
   // Ref to store the modal open function from SummaryGeneratorButtonGroup
   const openModelSettingsRef = useRef<(() => void) | null>(null);

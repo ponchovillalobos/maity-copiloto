@@ -65,23 +65,26 @@ pub struct ModelDef {
 /// Add new models here - the system will automatically detect and manage them
 pub fn get_available_models() -> Vec<ModelDef> {
     vec![
-        // Gemma 3 1B - Fast tier
+        // **Gemma 3 1B Q8_0** — DEFAULT para tips/chat/summary/eval.
+        // 1 GB, mejor calidad/velocidad balance que Qwen 0.5B (que copiaba schema).
+        // Contexto 32k (vs Qwen 4k) — suficiente para summary chunks completos.
+        // Sampling tuned para JSON estricto (temp 0.3 vs default 1.0).
         ModelDef {
             name: "gemma3:1b".to_string(),
-            display_name: "Gemma 3 1B (Fast)".to_string(),
+            display_name: "Gemma 3 1B (Default)".to_string(),
             gguf_file: "gemma-3-1b-it-Q8_0.gguf".to_string(),
             template: "gemma3".to_string(),
             download_url: "https://meetily.towardsgeneralintelligence.com/models/gemma-3-1b-it-Q8_0.gguf".to_string(),
             size_mb: 1019,
-            context_size: 32768, 
-            layer_count: 26,     
+            context_size: 8192,
+            layer_count: 26,
             sampling: SamplingParams {
-                temperature: 1.0,
-                top_k: 64,
-                top_p: 0.95,
+                temperature: 0.3,
+                top_k: 20,
+                top_p: 0.7,
                 stop_tokens: vec!["<end_of_turn>".to_string()],
             },
-            description: "Fastest model. Runs on any hardware with ~1GB RAM. Good for quick summaries.".to_string(),
+            description: "Default Maity. 1 GB, balance calidad/velocidad CPU. Sigue JSON.".to_string(),
         },
         // Gemma 3n E2B: edge model — 3-4x más rápido que Gemma 3 4B en CPU,
         // misma o mejor calidad para tips cortos. Mantenemos el id "gemma3:4b"
@@ -154,6 +157,15 @@ pub const GEMMA3_TEMPLATE: &str = "\
 <start_of_turn>model
 ";
 
+/// Qwen 2.5 chat template (ChatML-based)
+pub const QWEN2_TEMPLATE: &str = "\
+<|im_start|>system
+{system_prompt}<|im_end|>
+<|im_start|>user
+{user_prompt}<|im_end|>
+<|im_start|>assistant
+";
+
 /// Format a prompt using the specified template
 ///
 /// # Arguments
@@ -170,6 +182,7 @@ pub fn format_prompt(
 ) -> Result<String> {
     let template = match template_name {
         "gemma3" => GEMMA3_TEMPLATE,
+        "qwen2" => QWEN2_TEMPLATE,
         _ => return Err(anyhow!("Unknown template: {}", template_name)),
     };
 

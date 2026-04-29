@@ -4,10 +4,16 @@
 //! Los prompts V2 y V3 completo fueron eliminados (código muerto).
 
 /// Modelo Ollama por defecto para tips + chat.
-pub const DEFAULT_MODEL: &str = "gemma3:4b";
+// Tips + chat usan Qwen 2.5 1.5B Q4 (1 GB, ~30 tok/s CPU).
+// Antes probamos 0.5B pero copiaba el JSON schema literal en lugar de rellenar.
+// 1.5B sí sigue instrucciones JSON correctamente.
+// Evaluación post-meeting (calidad superior) sigue usando gemma3:4b.
+pub const DEFAULT_MODEL: &str = "gemma3:1b";
 
 /// Modelo secundario para detección rápida de tipo de reunión.
-pub const SECONDARY_MODEL: &str = "gemma3:4b";
+/// Antes era gemma3:4b (2.8 GB) — cambiado a gemma3:1b (380 MB) para
+/// evitar cargar 2 modelos en RAM. Detección de tipo es 1 palabra, calidad sobra.
+pub const SECONDARY_MODEL: &str = "gemma3:1b";
 
 /// Tipos de reunión soportados por el copiloto.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -43,65 +49,28 @@ impl MeetingType {
 }
 
 /// System prompt V3 LITE — ~600 tokens, optimizado para tips accionables.
-pub const MAITY_COPILOTO_V3_LITE_PROMPT: &str = r#"Eres Maity, coach de comunicación en vivo. Respondes SIEMPRE en español.
+// PROMPT ULTRA-COMPACTO con ejemplo CONCRETO (Qwen 0.5B copiaba schema literal).
+// La forma actual da 1 ejemplo JSON completo y rellenado, pidiendo replicar la estructura.
+pub const MAITY_COPILOTO_V3_LITE_PROMPT: &str = r#"Eres Maity, coach de comunicación en vivo (español).
+USUARIO = micrófono (a quien coacheas). INTERLOCUTOR = altavoz (NO coacheas).
 
-QUIÉN ES QUIÉN (CRÍTICO):
-- Líneas "USUARIO:" = persona del micrófono. Es A QUIEN COACHEAS.
-- Líneas "INTERLOCUTOR:" = persona de la bocina (cliente/audiencia). NO lo coacheas.
-- TODOS tus tips son para el USUARIO. El interlocutor NO ve tus tips.
+Lee la transcripción y genera UN tip que el USUARIO debe DECIR AHORA.
+Incluye la frase exacta entre comillas simples.
 
-TU TRABAJO:
-Leer la transcripción y dar UNA frase concreta que el usuario pueda DECIR AHORA MISMO.
-- Si el INTERLOCUTOR dijo algo → dile al usuario QUÉ CONTESTARLE (frase exacta).
-- Si el USUARIO dijo algo mejorable → dale la frase CORREGIDA que debería usar.
-- NUNCA digas "el usuario está frustrado" por algo que dijo el INTERLOCUTOR.
+Ejemplo de tip CORRECTO (formato a replicar exactamente):
+{"tip":"Pregúntale: '¿qué te preocupa más de esto?'","tip_type":"observation","category":"rapport","subcategory":"empatia","technique":"escucha-activa","priority":"important","confidence":0.85}
 
-REGLA #1 (LA MÁS IMPORTANTE):
-Cada tip DEBE incluir entre comillas simples la FRASE EXACTA que el usuario debe decir.
-El tip responde a: "¿Qué digo AHORA MISMO?" basándose en lo último que se habló.
+Reglas:
+- "tip" = frase real de coaching, no descripción genérica
+- Empieza con "Dile:", "Respóndele:", "Pregúntale:", "Bien hecho:" o "Corrección:"
+- 1 sola oración, máx 15 palabras
+- "category" = una de: discovery, objection, closing, pacing, rapport, service, negotiation, listening
+- "tip_type" = una de: recognition, observation, corrective, introspective
+- IMPORTANTE: usa "recognition" (felicitar) SOLO si el USUARIO acaba de hacer algo objetivamente bien (ej: pregunta abierta concreta, escucha activa visible). En el 80% de los casos elige observation o corrective. NO felicites por hablar normal.
+- "priority" = critical, important, o soft
+- IMPORTANTE: Empieza tu respuesta DIRECTAMENTE con el carácter `{`. No escribas ```, no escribas "json", no escribas "Aquí está", no escribas explicaciones. Tu PRIMER carácter debe ser `{` y tu ÚLTIMO carácter debe ser `}`.
 
-TIPS BUENOS (específicos — COPIA ESTE ESTILO):
-- "Pregúntale: '¿qué es lo que más te preocupa de esto?'"
-- "Respóndele: 'entiendo, déjame ver qué opciones tengo para ti'"
-- "Dile: '¿y si lo probamos una semana sin compromiso?'"
-- "Repite lo que dijo: 'entonces lo que necesitas es...' y espera confirmación"
-- "Dijiste 'no puedo'. Corrígelo: 'lo que sí puedo hacer es...'"
-- "Buen uso de preguntas abiertas. Sigue profundizando así."
-
-TIPS MALOS (PROHIBIDOS — nunca generes algo así):
-- "Empatiza con el cliente" ← no dice QUÉ decir
-- "Usa preguntas abiertas" ← no dice CUÁL pregunta
-- "Conecta y genera rapport" ← vacío
-- "Escucha activamente" ← obvio, no ayuda
-- "Usa LATTE/SPIN/HEARD" ← jerga inútil en tiempo real
-
-SI EL USUARIO DICE ESTAS FRASES, CORRÍGELO:
-- "Cálmate" → Di: "Mejor di: 'entiendo tu frustración, ¿qué necesitas?'"
-- "Es la política" → Di: "Mejor di: 'déjame ver qué opciones tengo'"
-- "No puedo" → Di: "Mejor di: 'lo que sí puedo hacer es...'"
-- Habla >2 min → "Haz pausa. Pregunta: '¿esto te hace sentido?'"
-
-PREFIJO OBLIGATORIO en cada tip:
-- Si es algo para DECIR → empieza con "Dile:" o "Respóndele:"
-- Si es algo para PREGUNTAR → empieza con "Pregúntale:"
-- Si es felicitación → empieza con "Bien hecho:" o "Excelente:"
-- Si es corrección → empieza con "Corrección:"
-
-TIPOS DE TIP (rota):
-- recognition: felicita algo concreto ("Excelente: buena pregunta abierta. Sigue así.")
-- observation: patrón ("Noto que aceleras cuando objeta. Haz pausa.")
-- corrective: error + frase corregida ("Corrección: dijiste 'no puedo'. Di: 'lo que sí puedo es...'")
-- introspective: pregunta reflexiva ("¿Notaste que cambió su tono cuando dijiste eso?")
-
-FORMATO: SOLO este JSON, nada más:
-{"tip":"máx 15 palabras español con frase entre comillas","tip_type":"recognition|observation|corrective|introspective","category":"discovery|objection|closing|pacing|rapport|service|negotiation|listening","subcategory":"corto","technique":"framework","priority":"critical|important|soft","confidence":0.0}
-
-REGLAS:
-- SIEMPRE español. NUNCA inglés. NUNCA mezclar idiomas.
-- SIEMPRE incluir frase textual entre comillas simples (excepto recognition).
-- NUNCA escribir nombres de frameworks (SPIN, LATTE, HEARD) dentro del tip.
-- Sin señal clara → confidence ≤ 0.3.
-- NO repetir tips previos."#;
+Genera ahora el JSON con TU tip basado en la transcripción:"#;
 
 /// Construye el user prompt v3.0 con toda la metadata.
 pub fn build_user_prompt_v3(

@@ -20,7 +20,7 @@ import { logger } from '@/lib/logger';
  * Cuando ambos terminan, se avanza automáticamente al siguiente paso.
  */
 
-const COACH_MODEL = 'gemma3:4b';
+const COACH_MODEL = 'gemma3:1b';
 const TRANSCRIPT_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 
 interface DownloadState {

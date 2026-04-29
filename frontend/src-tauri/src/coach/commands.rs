@@ -194,8 +194,18 @@ pub async fn coach_suggest(
     // Prioridad de contexto:
     // 1. window del frontend (en vivo, más reciente que DB)
     // 2. DB via meeting_id (reuniones guardadas)
-    let effective_window = if !window.trim().is_empty() {
+    // Optimización P0: cap window a 600 chars (~150 tokens) para tip <2s en CPU.
+    // Mantenemos solo el tail (últimas líneas) — más relevante para coaching live.
+    const WINDOW_CHAR_CAP: usize = 600;
+    let trimmed_window = if window.chars().count() > WINDOW_CHAR_CAP {
+        let total: Vec<char> = window.chars().collect();
+        let start = total.len().saturating_sub(WINDOW_CHAR_CAP);
+        total[start..].iter().collect::<String>()
+    } else {
         window.clone()
+    };
+    let effective_window = if !trimmed_window.trim().is_empty() {
+        trimmed_window
     } else if let Some(mid) = validated_meeting_id.as_ref() {
         let state = app.try_state::<crate::state::AppState>();
         if let Some(app_state) = state {
@@ -283,11 +293,10 @@ pub async fn coach_suggest(
                 &user_prompt_clone,
                 None,
                 None,
-                // Optimización P0 (perf-oracle): tips ultra-cortos.
-                // max_tokens 200→80 (suficiente para 1-2 oraciones),
-                // temp 0.5→0.3 (determinístico), top_p 0.9→0.7
-                // (menos sampling waste). 30-50% menos latencia.
-                Some(80),
+                // P0 perf: tips ultra-cortos para <2s en CPU.
+                // max_tokens 80→50 (1 oración + JSON wrapper basta).
+                // 50 tokens / 14 tok/s decode = 3.5s en lugar de 5.7s.
+                Some(50),
                 Some(0.3),
                 Some(0.7),
                 Some(&data_dir_clone),
@@ -324,7 +333,17 @@ pub async fn coach_suggest(
         &model,
     );
 
-    let parsed = parse_llm_output(&raw)?;
+    log::info!("[coach_suggest] raw LLM output ({} chars): {}", raw.len(), raw.chars().take(400).collect::<String>());
+    let parsed = match parse_llm_output(&raw) {
+        Ok(p) => {
+            log::info!("[coach_suggest] parsed OK — tip='{}', confidence={}", p.tip, p.confidence);
+            p
+        }
+        Err(e) => {
+            log::warn!("[coach_suggest] parse FAILED: {}", e);
+            return Err(e);
+        }
+    };
 
     // Derivar priority si el LLM no la provee, basado en confidence.
     let priority = parsed.priority.unwrap_or_else(|| {
@@ -468,8 +487,20 @@ async fn check_ollama_running() -> bool {
 }
 
 /// Parsea la salida del LLM. Tolerante a markdown wrapping y ruido alrededor del JSON.
+/// Strip ```json/``` fences (Qwen 0.5B y otros modelos pequeños envuelven JSON en markdown).
 fn parse_llm_output(raw: &str) -> Result<RawSuggestion, String> {
-    let cleaned = raw.trim();
+    let mut cleaned = raw.trim().to_string();
+
+    // Strip markdown code fences si existen.
+    if let Some(stripped) = cleaned.strip_prefix("```json") {
+        cleaned = stripped.trim_start().to_string();
+    } else if let Some(stripped) = cleaned.strip_prefix("```") {
+        cleaned = stripped.trim_start().to_string();
+    }
+    if let Some(stripped) = cleaned.strip_suffix("```") {
+        cleaned = stripped.trim_end().to_string();
+    }
+    let cleaned = cleaned.trim();
 
     // Intento directo
     if let Ok(parsed) = serde_json::from_str::<RawSuggestion>(cleaned) {

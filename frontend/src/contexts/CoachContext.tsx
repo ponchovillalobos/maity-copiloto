@@ -120,8 +120,8 @@ function tipSimilarity(a: string, b: string): number {
   return union === 0 ? 0 : inter / union;
 }
 
-const TIP_DEDUP_THRESHOLD = 0.85;
-const TIP_DEDUP_WINDOW = 5;
+const TIP_DEDUP_THRESHOLD = 0.7; // Más estricto — Qwen 0.5B repite mucho mismo tip
+const TIP_DEDUP_WINDOW = 8;
 
 /** Mensaje de chat del usuario o respuesta del coach. */
 export interface CoachChatMessage {
@@ -253,7 +253,7 @@ const CoachContext = createContext<CoachContextType | undefined>(undefined);
 // Tips persistentes durante toda la sesión. Se limpian al iniciar nueva grabación.
 const MAX_SUGGESTIONS = 100;
 // v2.0: cooldown estricto entre tips (no más timer cada 20s).
-const TIP_COOLDOWN_MS = 15_000; // 15s entre tips — ~4/min máx si hay señal
+const TIP_COOLDOWN_MS = 35_000; // 35s entre tips (user feedback: 30-40s ideal)
 const FIRST_MINUTES_COOLDOWN_MS = 30_000; // 30s: permite tips tempranos
 const POST_PRICE_SUPPRESS_MS = 8_000; // 8s sin tips después de precio
 const MIN_CONFIDENCE = 0.3; // era 0.5 — gemma4 es conservador, 0.3 captura más tips útiles
@@ -408,10 +408,17 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       logger.debug('[Coach] Skip: ya hay request en vuelo');
       return;
     }
+    const isManual = triggerSignalParam === 'manual_request';
     let window = buildWindow();
-    if (!window || window.length < 30) {
-      logger.debug('[Coach] Skip: ventana muy corta');
-      return;
+    // Para botón manual: bypass del check "ventana muy corta" — usuario quiere tip
+    // aunque casi no haya hablado nadie todavía.
+    if (!window || window.length < (isManual ? 1 : 30)) {
+      if (isManual) {
+        window = '[Solicitud manual: usuario pidió un tip. Genera un consejo general útil para iniciar/avanzar la conversación.]';
+      } else {
+        logger.debug('[Coach] Skip: ventana muy corta');
+        return;
+      }
     }
     // Agregar contexto de calidad de servicio + modo conversacional al window
     // para que el LLM adapte el tip al escenario real.
@@ -425,22 +432,23 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       window = `[Nota: Calidad de servicio por debajo del promedio (${currentScore}/100). Sugerir mejoras de comunicacion.]\n${window}`;
     }
 
-    // Cooldowns estrictos v2.0
+    // Cooldowns estrictos v2.0 — bypass total para manual_request.
     const now = Date.now();
-    if (now < suppressUntilRef.current) {
-      logger.debug(`[Coach] Skip: suppress activo hasta ${new Date(suppressUntilRef.current).toISOString()}`);
-      return;
-    }
-    if (now - lastTipTimestampRef.current < TIP_COOLDOWN_MS) {
-      logger.debug(`[Coach] Skip: cooldown 45s activo`);
-      return;
-    }
-    // Primeros 2 min: máx 1 tip
-    if (sessionStartRef.current) {
-      const sessionAge = now - sessionStartRef.current;
-      if (sessionAge < FIRST_MINUTES_COOLDOWN_MS && suggestionsRef.current.length >= 1) {
-        logger.debug('[Coach] Skip: primeros 2 min, ya hay 1 tip');
+    if (!isManual) {
+      if (now < suppressUntilRef.current) {
+        logger.debug(`[Coach] Skip: suppress activo hasta ${new Date(suppressUntilRef.current).toISOString()}`);
         return;
+      }
+      if (now - lastTipTimestampRef.current < TIP_COOLDOWN_MS) {
+        logger.debug(`[Coach] Skip: cooldown 45s activo`);
+        return;
+      }
+      if (sessionStartRef.current) {
+        const sessionAge = now - sessionStartRef.current;
+        if (sessionAge < FIRST_MINUTES_COOLDOWN_MS && suggestionsRef.current.length >= 1) {
+          logger.debug('[Coach] Skip: primeros 2 min, ya hay 1 tip');
+          return;
+        }
       }
     }
     // Modo audience suprime los disparos heurísticos pero NO el LLM (gemma decide).
@@ -542,7 +550,23 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     setLatestSuggestion(null);
     lastTipTimestampRef.current = 0;
     suppressUntilRef.current = 0;
+    // Notifica a la burbuja flotante para que también limpie su lista de tips.
+    void broadcastEvent('coach-tips-clear', {});
   }, []);
+
+  // Auto-limpia tips cuando para la grabación (transición isRecording true → false).
+  const wasRecordingRef = useRef(isRecording);
+  useEffect(() => {
+    if (wasRecordingRef.current && !isRecording) {
+      logger.info('[Coach] Grabación detenida — limpiando tips de burbuja');
+      setSuggestions([]);
+      setLatestSuggestion(null);
+      lastTipTimestampRef.current = 0;
+      suppressUntilRef.current = 0;
+      void broadcastEvent('coach-tips-clear', {});
+    }
+    wasRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   /**
    * Envía un mensaje al coach (chat bidireccional).
@@ -695,6 +719,28 @@ export function CoachProvider({ children }: { children: ReactNode }) {
    *
    * Cooldown de 45s + suppress post-precio de 15s controlados en `triggerNow`.
    */
+  // Listener "Pedir tip ahora" SIEMPRE activo (independiente de grabación).
+  // La burbuja flotante emite `coach-request-tip` y el coach genera tip al instante.
+  useEffect(() => {
+    if (!enabled) return;
+    let unlistenManual: (() => void) | null = null;
+    let cancelled = false;
+    (async () => {
+      unlistenManual = await listen<{ source?: string }>('coach-request-tip', async () => {
+        if (cancelled) return;
+        logger.info('[Coach] Manual tip request received');
+        // Reset cooldown para que NO bloquee disparo manual.
+        lastTipTimestampRef.current = 0;
+        suppressUntilRef.current = 0;
+        await triggerNow(undefined, 'manual_request');
+      });
+    })();
+    return () => {
+      cancelled = true;
+      if (unlistenManual) unlistenManual();
+    };
+  }, [enabled, triggerNow]);
+
   useEffect(() => {
     if (!enabled || !isRecording) return;
     let unlisten: (() => void) | null = null;

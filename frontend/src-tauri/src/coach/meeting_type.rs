@@ -190,22 +190,30 @@ pub async fn detect_meeting_type(
     let user_prompt = build_meeting_type_detector_prompt(transcript);
 
     let start = std::time::Instant::now();
-    let result = generate_summary(
-        &client,
-        &LLMProvider::Ollama,
-        SECONDARY_MODEL,
-        "",
-        MEETING_TYPE_DETECTOR_PROMPT,
-        &user_prompt,
-        None,
-        None,
-        Some(10), // solo una palabra
-        Some(0.1), // determinístico
-        Some(1.0),
-        None,
-        None,
-    )
-    .await;
+    // Necesita app_data_dir para BuiltInAI — pero esta función es standalone, no recibe app.
+    // Usamos detección heurística por defecto si no podemos resolver dir.
+    let result: Result<String, String> = match dirs::data_dir() {
+        Some(d) => {
+            let dir = d.join("com.maity.ai");
+            generate_summary(
+                &client,
+                &LLMProvider::BuiltInAI,
+                crate::coach::prompt::DEFAULT_MODEL,
+                "",
+                MEETING_TYPE_DETECTOR_PROMPT,
+                &user_prompt,
+                None,
+                None,
+                Some(10),
+                Some(0.1),
+                Some(1.0),
+                Some(&dir),
+                None,
+            )
+            .await
+        }
+        None => Err("No app_data_dir, defaulting".to_string()),
+    };
 
     match result {
         Ok(raw) => {

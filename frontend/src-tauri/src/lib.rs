@@ -909,18 +909,16 @@ pub fn run() {
                     }
                 };
 
-                // Initialize ModelManager only if using builtin-ai
-                if summary_provider == "builtin-ai" {
-                    log::info!("Initializing Summary ModelManager (local provider configured)");
-                    match summary::summary_engine::commands::init_model_manager_at_startup(&app_handle_for_config).await {
-                        Ok(_) => log::info!("ModelManager initialized successfully"),
-                        Err(e) => {
-                            log::warn!("Failed to initialize ModelManager: {}", e);
-                            log::warn!("ModelManager will be lazy-initialized on first use");
-                        }
+                // Maity es 100% local — SIEMPRE inicializar ModelManager.
+                // Antes solo si provider=builtin-ai pero DB legacy (ollama) bloqueaba.
+                let _ = summary_provider; // ignored, always builtin
+                log::info!("Initializing Summary ModelManager (always — Maity es local)");
+                match summary::summary_engine::commands::init_model_manager_at_startup(&app_handle_for_config).await {
+                    Ok(_) => log::info!("ModelManager initialized successfully"),
+                    Err(e) => {
+                        log::warn!("Failed to initialize ModelManager: {}", e);
+                        log::warn!("ModelManager will be lazy-initialized on first use");
                     }
-                } else {
-                    log::info!("Skipping Summary ModelManager - using cloud provider: {}", summary_provider);
                 }
 
                 // Auto-descarga del modelo Gemma 3 4B GGUF si no está presente.
@@ -933,7 +931,9 @@ pub fn run() {
                     use tauri::Manager;
                     // Esperar 4s para que la UI termine de montar antes de iniciar la descarga.
                     tokio::time::sleep(std::time::Duration::from_secs(4)).await;
-                    let target_model = "gemma3:4b";
+                    // Auto-descarga: Qwen 2.5 1.5B (1 GB, ~30 tok/s CPU, calidad JSON OK).
+                    // Gemma 3n E2B se descarga lazy en primera evaluación post-meeting.
+                    let target_model = "gemma3:1b";
                     let app_data_dir = match app_handle_for_dl.path().app_data_dir() {
                         Ok(d) => d,
                         Err(e) => { log::warn!("[auto-dl] No app_data_dir: {}", e); return; }

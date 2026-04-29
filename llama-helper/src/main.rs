@@ -554,17 +554,22 @@ impl ModelState {
             let max_stop_len = stop_tokens.iter().map(|s| s.len()).max().unwrap_or(0);
             let mut hit_stop = false;
             let mut emit_text = token_text.clone();
+            // Stop-token detection en buffered_tail (ya incluye token_text).
+            // Si el stop arranca DENTRO de token_text actual, emitimos solo el
+            // prefijo seguro previo al stop. Si arranca antes (en tokens previos
+            // ya emitidos) simplemente cortamos sin re-emitir.
             for stop_token in &stop_tokens {
-                if buffered_tail.contains(stop_token) {
-                    // Found stop sequence — strip from emission and bail out.
-                    let cut = buffered_tail.find(stop_token).unwrap();
-                    let stripped_tail: String = buffered_tail.chars().take(cut).collect();
-                    // Calculate how much of the current token's text actually got emitted.
-                    let already_emitted_in_tail =
-                        buffered_tail.len() - emit_text.len();
-                    if cut > already_emitted_in_tail {
-                        let to_emit = &stripped_tail[already_emitted_in_tail..];
-                        emit_text = to_emit.to_string();
+                if let Some(cut) = buffered_tail.find(stop_token) {
+                    let prev_tail_len = buffered_tail.len() - token_text.len();
+                    if cut >= prev_tail_len {
+                        // Cantidad de bytes del token_text actual ANTES del stop.
+                        let bytes_before_stop = cut - prev_tail_len;
+                        // Avanza al char-boundary <= bytes_before_stop (UTF-8 safe).
+                        let safe_end = (0..=bytes_before_stop)
+                            .rev()
+                            .find(|i| token_text.is_char_boundary(*i))
+                            .unwrap_or(0);
+                        emit_text = token_text[..safe_end].to_string();
                     } else {
                         emit_text.clear();
                     }
@@ -578,10 +583,16 @@ impl ModelState {
                 emit_token(&emit_text)?;
             }
 
-            // Trim tail buffer to bounded size.
-            if buffered_tail.len() > max_stop_len * 2 + 64 {
-                let drain = buffered_tail.len() - (max_stop_len + 32);
-                buffered_tail.drain(..drain);
+            // Trim tail buffer to bounded size — UTF-8 safe (drain on char boundary).
+            let bound = max_stop_len.saturating_mul(2).saturating_add(64);
+            if buffered_tail.len() > bound {
+                let target_len = max_stop_len.saturating_add(32);
+                let drain_bytes = buffered_tail.len().saturating_sub(target_len);
+                // Avanza hasta el siguiente char boundary >= drain_bytes.
+                let safe_split = (drain_bytes..=buffered_tail.len())
+                    .find(|i| buffered_tail.is_char_boundary(*i))
+                    .unwrap_or(buffered_tail.len());
+                buffered_tail.drain(..safe_split);
             }
 
             if hit_stop {

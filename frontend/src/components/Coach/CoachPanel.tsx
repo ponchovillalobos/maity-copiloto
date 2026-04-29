@@ -280,7 +280,9 @@ export function CoachPanel() {
     meetingTypeAutoDetected,
   } = useCoach();
 
-  const [tab, setTab] = useState<CoachTab>('tips');
+  // Tab default: 'chat' — los tips ahora viven SOLO en la burbuja flotante
+  // para evitar duplicación visual y reducir overhead de renderizado.
+  const [tab, setTab] = useState<CoachTab>('chat');
   const [chatInput, setChatInput] = useState('');
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const { isCoachWorking, coachThinking } = useProgressEvents();
@@ -373,38 +375,11 @@ export function CoachPanel() {
         )}
       </div>
 
-      {/* Tabs */}
+      {/* Panel principal SOLO chat. Tips + Preguntas viven en la burbuja flotante. */}
       <div className="flex border-b border-gray-800">
-        <button
-          onClick={() => setTab('tips')}
-          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
-            tab === 'tips'
-              ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
-              : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          <Lightbulb className="w-3 h-3" /> Tips ({suggestions.length})
-        </button>
-        <button
-          onClick={() => setTab('chat')}
-          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
-            tab === 'chat'
-              ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
-              : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          <MessageSquare className="w-3 h-3" /> Chat ({chatMessages.length})
-        </button>
-        <button
-          onClick={() => setTab('questions')}
-          className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium transition btn-press ${
-            tab === 'questions'
-              ? 'text-blue-200 border-b-2 border-blue-400 bg-blue-500/10'
-              : 'text-gray-500 hover:text-gray-300'
-          }`}
-        >
-          <HelpCircle className="w-3 h-3" /> Preguntas ({metrics.questionHistory?.length || 0})
-        </button>
+        <div className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs font-medium text-blue-200 border-b-2 border-blue-400 bg-blue-500/10">
+          <MessageSquare className="w-3 h-3" /> Chat con la reunión ({chatMessages.length})
+        </div>
       </div>
 
       {/* Status banner */}

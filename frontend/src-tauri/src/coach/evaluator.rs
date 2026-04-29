@@ -219,19 +219,22 @@ pub async fn coach_evaluate_communication(
 
     let start = std::time::Instant::now();
 
+    let app_data_dir = dirs::data_dir()
+        .map(|d| d.join("com.maity.ai"))
+        .ok_or_else(|| "No se pudo resolver app_data_dir".to_string())?;
     let raw = generate_summary(
         &client,
-        &LLMProvider::Ollama,
+        &LLMProvider::BuiltInAI,
         &model_to_use,
         "",
         EVALUATION_SYSTEM_PROMPT,
         &user_prompt,
         None,
         None,
-        Some(800), // suficiente para feedback completo
-        Some(0.3), // baja temperatura: queremos análisis consistente
+        Some(800),
+        Some(0.3),
         Some(0.95),
-        None,
+        Some(&app_data_dir),
         None,
     )
     .await
@@ -493,7 +496,10 @@ pub struct PostMeetingEvaluationResult {
 /// con ~3.5GB RAM. Modelo embebido (descarga via wizard, NO requiere Ollama).
 /// Contexto efectivo 32k tokens — soporta el system prompt v5 (~5k) + transcript
 /// largo + JSON de salida (~3k tokens) sin truncar.
-pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:4b";
+// Default fallback de evaluación: si Gemma 3n E2B (4.5B) no está descargado,
+// usamos Qwen 0.5B que SÍ está auto-descargado al inicio (380 MB).
+// Calidad inferior pero garantiza que evaluación NO falle por modelo faltante.
+pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:1b";
 
 /// Umbral de chars del transcript para activar chunking previo. Si el
 /// transcript supera este tamaño, primero se resume por bloques antes de

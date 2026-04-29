@@ -91,12 +91,31 @@ impl SummaryService {
         // Register cancellation token for this meeting
         let cancellation_token = Self::register_cancellation_token(&meeting_id);
 
-        // Parse provider
+        // Parse provider — Maity es 100% local: cualquier provider que no sea
+        // builtin-ai se redirige a BuiltInAI (legacy DB con "ollama" todavía).
         let provider = match LLMProvider::from_str(&model_provider) {
+            Ok(LLMProvider::Ollama) => {
+                info!("Provider 'ollama' legacy redirigido a BuiltInAI (CPU local)");
+                LLMProvider::BuiltInAI
+            }
             Ok(p) => p,
             Err(e) => {
                 Self::update_process_failed(&pool, &meeting_id, &e).await;
                 return;
+            }
+        };
+
+        // Override de modelo: si DB devuelve modelo legacy (gemma4:latest, mistral, etc.)
+        // que NO existe en el catálogo BuiltInAI, usar default Qwen 0.5B.
+        let model_name = match crate::summary::summary_engine::models::get_model_by_name(&model_name) {
+            Some(_) => model_name,
+            None => {
+                let default = crate::summary::summary_engine::models::get_default_model();
+                info!(
+                    "Modelo legacy '{}' no existe en catálogo BuiltInAI — usando default '{}'",
+                    model_name, default.name
+                );
+                default.name
             }
         };
 

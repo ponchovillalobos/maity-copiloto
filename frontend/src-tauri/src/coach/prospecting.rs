@@ -126,9 +126,12 @@ pub async fn generate_prospecting_snapshot(
     let client = &*SHARED_CLIENT;
     let start = std::time::Instant::now();
 
+    let app_data_dir = dirs::data_dir()
+        .map(|d| d.join("com.maity.ai"))
+        .ok_or_else(|| "No se pudo resolver app_data_dir".to_string())?;
     let raw = generate_summary(
         client,
-        &LLMProvider::Ollama,
+        &LLMProvider::BuiltInAI,
         &model,
         "",
         PROSPECTING_SYSTEM_PROMPT,
@@ -138,7 +141,7 @@ pub async fn generate_prospecting_snapshot(
         Some(2048),
         Some(0.3),
         Some(0.9),
-        None,
+        Some(&app_data_dir),
         None,
     )
     .await

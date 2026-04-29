@@ -20,16 +20,9 @@ use tauri::{Emitter, Manager};
 /// 6000 chars ≈ 1500 tokens (suficiente para follow-up en reunión de 10min).
 const CHAT_CONTEXT_MAX_CHARS: usize = 6_000;
 
-const CHAT_SYSTEM_PROMPT: &str = r#"Eres un copiloto IA inteligente que acompaña al usuario durante una reunión en vivo. Tienes acceso a la transcripción completa de la conversación, segregada por speaker (USUARIO = el dueño del micrófono; INTERLOCUTOR = la otra persona).
-
-REGLAS:
-1. Responde DIRECTO, en español neutro, sin preámbulos ("¡claro!", "¡perfecto!").
-2. Sé CONCRETO: si te piden un consejo, da el consejo. Si te piden análisis, analiza con datos del transcript.
-3. CITA partes del transcript cuando sea relevante: "el cliente dijo 'X' en el min Y".
-4. NO inventes datos que no estén en el transcript.
-5. Máximo 4 oraciones por respuesta a menos que el usuario pida explícitamente más detalle.
-6. Si el contexto del transcript es insuficiente para responder, dilo y sugiere qué escuchar.
-7. Tono: profesional pero cercano, como un mentor que escuchó la reunión contigo."#;
+// Prompt ultra-compacto (perf P0): reducido para minimizar prefill en CPU.
+// USUARIO = micrófono. INTERLOCUTOR = otro hablante.
+const CHAT_SYSTEM_PROMPT: &str = "Copiloto IA en reunión. Responde español, directo, sin preámbulos. Máx 3 oraciones. Cita transcript: 'X dijo: ...'. No inventes datos.";
 
 #[derive(Debug, Deserialize)]
 pub struct ChatHistoryEntry {
