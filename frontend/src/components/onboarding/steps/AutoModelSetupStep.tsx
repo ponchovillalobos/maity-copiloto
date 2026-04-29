@@ -70,6 +70,20 @@ interface ModelStatus {
   downloadedMb: number;
   /** Tamaño total en MB (informativo). */
   totalMb: number;
+  /** Timestamp del primer evento de progreso (para calcular ETA). */
+  startedAt?: number;
+}
+
+/** Calcula ETA en formato "X min" basado en velocidad de descarga real. */
+function formatEta(status: ModelStatus | undefined): string {
+  if (!status || !status.startedAt || status.progress <= 0 || status.progress >= 100) return '';
+  const elapsedSec = (Date.now() - status.startedAt) / 1000;
+  if (elapsedSec < 5) return 'calculando…';
+  const totalEstimatedSec = (elapsedSec / status.progress) * 100;
+  const remainingSec = Math.max(0, totalEstimatedSec - elapsedSec);
+  if (remainingSec < 60) return `~${Math.ceil(remainingSec)}s restantes`;
+  const remainingMin = Math.ceil(remainingSec / 60);
+  return `~${remainingMin} min restantes`;
 }
 
 interface DownloadProgressEvent {
@@ -152,6 +166,7 @@ export function AutoModelSetupStep() {
             progress: Math.round(progress),
             downloadedMb: downloaded_bytes ? Math.round(downloaded_bytes / (1024 * 1024)) : prev[model]?.downloadedMb ?? 0,
             totalMb: total_bytes ? Math.round(total_bytes / (1024 * 1024)) : prev[model]?.totalMb ?? 0,
+            startedAt: prev[model]?.startedAt ?? Date.now(),
           },
         }));
       });
@@ -294,9 +309,11 @@ export function AutoModelSetupStep() {
                 style={{ width: `${status.progress}%` }}
               />
             </div>
-            <div className="text-xs text-gray-400">
-              Esta descarga ocurre solo una vez. El modelo se guarda en tu equipo y no
-              vuelve a descargarse.
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-400">
+                Esta descarga ocurre solo una vez. El modelo se guarda en tu equipo.
+              </span>
+              <span className="text-blue-300 font-medium">{formatEta(status)}</span>
             </div>
           </div>
         )}

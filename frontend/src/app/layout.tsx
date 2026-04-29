@@ -14,7 +14,7 @@ import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { RecordingStateProvider } from '@/contexts/RecordingStateContext'
-import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
+// OllamaDownloadProvider eliminado: la app ya no usa Ollama (runtime local embebido).
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
 import { CoachProvider } from '@/contexts/CoachContext'
 import { ConfigProvider } from '@/contexts/ConfigContext'
@@ -37,7 +37,8 @@ import { StatusETA } from '@/components/StatusBar/StatusETA'
 import { BookmarksList } from '@/components/Coach/BookmarksList'
 import { PlaybookDrawer } from '@/components/Playbook/PlaybookDrawer'
 import { CalendarImporter } from '@/components/Calendar/CalendarImporter'
-import { OllamaStatus } from '@/components/StatusBar/OllamaStatus'
+// OllamaStatus eliminado: la app ya no depende de Ollama. Estado del modelo
+// local se muestra en Settings → IA Local (AIInfoPanel).
 import { logger } from '@/lib/logger'
 
 function CommandPaletteMount() {
@@ -157,7 +158,6 @@ export default function RootLayout({
             <TranscriptProvider>
               <CoachProvider>
               <ConfigProvider>
-                <OllamaDownloadProvider>
                   <OnboardingProvider>
                     <UpdateCheckProvider>
                       <StatusETAProvider>
@@ -175,8 +175,6 @@ export default function RootLayout({
                               <OnboardingFlow onComplete={handleOnboardingComplete} />
                             ) : (
                               <div className="flex flex-col h-screen">
-                                {/* Ollama status widget (top-right corner) */}
-                                <OllamaStatus />
                                 {/* Status ETA bar (operations with countdown) */}
                                 <StatusETA />
                                 {/* Offline indicator at the top */}
@@ -209,8 +207,6 @@ export default function RootLayout({
                       </StatusETAProvider>
                     </UpdateCheckProvider>
                   </OnboardingProvider>
-
-                </OllamaDownloadProvider>
               </ConfigProvider>
               </CoachProvider>
             </TranscriptProvider>

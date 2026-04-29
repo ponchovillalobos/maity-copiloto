@@ -33,13 +33,14 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     checkPlatform();
   }, []);
 
-  // 6-Step Onboarding Flow (System-Recommended Models):
-  // Step 1: Welcome - Introduce Maity features
-  // Step 2: Setup Overview - Database initialization + show recommended downloads
-  // Step 3: Auto Model Setup - Download Ollama models (gemma3:4b, nomic-embed-text)
-  // Step 4: Download Progress - Download Parakeet (auto-selected based on RAM)
-  // Step 5: Mic Test - Audio device selection + level monitoring + preview
-  // Step 6: Permissions - Request mic + system audio (macOS only)
+  // Onboarding minimalista para usuarios no-técnicos:
+  // Step 1: Bienvenida — qué hace Maity
+  // Step 2: Resumen del setup (qué se va a instalar y por qué)
+  // Step 3: Descarga del modelo de IA local (Gemma 3 4B, ~2.4 GB)
+  // Step 4: Descarga del modelo de transcripción (Parakeet, auto)
+  // Step 5: Prueba de micrófono
+  // Step 6: Permisos (solo macOS)
+  // Sin selector de provider, sin Ollama, sin API keys.
 
   return (
     <div className="onboarding-flow">

@@ -8,20 +8,21 @@ import { motion } from 'framer-motion';
 import { TranscriptSettings, TranscriptModelProps } from '@/components/TranscriptSettings';
 import { RecordingSettings } from '@/components/RecordingSettings';
 import { PreferenceSettings } from '@/components/PreferenceSettings';
-import { SummaryModelSettings } from '@/components/SummaryModelSettings';
+// SummaryModelSettings eliminado: la app usa un único modelo local (Gemma 3 4B).
+// El usuario no debe elegir provider/modelo (es un usuario no-técnico).
 import { AIInfoPanel } from '@/components/AIInfoPanel';
 import { CustomPromptsPanel } from '@/components/CustomPrompts/CustomPromptsPanel';
 import { useConfig } from '@/contexts/ConfigContext';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { logger } from '@/lib/logger';
 
-// Tabs configuration (constant)
+// Tabs configuration. Sin selectores de modelo cloud — la app usa un único
+// runtime local empaquetado.
 const TABS = [
   { value: 'general', label: 'General', icon: Settings2 },
   { value: 'recording', label: 'Grabaciones', icon: Mic },
   { value: 'Transcriptionmodels', label: 'Transcripción', icon: DatabaseIcon },
-  { value: 'summaryModels', label: 'Resumen', icon: SparkleIcon },
-  { value: 'coachModel', label: 'Coach IA', icon: Sparkles },
+  { value: 'coachModel', label: 'IA Local', icon: Sparkles },
   { value: 'customPrompts', label: 'Prompts', icon: Zap }
 ] as const;
 
@@ -124,9 +125,6 @@ export default function SettingsPage() {
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
               />
-            </TabsContent>
-            <TabsContent value="summaryModels">
-              <SummaryModelSettings />
             </TabsContent>
             <TabsContent value="coachModel">
               <AIInfoPanel />

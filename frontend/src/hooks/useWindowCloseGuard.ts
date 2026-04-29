@@ -14,8 +14,8 @@ export function useWindowCloseGuard(isRecording: boolean) {
             try {
               const { confirm } = await import('@tauri-apps/plugin-dialog');
               const shouldClose = await confirm(
-                'There is a recording in progress. Closing the app will stop the recording. Continue?',
-                { title: 'Recording in progress', kind: 'warning' }
+                'Hay una grabación en curso. Si cierras la aplicación se detendrá la grabación y podrías perder lo que aún no se ha guardado. ¿Continuar?',
+                { title: 'Grabación en progreso', kind: 'warning' }
               );
               if (shouldClose) {
                 appWindow.close();
