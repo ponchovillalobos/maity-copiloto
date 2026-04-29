@@ -267,7 +267,7 @@ pub async fn coach_suggest(
             let client = client.map_err(|e| format!("Failed to create HTTP client: {}", e))?;
             generate_summary(
                 &client,
-                &LLMProvider::Ollama,
+                &LLMProvider::BuiltInAI,
                 &model_clone,
                 "",
                 MAITY_COPILOTO_V3_LITE_PROMPT,

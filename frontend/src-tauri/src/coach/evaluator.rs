@@ -489,11 +489,11 @@ pub struct PostMeetingEvaluationResult {
     pub created_at: String,
 }
 
-/// Modelo de evaluación HARDCODEADO. Gemma 4 (8B) es necesario porque el
-/// system prompt v5 ocupa ~5k tokens y un transcript de 30min suma ~10k —
-/// no cabe en gemma3:4b (4096 contexto). gemma4:latest soporta 8k+ y da
-/// mejor análisis estructurado.
-pub const DEFAULT_EVALUATION_MODEL: &str = "gemma4:latest";
+/// Modelo HARDCODEADO de evaluación. Gemma 3 4B Q4_K_M corre en CPU sin GPU
+/// con ~3.5GB RAM. Modelo embebido (descarga via wizard, NO requiere Ollama).
+/// Contexto efectivo 32k tokens — soporta el system prompt v5 (~5k) + transcript
+/// largo + JSON de salida (~3k tokens) sin truncar.
+pub const DEFAULT_EVALUATION_MODEL: &str = "gemma3:4b";
 
 /// Umbral de chars del transcript para activar chunking previo. Si el
 /// transcript supera este tamaño, primero se resume por bloques antes de
@@ -560,25 +560,13 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         .build()
         .map_err(|e| format!("Error creando cliente HTTP: {}", e))?;
 
-    // Pre-validar que el modelo existe en Ollama. Si no, mensaje claro al usuario.
-    let tags_check = client
-        .get("http://localhost:11434/api/tags")
-        .send()
-        .await
-        .map_err(|e| format!("Ollama no responde en localhost:11434 — verifica que esté corriendo. Detalle: {}", e))?;
-    let tags_text = tags_check.text().await.unwrap_or_default();
-    if !tags_text.contains(&model) {
-        return Err(format!(
-            "El modelo de evaluación '{}' no está instalado. Ábrelo en una terminal y ejecuta: `ollama pull {}`",
-            model, model
-        ));
-    }
-
     let start = std::time::Instant::now();
 
+    // Usamos el runtime LOCAL embebido (llama-helper + GGUF). NO depende de Ollama.
+    // El modelo se descarga durante el onboarding y se reusa entre sesiones.
     let raw = generate_summary(
         &client,
-        &LLMProvider::Ollama,
+        &LLMProvider::BuiltInAI,
         &model,
         "",
         EVALUATION_V4_SYSTEM_PROMPT,
@@ -592,7 +580,7 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         None,
     )
     .await
-    .map_err(|e| format!("Error LLM (¿modelo {} no instalado? `ollama pull {}`): {}", model, model, e))?;
+    .map_err(|e| format!("Error en runtime local (modelo {}): {}. Asegúrate de haber descargado el modelo desde el wizard.", model, e))?;
 
     let latency_ms = start.elapsed().as_millis() as u64;
 
