@@ -30,7 +30,8 @@ export type CommandId =
   | 'import-calendar'
   | 'go-home'
   | 'reload'
-  | 'clear-cache';
+  | 'clear-cache'
+  | 'open-dashboard';
 
 interface CommandDef {
   id: CommandId;
@@ -225,6 +226,16 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         icon: <ChevronRight className="w-4 h-4" />,
         group: 'Navegación',
         action: () => router.push('/'),
+      },
+      {
+        id: 'open-dashboard',
+        slash: '/dashboard',
+        label: 'Dashboard de control',
+        description: 'CPU/RAM, modelos, iteraciones, WER, botones',
+        icon: <ChevronRight className="w-4 h-4" />,
+        keywords: ['dash', 'metrics', 'metricas', 'iter', 'control'],
+        group: 'Navegación',
+        action: () => router.push('/dashboard'),
       },
       {
         id: 'open-settings',

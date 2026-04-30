@@ -209,6 +209,7 @@ pub mod export;
 pub mod logging;
 pub mod meeting_detector;
 pub mod notifications;
+pub mod observability;
 pub mod ollama;
 pub mod onboarding;
 pub mod orchestrator;
@@ -772,6 +773,24 @@ pub fn run() {
             parakeet_engine::commands::set_models_directory(&_app.handle());
             canary_engine::commands::set_models_directory(&_app.handle());
 
+            // Dashboard observability: muestra CPU/RAM live cada 1s + seed botones
+            let app_handle_obs = _app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                crate::observability::system_monitor::run_system_monitor(app_handle_obs).await;
+            });
+            let app_handle_seed = _app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Some(state) = app_handle_seed.try_state::<crate::state::AppState>() {
+                    if let Err(e) = crate::observability::button_audit::seed_buttons_if_needed(
+                        state.db_manager.pool(),
+                    )
+                    .await
+                    {
+                        log::warn!("[dashboard] seed_buttons_if_needed falló: {}", e);
+                    }
+                }
+            });
+
             // === ENGINE INITIALIZATION ===
             // Always initialize Parakeet engine for local transcription (privacy-first, CPU-optimized)
             // Whisper is disabled — not initialized at startup
@@ -1286,6 +1305,12 @@ pub fn run() {
             coach::evaluator::coach_get_post_meeting_evaluation,
             audio::import_audio::dev_import_audio_file,
             audio::import_audio::dev_import_two_audios,
+            observability::iteration_log::dashboard_list_iterations,
+            observability::iteration_log::dashboard_get_iteration_detail,
+            observability::iteration_log::dashboard_get_summary,
+            observability::button_audit::dashboard_seed_buttons,
+            observability::button_audit::dashboard_list_buttons,
+            observability::button_audit::dashboard_update_button_status,
             coach::evaluation_pdf::export_evaluation_pdf,
             coach::evaluation_pdf::show_in_folder,
             coach::chat::coach_chat,

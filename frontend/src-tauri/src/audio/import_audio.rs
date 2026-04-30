@@ -19,6 +19,8 @@
 use crate::api::api::TranscriptSegment;
 use crate::audio::ffmpeg::find_ffmpeg_path;
 use crate::database::repositories::transcript::TranscriptsRepository;
+use crate::observability::iteration_log::{insert_iteration, NewIterationRecord};
+use crate::observability::timing::Timer;
 use crate::parakeet_engine::commands::PARAKEET_ENGINE;
 use crate::state::AppState;
 use chrono::Utc;
@@ -60,6 +62,30 @@ pub struct DevImportResult {
     pub wer_interlocutor: Option<crate::coach::wer::WerResult>,
     /// Texto transcrito por Maity (concatenado, sin labels) — útil para ver el output crudo.
     pub maity_transcript_full: String,
+}
+
+/// Cuenta cuántas de las 15 secciones top-level del MeetingEvaluation tienen
+/// contenido no-default. Útil para tracking de calidad de la evaluación.
+pub fn count_sections_filled(eval: &crate::coach::evaluation_types::MeetingEvaluation) -> u32 {
+    let mut count = 0u32;
+    if !eval.identificacion.nombre_sesion.is_empty() { count += 1 }
+    if eval.historico.sesion_anterior_id.is_some()
+        || !eval.historico.mejoras_detectadas.is_empty()
+        || !eval.historico.regresiones_detectadas.is_empty() { count += 1 }
+    if !eval.contexto.relacion.is_empty() { count += 1 }
+    if eval.meta.duracion_minutos > 0 || !eval.meta.tipo.is_empty() { count += 1 }
+    if eval.resumen.puntuacion_global > 0.0 { count += 1 }
+    if eval.radiografia.muletillas_total > 0 || !eval.radiografia.preguntas.is_empty() { count += 1 }
+    if !eval.insights.is_empty() { count += 1 }
+    if !eval.patron.actual.is_empty() { count += 1 }
+    if !eval.timeline.segmentos.is_empty() || !eval.timeline.momentos_clave.is_empty() { count += 1 }
+    if eval.dimensiones.claridad.puntaje > 0.0 || eval.dimensiones.estructura.puntaje > 0.0 { count += 1 }
+    if !eval.por_hablante.is_empty() { count += 1 }
+    if !eval.empatia.is_empty() { count += 1 }
+    if eval.calidad_global.puntaje > 0.0 { count += 1 }
+    if !eval.recomendaciones.is_empty() { count += 1 }
+    if !eval.visualizaciones.gauge.label.is_empty() || !eval.visualizaciones.radar_calidad.labels.is_empty() { count += 1 }
+    count
 }
 
 /// Detecta si el archivo es estéreo. Lee `ffmpeg -i` y busca "stereo" en stderr.
@@ -256,6 +282,8 @@ pub async fn dev_import_audio_file<R: Runtime>(
         return Err(format!("Archivo no encontrado: {}", file_path));
     }
 
+    let pipeline_timer_single = Timer::start();
+
     let _ = app.emit(
         "dev-import-progress",
         DevImportProgress {
@@ -270,7 +298,9 @@ pub async fn dev_import_audio_file<R: Runtime>(
     let layout_label = if is_stereo { "stereo" } else { "mono" };
     log::info!("[dev_import] Audio detectado como {}", layout_label);
 
+    let decode_timer_single = Timer::start();
     let samples = decode_to_pcm_f32(&file_path, is_stereo)?;
+    let decode_ms_single = decode_timer_single.elapsed_ms() as i64;
     let frame_count = if is_stereo { samples.len() / 2 } else { samples.len() };
     let total_duration = frame_count as f64 / TARGET_SAMPLE_RATE as f64;
 
@@ -360,17 +390,27 @@ pub async fn dev_import_audio_file<R: Runtime>(
         .collect::<Vec<_>>()
         .join("\n");
 
-    if let Err(e) = crate::coach::evaluator::coach_evaluate_post_meeting(
+    let eval_timer_single = Timer::start();
+    let eval_result_single = crate::coach::evaluator::coach_evaluate_post_meeting(
         app.clone(),
         meeting_id.clone(),
         full_transcript,
         None,
         None,
     )
-    .await
-    {
-        log::warn!("[dev_import] Evaluación falló: {}", e);
-    }
+    .await;
+    let evaluation_ms_single = eval_timer_single.elapsed_ms() as i64;
+
+    let (eval_score_single, eval_sections_single) = match &eval_result_single {
+        Ok(r) => (
+            Some(r.evaluation.resumen.puntuacion_global),
+            Some(count_sections_filled(&r.evaluation) as i64),
+        ),
+        Err(e) => {
+            log::warn!("[dev_import] Evaluación falló: {}", e);
+            (None, None)
+        }
+    };
 
     let _ = app.emit(
         "dev-import-progress",
@@ -387,6 +427,41 @@ pub async fn dev_import_audio_file<R: Runtime>(
         .map(|s| s.text.as_str())
         .collect::<Vec<_>>()
         .join(" ");
+
+    let total_pipeline_ms_single = pipeline_timer_single.elapsed_ms() as i64;
+    let _ = insert_iteration(
+        pool,
+        &NewIterationRecord {
+            meeting_id: meeting_id.clone(),
+            iteration_label: Some(title.clone()),
+            audio_user_path: Some(file_path.clone()),
+            audio_interlocutor_path: None,
+            channel_layout: layout_label.to_string(),
+            total_duration_seconds: total_duration,
+            decode_ms: Some(decode_ms_single),
+            transcribe_user_ms: None,
+            transcribe_interlocutor_ms: None,
+            evaluation_ms: Some(evaluation_ms_single),
+            total_pipeline_ms: Some(total_pipeline_ms_single),
+            wer_global: None,
+            wer_user: None,
+            wer_interlocutor: None,
+            hypothesis_full: Some(maity_full.clone()),
+            reference_user: None,
+            reference_interlocutor: None,
+            evaluation_score: eval_score_single,
+            evaluation_sections_filled: eval_sections_single,
+            prompt_version: "v3-lite + eval-v4".into(),
+            coach_model: "qwen3:0.6b".into(),
+            evaluation_model: "qwen3:1.7b".into(),
+            cpu_avg_pct: None,
+            ram_peak_mb: None,
+            notes: None,
+        },
+    )
+    .await
+    .map_err(|e| log::warn!("[dev_import] insert_iteration falló: {}", e))
+    .ok();
 
     Ok(DevImportResult {
         meeting_id,
@@ -431,6 +506,8 @@ pub async fn dev_import_two_audios<R: Runtime>(
         ));
     }
 
+    let pipeline_timer = Timer::start();
+
     let _ = app.emit(
         "dev-import-progress",
         DevImportProgress {
@@ -441,8 +518,10 @@ pub async fn dev_import_two_audios<R: Runtime>(
         },
     );
 
+    let decode_timer = Timer::start();
     let user_samples = decode_to_pcm_f32(&user_audio_path, false)?;
     let inter_samples = decode_to_pcm_f32(&interlocutor_audio_path, false)?;
+    let decode_ms = decode_timer.elapsed_ms() as i64;
 
     if user_samples.is_empty() && inter_samples.is_empty() {
         return Err("Ambos audios vacíos".to_string());
@@ -468,8 +547,12 @@ pub async fn dev_import_two_audios<R: Runtime>(
         },
     );
 
+    let user_timer = Timer::start();
     let user_segments =
         transcribe_channel(&app, &user_samples, "user", total_chunks_global, 0).await;
+    let transcribe_user_ms = user_timer.elapsed_ms() as i64;
+
+    let inter_timer = Timer::start();
     let inter_segments = transcribe_channel(
         &app,
         &inter_samples,
@@ -478,6 +561,7 @@ pub async fn dev_import_two_audios<R: Runtime>(
         user_chunks_count,
     )
     .await;
+    let transcribe_interlocutor_ms = inter_timer.elapsed_ms() as i64;
 
     // Capturar texto crudo por canal antes de fusionar (para WER por canal).
     let user_text: String = user_segments
@@ -531,17 +615,27 @@ pub async fn dev_import_two_audios<R: Runtime>(
         .collect::<Vec<_>>()
         .join("\n");
 
-    if let Err(e) = crate::coach::evaluator::coach_evaluate_post_meeting(
+    let eval_timer = Timer::start();
+    let eval_result = crate::coach::evaluator::coach_evaluate_post_meeting(
         app.clone(),
         meeting_id.clone(),
         full_transcript_for_eval,
         None,
         None,
     )
-    .await
-    {
-        log::warn!("[dev_import_two] Evaluación falló: {}", e);
-    }
+    .await;
+    let evaluation_ms = eval_timer.elapsed_ms() as i64;
+
+    let (evaluation_score, evaluation_sections_filled) = match &eval_result {
+        Ok(r) => (
+            Some(r.evaluation.resumen.puntuacion_global),
+            Some(count_sections_filled(&r.evaluation) as i64),
+        ),
+        Err(e) => {
+            log::warn!("[dev_import_two] Evaluación falló: {}", e);
+            (None, None)
+        }
+    };
 
     use crate::coach::wer::compute_wer;
     let wer_user = ground_truth_user
@@ -562,6 +656,42 @@ pub async fn dev_import_two_audios<R: Runtime>(
         }
         _ => None,
     };
+
+    let total_pipeline_ms = pipeline_timer.elapsed_ms() as i64;
+
+    let _ = insert_iteration(
+        pool,
+        &NewIterationRecord {
+            meeting_id: meeting_id.clone(),
+            iteration_label: Some(title.clone()),
+            audio_user_path: Some(user_audio_path.clone()),
+            audio_interlocutor_path: Some(interlocutor_audio_path.clone()),
+            channel_layout: "two-files".into(),
+            total_duration_seconds: total_duration,
+            decode_ms: Some(decode_ms),
+            transcribe_user_ms: Some(transcribe_user_ms),
+            transcribe_interlocutor_ms: Some(transcribe_interlocutor_ms),
+            evaluation_ms: Some(evaluation_ms),
+            total_pipeline_ms: Some(total_pipeline_ms),
+            wer_global: wer_global.as_ref().map(|w| w.wer),
+            wer_user: wer_user.as_ref().map(|w| w.wer),
+            wer_interlocutor: wer_inter.as_ref().map(|w| w.wer),
+            hypothesis_full: Some(format!("[user] {}\n[interlocutor] {}", user_text, inter_text)),
+            reference_user: ground_truth_user.clone(),
+            reference_interlocutor: ground_truth_interlocutor.clone(),
+            evaluation_score,
+            evaluation_sections_filled,
+            prompt_version: "v3-lite + eval-v4".into(),
+            coach_model: "qwen3:0.6b".into(),
+            evaluation_model: "qwen3:1.7b".into(),
+            cpu_avg_pct: None,
+            ram_peak_mb: None,
+            notes: None,
+        },
+    )
+    .await
+    .map_err(|e| log::warn!("[dev_import_two] insert_iteration falló: {}", e))
+    .ok();
 
     let _ = app.emit(
         "dev-import-progress",
