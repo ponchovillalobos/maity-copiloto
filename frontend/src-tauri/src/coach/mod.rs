@@ -24,6 +24,7 @@ pub mod prompts;
 pub mod prospecting;
 pub mod retry;
 pub mod trigger;
+pub mod wer;
 #[cfg(test)]
 mod stress_tests;
 #[cfg(test)]

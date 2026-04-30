@@ -1285,6 +1285,7 @@ pub fn run() {
             coach::evaluator::coach_evaluate_post_meeting,
             coach::evaluator::coach_get_post_meeting_evaluation,
             audio::import_audio::dev_import_audio_file,
+            audio::import_audio::dev_import_two_audios,
             coach::evaluation_pdf::export_evaluation_pdf,
             coach::evaluation_pdf::show_in_folder,
             coach::chat::coach_chat,
