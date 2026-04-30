@@ -257,10 +257,12 @@ fn parse_evaluation_response(response: &str) -> Result<CommunicationFeedback, St
         .map_err(|e| format!("JSON inválido del evaluador: {} | raw: {}", e, json_str))
 }
 
-/// Extrae el primer bloque JSON entre `{` y `}`. Si el LLM truncó la salida
-/// y dejó brackets/strings sin cerrar, los repara antes de devolver.
+/// Extrae el primer bloque JSON entre `{` y `}`. Strippea `<think>` tags Qwen3
+/// y fences markdown antes. Si el LLM truncó la salida y dejó brackets/strings
+/// sin cerrar, los repara antes de devolver.
 fn extract_json_from_response(response: &str) -> String {
-    let trimmed = response.trim();
+    let cleaned = crate::coach::parse_helpers::clean_llm_output(response);
+    let trimmed = cleaned.trim();
     let body = if let (Some(start), Some(end)) = (trimmed.find('{'), trimmed.rfind('}')) {
         if start < end {
             trimmed[start..=end].to_string()
@@ -614,9 +616,11 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
 
     if let Some(state) = app.try_state::<AppState>() {
         let pool = state.db_manager.pool();
-        if let Err(e) = persist_evaluation(pool, &meeting_id, &evaluation, &model, previous_session_id.as_deref()).await {
-            log::warn!("No se pudo persistir evaluación: {}", e);
-        }
+        persist_evaluation(pool, &meeting_id, &evaluation, &model, previous_session_id.as_deref())
+            .await
+            .map_err(|e| format!("DB error persistiendo evaluación: {}", e))?;
+    } else {
+        return Err("Estado de aplicación no disponible para persistir evaluación".to_string());
     }
 
     Ok(PostMeetingEvaluationResult {

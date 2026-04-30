@@ -178,15 +178,21 @@ pub const QWEN2_TEMPLATE: &str = "\
 <|im_start|>assistant
 ";
 
-/// Qwen 3 chat template (ChatML + /no_think prepend para skip thinking → -30-50% latencia).
-/// El /no_think es interpretado por Qwen3 como instrucción para NO emitir reasoning interno.
+/// Qwen 3 chat template (ChatML + /no_think al FINAL del user msg).
+/// Qwen3 docs: `/no_think` solo se respeta cuando va al final de un user message.
+/// Si va en system, el modelo lo ignora y emite thinking completo (~1500 chars perdidos).
 pub const QWEN3_TEMPLATE: &str = "\
 <|im_start|>system
-/no_think
 {system_prompt}<|im_end|>
 <|im_start|>user
-{user_prompt}<|im_end|>
+{user_prompt}
+
+/no_think<|im_end|>
 <|im_start|>assistant
+<think>
+
+</think>
+
 ";
 
 /// Granite 4.0 chat template (instruct-tuned).

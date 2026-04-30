@@ -17,6 +17,7 @@ pub mod floating;
 pub mod meeting_chat;
 pub mod meeting_type;
 pub mod nudge_engine;
+pub mod parse_helpers;
 pub mod playbook;
 pub mod prompt;
 pub mod prompts;

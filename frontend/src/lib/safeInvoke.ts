@@ -45,3 +45,43 @@ export async function quietInvoke<T = unknown>(
     return null;
   }
 }
+
+/**
+ * Variante con UX completo: muestra toast loading mientras corre, success al
+ * terminar y error si falla. Devuelve `T | null` (nunca tira excepciones).
+ *
+ * Uso típico para botones que disparan operaciones largas (generar resumen,
+ * generar evaluación, exportar PDF) donde el usuario debe ver feedback claro.
+ *
+ * @example
+ *   const result = await safeInvokeWithUI<EvalResult>(
+ *     'coach_evaluate_post_meeting',
+ *     { meetingId, transcript },
+ *     {
+ *       loading: 'Generando evaluación…',
+ *       success: 'Evaluación lista',
+ *       error: 'No se pudo generar la evaluación.',
+ *     },
+ *   );
+ */
+export async function safeInvokeWithUI<T = unknown>(
+  cmd: string,
+  args: InvokeArgs | undefined,
+  opts: { loading: string; success?: string; error: string },
+): Promise<T | null> {
+  const toastId = toast.loading(opts.loading);
+  try {
+    const result = await invoke<T>(cmd, args);
+    if (opts.success) {
+      toast.success(opts.success, { id: toastId });
+    } else {
+      toast.dismiss(toastId);
+    }
+    return result;
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    logger.warn(`[safeInvokeWithUI ${cmd}] ${detail}`);
+    toast.error(opts.error, { id: toastId, description: detail.slice(0, 200) });
+    return null;
+  }
+}

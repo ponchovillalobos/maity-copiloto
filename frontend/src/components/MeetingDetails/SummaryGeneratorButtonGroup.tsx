@@ -1,13 +1,6 @@
 "use client";
 
-import { ModelConfig, ModelSettingsModal } from '@/components/ModelSettingsModal';
-import {
-  Dialog,
-  DialogContent,
-  DialogTrigger,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { VisuallyHidden } from "@/components/ui/visually-hidden"
+import { ModelConfig } from '@/components/ModelSettingsModal';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
 import {
@@ -289,35 +282,6 @@ export function SummaryGeneratorButtonGroup({
           )}
         </Button>
       )}
-
-      {/* Settings button */}
-      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
-        <DialogTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            title="Configuración de Resumen"
-            aria-label="Model settings"
-          >
-            <Settings />
-            <span className="hidden lg:inline">Modelo IA</span>
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <VisuallyHidden>
-            <DialogTitle>Configuración de Modelo</DialogTitle>
-          </VisuallyHidden>
-          <ModelSettingsModal
-            onSave={async (config) => {
-              await onSaveModelConfig(config);
-              setSettingsDialogOpen(false);
-            }}
-            modelConfig={modelConfig}
-            setModelConfig={setModelConfig}
-            skipInitialFetch={true}
-          />
-        </DialogContent>
-      </Dialog>
 
       {/* Template selector dropdown */}
       {availableTemplates.length > 0 && (
