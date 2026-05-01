@@ -1132,7 +1132,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       });
     };
     computeMetrics();
-    const id = setInterval(computeMetrics, 3_000);
+    const id = setInterval(computeMetrics, 5_000);
     return () => clearInterval(id);
   }, [isRecording, transcriptsRef, pushSuggestion]);
 
@@ -1184,7 +1184,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         // Silent — nudge evaluation failed
       }
-    }, 10_000); // Evaluar cada 10s (pero rate-limited a 1 cada 2 min)
+    }, 20_000); // Evaluar cada 20s (rate-limited a 1 cada 2 min) — v20 reducido de 10s
 
     return () => clearInterval(timer);
   }, [enabled, isRecording, metrics, pushSuggestion]);

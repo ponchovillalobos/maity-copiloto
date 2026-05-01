@@ -9,6 +9,7 @@
 //! tests unitarios.
 
 use crate::coach::evaluation_types::MeetingEvaluation;
+use tauri::Emitter;
 // v5_fast prompt: 4KB vs 14KB de v4. Target eval_ms < 180s (vs ~430s con v4).
 // El v4 completo se mantiene en `prompts::evaluation_v4::EVALUATION_V4_SYSTEM_PROMPT`
 // para release final con detalle radar/timeline/empatía granular.
@@ -581,6 +582,36 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
 
     let start = std::time::Instant::now();
 
+    // v20: emit progress events durante eval (que tarda 60s+) para UI feedback.
+    // Frontend escucha `evaluation-progress` en EvaluationPanel.
+    let _ = app.emit("evaluation-progress", serde_json::json!({
+        "stage": "preparing",
+        "meeting_id": meeting_id,
+        "message": "Cargando modelo de evaluación..."
+    }));
+
+    // Spawn background heartbeat task: emite progress cada 5s mientras LLM trabaja.
+    let app_for_progress = app.clone();
+    let meeting_id_for_progress = meeting_id.clone();
+    let progress_running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let progress_running_clone = progress_running.clone();
+    tokio::spawn(async move {
+        let mut elapsed_sec = 0u64;
+        while progress_running_clone.load(std::sync::atomic::Ordering::SeqCst) {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            if !progress_running_clone.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
+            }
+            elapsed_sec += 5;
+            let _ = app_for_progress.emit("evaluation-progress", serde_json::json!({
+                "stage": "evaluating",
+                "meeting_id": meeting_id_for_progress,
+                "elapsed_sec": elapsed_sec,
+                "message": format!("Evaluando con qwen3:1.7b... {}s transcurridos", elapsed_sec)
+            }));
+        }
+    });
+
     // Truncar transcript del user_prompt si es muy largo. Qwen3:1.7b tiene
     // context_size 8192 tokens. Sistema prompt ~5k chars (~1.2k tokens) +
     // estructura user_prompt ~500 chars + transcripción ~variable. Reservamos
@@ -611,9 +642,24 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         None,
     )
     .await
-    .map_err(|e| format!("Error en runtime local (modelo {}): {}. Asegúrate de haber descargado el modelo desde el wizard.", model, e))?;
+    .map_err(|e| {
+        progress_running.store(false, std::sync::atomic::Ordering::SeqCst);
+        let _ = app.emit("evaluation-progress", serde_json::json!({
+            "stage": "error",
+            "meeting_id": meeting_id,
+            "message": format!("Error: {}", e)
+        }));
+        format!("Error en runtime local (modelo {}): {}. Asegúrate de haber descargado el modelo desde el wizard.", model, e)
+    })?;
 
+    progress_running.store(false, std::sync::atomic::Ordering::SeqCst);
     let latency_ms = start.elapsed().as_millis() as u64;
+    let _ = app.emit("evaluation-progress", serde_json::json!({
+        "stage": "parsing",
+        "meeting_id": meeting_id,
+        "elapsed_sec": latency_ms / 1000,
+        "message": "Parseando JSON resultado..."
+    }));
 
     let json_str = extract_json_from_response(&raw);
     let mut evaluation: MeetingEvaluation = serde_json::from_str(&json_str)

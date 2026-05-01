@@ -67,12 +67,33 @@ fn jaccard(a: &str, b: &str) -> f32 {
     }
 }
 
-/// Mejor similarity de un tip generado contra cada expected.
+/// Mejor similarity de un tip generado contra cada expected (Jaccard fallback).
 fn best_match_score(generated: &str, expected: &[ExpectedTip]) -> f32 {
     expected
         .iter()
         .map(|e| jaccard(generated, &e.tip))
         .fold(0.0f32, f32::max)
+}
+
+/// Mejor similarity vía embeddings cosine. Más fiel a significado semántico que Jaccard.
+/// Falla silenciosamente y retorna None si nomic-embed-text no responde.
+async fn best_match_score_semantic(
+    generated: &str,
+    expected_embeds: &[Vec<f32>],
+    embed_model: &str,
+) -> Option<f32> {
+    let client = crate::coach::model_state::SHARED_CLIENT.clone();
+    let gen_emb = crate::semantic_search::embedder::embed_text(&client, embed_model, generated, None)
+        .await
+        .ok()?;
+    let mut best = 0.0f32;
+    for exp_emb in expected_embeds {
+        let sim = crate::semantic_search::cosine_similarity(&gen_emb, exp_emb);
+        if sim > best {
+            best = sim;
+        }
+    }
+    Some(best)
 }
 
 /// Comando Tauri: corre tests de tips sobre todos los scenarios con ground truth.
@@ -117,13 +138,42 @@ pub async fn dev_run_tip_tests(
         "tipsrun-{}",
         chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
     );
-    let build_version = "v16".to_string();
+    let build_version = "v20".to_string();
+
+    // v20: pre-computar embeddings de TODOS los expected_tips por scenario.
+    // Usa nomic-embed-text (Ollama, 768d). Si falla, sigue con Jaccard fallback.
+    let embed_model = "nomic-embed-text";
+    let mut expected_embeds_per_scenario: std::collections::HashMap<String, Vec<Vec<f32>>> =
+        std::collections::HashMap::new();
+    let embed_client = crate::coach::model_state::SHARED_CLIENT.clone();
+    let mut semantic_available = true;
+
+    for (scenario_name, ground) in gt.scenarios.iter() {
+        let mut embeds: Vec<Vec<f32>> = Vec::with_capacity(ground.expected_tips.len());
+        for expected in &ground.expected_tips {
+            match crate::semantic_search::embedder::embed_text(
+                &embed_client, embed_model, &expected.tip, None,
+            ).await {
+                Ok(v) => embeds.push(v),
+                Err(e) => {
+                    log::warn!("[tip_tester] embed failed for expected tip ({}): {} — fallback Jaccard", scenario_name, e);
+                    semantic_available = false;
+                    break;
+                }
+            }
+        }
+        if !semantic_available {
+            break;
+        }
+        expected_embeds_per_scenario.insert(scenario_name.clone(), embeds);
+    }
 
     log::info!(
-        "[tip_tester] STARTED run_id={} scenarios={} build_version={}",
+        "[tip_tester] STARTED run_id={} scenarios={} build_version={} semantic={}",
         run_id,
         gt.scenarios.len(),
-        build_version
+        build_version,
+        semantic_available
     );
 
     let mut total_tips = 0usize;
@@ -173,6 +223,25 @@ pub async fn dev_run_tip_tests(
             let language = "es-MX".to_string();
             let meeting_type = Some(ground.meeting_type.clone());
 
+            // v20 #3: rotación de category hint + trigger signal según chunk_idx.
+            // Esto fuerza al coach a explorar distintas dimensiones (objection,
+            // discovery, closing, etc.) en lugar de caer siempre en el mismo
+            // patrón "pregunta empática". Más fiel a uso real (donde trigger
+            // detector sí pasa señales contextuales).
+            let category_hints = match ground.meeting_type.as_str() {
+                "sales" => vec!["discovery", "objection", "closing", "rapport", "negotiation"],
+                "service" => vec!["empathy", "discovery", "ownership", "closing", "tone"],
+                "team_meeting" => vec!["structure", "alignment", "data_request", "closing", "facilitation"],
+                "coaching" => vec!["deep_question", "silence", "reformulate", "rapport", "introspective"],
+                _ => vec!["rapport", "discovery", "listening", "pacing", "closing"],
+            };
+            let suggested_category = Some(category_hints[(chunk_idx - 1) % category_hints.len()].to_string());
+            let trigger_signal = Some(if chunk_idx % 2 == 0 {
+                "last_speaker_interlocutor".to_string()
+            } else {
+                "last_speaker_user".to_string()
+            });
+
             let t0 = std::time::Instant::now();
             let result: Result<CoachSuggestion, String> = crate::coach::commands::coach_suggest(
                 app.clone(),
@@ -183,8 +252,8 @@ pub async fn dev_run_tip_tests(
                 meeting_type,
                 Some(chunk_idx as u32),
                 Some(prev_tips.clone()),
-                None,
-                None,
+                suggested_category,
+                trigger_signal,
             )
             .await;
             let latency_ms = t0.elapsed().as_millis() as u64;
@@ -200,7 +269,19 @@ pub async fn dev_run_tip_tests(
                         .iter()
                         .any(|p| jaccard(p, &generated) > 0.55);
 
-                    let sim = best_match_score(&generated, &ground.expected_tips);
+                    // v20: prefer semantic similarity (cosine on embeddings),
+                    // fallback Jaccard si nomic-embed-text no estaba disponible.
+                    let sim = if semantic_available {
+                        if let Some(exp_embs) = expected_embeds_per_scenario.get(scenario_name) {
+                            best_match_score_semantic(&generated, exp_embs, embed_model)
+                                .await
+                                .unwrap_or_else(|| best_match_score(&generated, &ground.expected_tips))
+                        } else {
+                            best_match_score(&generated, &ground.expected_tips)
+                        }
+                    } else {
+                        best_match_score(&generated, &ground.expected_tips)
+                    };
                     let novelty = if prev_tips.is_empty() {
                         1.0
                     } else {

@@ -411,6 +411,7 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
   const [exporting, setExporting] = useState<boolean>(false);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ stage: string; elapsedSec: number; message: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -436,11 +437,30 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
+    setProgress(null);
     if (!canGenerate) {
       setError('Esta reunión es muy corta para generar evaluación. Necesitas al menos 100 caracteres de transcript.');
       setGenerating(false);
       return;
     }
+    // v20: listen para evaluation-progress mientras corre LLM (60-100s).
+    let unlistenProgress: (() => void) | null = null;
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      unlistenProgress = await listen<{ stage: string; elapsed_sec?: number; message: string }>(
+        'evaluation-progress',
+        (e) => {
+          if (e.payload && (e.payload.message)) {
+            setProgress({
+              stage: e.payload.stage,
+              elapsedSec: e.payload.elapsed_sec ?? 0,
+              message: e.payload.message,
+            });
+          }
+        },
+      );
+    } catch {}
+
     try {
       const res = await safeInvoke<PostMeetingEvaluationResult>(
         'coach_evaluate_post_meeting',
@@ -454,13 +474,14 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
       );
       if (res) setResult(res);
       else {
-        // Toast ya mostrado por safeInvoke
         if (typeof globalThis !== 'undefined' && globalThis.window) {
           globalThis.window.dispatchEvent(new CustomEvent('verify-ollama-status'));
         }
       }
     } finally {
       setGenerating(false);
+      setProgress(null);
+      unlistenProgress?.();
     }
   };
 
@@ -521,6 +542,12 @@ export function EvaluationPanel({ meetingId, transcripts, previousMeetingId }: E
         >
           {generating ? 'Analizando…' : 'Generar evaluación'}
         </button>
+        {generating && progress && (
+          <div className="text-xs text-gray-300 max-w-md mt-2 flex items-center gap-2">
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-400"></div>
+            <span>{progress.message}</span>
+          </div>
+        )}
         {error && <div className="text-xs text-[#ff5e85] max-w-md">{error}</div>}
       </div>
     );

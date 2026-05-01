@@ -78,7 +78,9 @@ pub async fn coach_suggest(
         .clone();
 
     // Window de contexto: tamaño máximo 600 chars para latencia <2s en CPU
-    const WINDOW_CHAR_CAP: usize = 600;
+    // v20: 600→1200 chars. qwen3:1.7b ctx 16384 maneja sin problema, duplica
+    // contextualización de tips (ya validado: tips citan productos reales del audio).
+    const WINDOW_CHAR_CAP: usize = 1200;
     let trimmed_window = if window.chars().count() > WINDOW_CHAR_CAP {
         let total: Vec<char> = window.chars().collect();
         let start = total.len().saturating_sub(WINDOW_CHAR_CAP);
