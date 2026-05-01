@@ -43,10 +43,22 @@ export default function Home() {
         // Tauri-side flag file (writable from Bash externally)
         try {
           const { invoke } = await import('@tauri-apps/api/core');
-          const cfg = await invoke<{ enabled: boolean; folder?: string } | null>('check_autorun_batch_flag').catch(() => null);
+          const cfg = await invoke<{ enabled: boolean; folder?: string; tip_only?: boolean } | null>('check_autorun_batch_flag').catch(() => null);
           if (cfg && cfg.enabled) {
-            const folder = cfg.folder || 'D:\\Poncho\\Videos\\Edicion-Claude\\output';
-            _autoRouter.replace(`/dev?mode=batch&autorun=1&folder=${encodeURIComponent(folder)}`);
+            if (cfg.tip_only) {
+              // Skip batch — invoke tip_tester directly
+              try {
+                const tt = await invoke('dev_run_tip_tests');
+                logger.info('[autorun.tip_only] dev_run_tip_tests result:', tt);
+                toast.success(`Tip tests: ${JSON.stringify(tt)}`);
+              } catch (e) {
+                logger.error('[autorun.tip_only] failed:', e);
+                toast.error(`Tip tests failed: ${String(e)}`);
+              }
+            } else {
+              const folder = cfg.folder || 'D:\\Poncho\\Videos\\Edicion-Claude\\output';
+              _autoRouter.replace(`/dev?mode=batch&autorun=1&folder=${encodeURIComponent(folder)}`);
+            }
           }
         } catch {}
       } catch {}

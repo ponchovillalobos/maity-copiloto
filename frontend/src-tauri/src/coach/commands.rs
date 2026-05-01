@@ -56,6 +56,7 @@ pub fn get_current_model() -> Result<String, String> {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CoachSuggestion {
     pub tip: String,
+    #[serde(default = "default_category")]
     pub category: String,
     /// Subcategoría específica de la técnica (ej: "spin_problem_to_implication").
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -67,6 +68,7 @@ pub struct CoachSuggestion {
     /// Se deriva de confidence si el LLM no la provee.
     #[serde(default = "default_priority")]
     pub priority: String,
+    #[serde(default = "default_confidence")]
     pub confidence: f32,
     /// V3.1: tipo de tip — "recognition"|"observation"|"corrective"|"introspective".
     /// Se infiere si el LLM no lo provee (fallback).
@@ -79,6 +81,14 @@ pub struct CoachSuggestion {
 
 fn default_priority() -> String {
     "soft".to_string()
+}
+
+fn default_confidence() -> f32 {
+    0.7
+}
+
+fn default_category() -> String {
+    "general".to_string()
 }
 
 fn default_tip_type() -> String {
@@ -127,6 +137,7 @@ pub struct CoachStatus {
 #[derive(Debug, Deserialize)]
 struct RawSuggestion {
     tip: String,
+    #[serde(default = "default_category")]
     category: String,
     /// V3.1 nuevo: tipo de tip (opcional, se infiere si falta).
     #[serde(default)]
@@ -137,6 +148,7 @@ struct RawSuggestion {
     technique: Option<String>,
     #[serde(default)]
     priority: Option<String>,
+    #[serde(default = "default_confidence")]
     confidence: f32,
 }
 

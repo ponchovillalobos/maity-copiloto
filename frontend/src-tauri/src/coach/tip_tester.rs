@@ -117,7 +117,14 @@ pub async fn dev_run_tip_tests(
         "tipsrun-{}",
         chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
     );
-    let build_version = "v12".to_string();
+    let build_version = "v14".to_string();
+
+    log::info!(
+        "[tip_tester] STARTED run_id={} scenarios={} build_version={}",
+        run_id,
+        gt.scenarios.len(),
+        build_version
+    );
 
     let mut total_tips = 0usize;
     let mut total_latency: u64 = 0;
@@ -144,21 +151,23 @@ pub async fn dev_run_tip_tests(
             }
         };
 
-        // 5 ventanas deslizantes (cada una últimos 600 chars del corte progresivo)
-        let total = hypothesis.len();
-        let chunk_size = total / 5;
+        // 5 ventanas deslizantes (cada una últimos 600 chars del corte progresivo).
+        // UTF-8 safe: trabajamos con char_indices para evitar romper multibytes ('á', 'ñ').
+        let chars_count = hypothesis.chars().count();
+        let chunk_chars = chars_count / 5;
         let mut prev_tips: Vec<String> = Vec::new();
 
         for chunk_idx in 1..=5 {
-            let end = (chunk_idx * chunk_size).min(total);
-            if end < 100 {
+            let end_char = (chunk_idx * chunk_chars).min(chars_count);
+            if end_char < 50 {
                 continue;
             }
-            let window = if end > 600 {
-                hypothesis[end - 600..end].to_string()
-            } else {
-                hypothesis[..end].to_string()
-            };
+            let start_char = end_char.saturating_sub(600);
+            let window: String = hypothesis
+                .chars()
+                .skip(start_char)
+                .take(end_char - start_char)
+                .collect();
 
             let role = "user".to_string();
             let language = "es-MX".to_string();

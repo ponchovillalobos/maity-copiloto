@@ -771,6 +771,10 @@ pub struct AutorunBatchFlag {
     pub enabled: bool,
     #[serde(default)]
     pub folder: Option<String>,
+    /// Si true, el home page invoca `dev_run_tip_tests` directamente sin pasar por batch.
+    /// Útil cuando dev_iterations ya tiene hypothesis_full pobladas.
+    #[serde(default)]
+    pub tip_only: bool,
 }
 
 #[tauri::command]
