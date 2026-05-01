@@ -179,6 +179,27 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  if (url.pathname === '/api/runtime') {
+    // v23: lee snapshot escrito por Rust system_monitor cada 1s.
+    // Incluye is_recording flag + CPU/RAM live + warnings de umbrales.
+    const runtimePath = path.join(process.env.APPDATA || os.homedir(), 'com.maity.ai', 'runtime.json');
+    try {
+      const raw = fs.readFileSync(runtimePath, 'utf-8');
+      const data = JSON.parse(raw);
+      const stale = (Date.now() - (data.ts || 0)) > 5000;
+      const ramPct = data.ram_total_mb ? Math.round((data.ram_used_mb / data.ram_total_mb) * 100) : 0;
+      const warnings = [];
+      if (data.cpu_pct > 85) warnings.push(`CPU CRÍTICO: ${data.cpu_pct.toFixed(0)}%`);
+      else if (data.cpu_pct > 70) warnings.push(`CPU alto: ${data.cpu_pct.toFixed(0)}%`);
+      if (ramPct > 90) warnings.push(`RAM CRÍTICA: ${ramPct}%`);
+      else if (ramPct > 80) warnings.push(`RAM alta: ${ramPct}%`);
+      if (data.process_ram_mb > 4000) warnings.push(`Maity RAM proceso ${data.process_ram_mb}MB`);
+      return jsonReply(res, { ...data, ram_pct: ramPct, stale, warnings });
+    } catch (e) {
+      return jsonReply(res, { error: 'Maity no está corriendo o snapshot no disponible', stale: true });
+    }
+  }
+
   if (url.pathname === '/api/system') {
     const cpus = os.cpus();
     const total = os.totalmem();

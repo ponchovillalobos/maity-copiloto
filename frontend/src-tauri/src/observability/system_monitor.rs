@@ -1,9 +1,11 @@
 //! Task tokio que muestrea CPU/RAM cada 1s y emite `system-metrics` al frontend.
+//! v23: además escribe snapshot a `%APPDATA%/com.maity.ai/runtime.json`
+//! para que dashboard-web (proceso separado, sin acceso Tauri) pueda leerlo.
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
@@ -14,6 +16,8 @@ pub struct SystemMetrics {
     pub process_cpu_pct: f32,
     pub process_ram_mb: u64,
     pub thread_count: usize,
+    /// v23: flag is_recording leído del estado global.
+    pub is_recording: bool,
 }
 
 /// Loop infinito: cada 1s muestrea sysinfo y emite evento. Se cancela
@@ -29,6 +33,8 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
 
     sys.refresh_cpu_all();
     tokio::time::sleep(Duration::from_millis(250)).await;
+
+    let runtime_path = app.path().app_data_dir().ok().map(|p| p.join("runtime.json"));
 
     loop {
         sys.refresh_cpu_all();
@@ -55,6 +61,8 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
             (0.0, 0, 1)
         };
 
+        let is_recording = crate::audio::recording_commands::is_recording().await;
+
         let metrics = SystemMetrics {
             ts: chrono::Utc::now().timestamp_millis(),
             cpu_pct,
@@ -63,9 +71,18 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
             process_cpu_pct,
             process_ram_mb,
             thread_count,
+            is_recording,
         };
 
-        let _ = app.emit("system-metrics", metrics);
+        let _ = app.emit("system-metrics", metrics.clone());
+
+        // v23: persistir snapshot para que dashboard-web standalone lo lea.
+        if let Some(ref path) = runtime_path {
+            if let Ok(json) = serde_json::to_string(&metrics) {
+                let _ = std::fs::write(path, json);
+            }
+        }
+
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

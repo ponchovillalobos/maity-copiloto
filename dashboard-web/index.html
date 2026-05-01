@@ -61,6 +61,23 @@
   <div class="sub" style="text-align:right; font-size:0.9rem;" id="system-info">cargando…</div>
 </header>
 
+<!-- v23: panel runtime LIVE — detecta grabación + alertas CPU/RAM -->
+<section id="runtime-panel" class="card" style="margin-bottom:1rem;background:linear-gradient(90deg,#0f172a,#1e293b);border-left:4px solid #64748b;transition:all .3s;">
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <div id="runtime-icon" style="font-size:2.5rem;">💤</div>
+    <div style="flex:1;">
+      <div style="font-size:1rem;font-weight:700;" id="runtime-title">Maity en idle</div>
+      <div style="font-size:0.8rem;color:var(--muted);" id="runtime-sub">Sistema sin actividad de grabación</div>
+      <div id="runtime-warnings" style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;"></div>
+    </div>
+    <div style="text-align:right;font-family:ui-monospace,monospace;font-size:0.85rem;">
+      <div>CPU <b id="runtime-cpu" class="wer-good">—</b></div>
+      <div>RAM <b id="runtime-ram" class="wer-good">—</b></div>
+      <div>App <b id="runtime-proc" class="wer-good">—</b>MB</div>
+    </div>
+  </div>
+</section>
+
 <div id="status-banner" style="background:linear-gradient(90deg,#1e3a8a,#312e81);padding:1rem 1.5rem;border-radius:10px;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;">
   <div style="font-size:2.5rem;">⚡</div>
   <div style="flex:1;">
@@ -648,6 +665,83 @@ async function refresh() {
 
 refresh();
 setInterval(refresh, 3000);
+
+// v23: poller dedicado de runtime (CPU/RAM live + recording flag).
+// Sample 1s si grabando, 3s si idle. Independiente del refresh general.
+let runtimeIntervalMs = 3000;
+let runtimeTimer = null;
+
+async function pollRuntime() {
+  try {
+    const r = await fetch('/api/runtime').then(r => r.json());
+    const panel = document.getElementById('runtime-panel');
+    const icon = document.getElementById('runtime-icon');
+    const title = document.getElementById('runtime-title');
+    const sub = document.getElementById('runtime-sub');
+    const warns = document.getElementById('runtime-warnings');
+    const cpu = document.getElementById('runtime-cpu');
+    const ram = document.getElementById('runtime-ram');
+    const proc = document.getElementById('runtime-proc');
+
+    if (r.error || r.stale) {
+      panel.style.borderLeftColor = '#64748b';
+      panel.style.background = 'linear-gradient(90deg,#0f172a,#1e293b)';
+      icon.textContent = '💤';
+      title.textContent = 'Maity no está corriendo';
+      sub.textContent = 'Lanzá la app para activar el monitor en vivo';
+      warns.innerHTML = '';
+      cpu.textContent = ram.textContent = proc.textContent = '—';
+      // En modo stale, sample lento
+      if (runtimeIntervalMs !== 3000) { runtimeIntervalMs = 3000; restartTimer(); }
+      return;
+    }
+
+    const recording = r.is_recording;
+    if (recording) {
+      panel.style.borderLeftColor = '#ef4444';
+      panel.style.background = 'linear-gradient(90deg,#7f1d1d,#991b1b)';
+      icon.textContent = '🔴';
+      title.textContent = 'GRABANDO — monitoreo activo';
+      sub.textContent = 'Sample 1s · alertas si CPU>85% o RAM>90%';
+    } else {
+      panel.style.borderLeftColor = '#22c55e';
+      panel.style.background = 'linear-gradient(90deg,#064e3b,#065f46)';
+      icon.textContent = '✓';
+      title.textContent = 'Maity OK';
+      sub.textContent = 'En idle. Sample 3s.';
+    }
+
+    cpu.textContent = `${r.cpu_pct.toFixed(0)}%`;
+    cpu.className = r.cpu_pct > 85 ? 'wer-bad' : (r.cpu_pct > 70 ? 'wer-mid' : 'wer-good');
+    ram.textContent = `${r.ram_pct}%`;
+    ram.className = r.ram_pct > 90 ? 'wer-bad' : (r.ram_pct > 80 ? 'wer-mid' : 'wer-good');
+    proc.textContent = r.process_ram_mb;
+    proc.className = r.process_ram_mb > 4000 ? 'wer-bad' : 'wer-good';
+
+    if (r.warnings && r.warnings.length) {
+      warns.innerHTML = r.warnings.map(w => {
+        const isCrit = /CRÍTIC/i.test(w);
+        return `<span class="badge ${isCrit ? 'badge-broken' : 'badge-warn'}">⚠ ${w}</span>`;
+      }).join('');
+    } else {
+      warns.innerHTML = '';
+    }
+
+    const target = recording ? 1000 : 3000;
+    if (target !== runtimeIntervalMs) {
+      runtimeIntervalMs = target;
+      restartTimer();
+    }
+  } catch (e) {
+    console.warn('[runtime] poll failed:', e);
+  }
+}
+function restartTimer() {
+  if (runtimeTimer) clearInterval(runtimeTimer);
+  runtimeTimer = setInterval(pollRuntime, runtimeIntervalMs);
+}
+pollRuntime();
+restartTimer();
 </script>
 </body>
 </html>
