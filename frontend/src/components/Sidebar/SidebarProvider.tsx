@@ -76,8 +76,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [isMeetingActive, setIsMeetingActive] = useState(false);
   const [searchResults, setSearchResults] = useState<TranscriptSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [serverAddress, setServerAddress] = useState('');
-  const [transcriptServerAddress, setTranscriptServerAddress] = useState('');
+  // v23 cleanup: serverAddress vestigial (backend Python eliminado v21).
+  // Se inicia con valor truthy para que `if (serverAddress)` gate siga funcionando
+  // sin requerir backend HTTP — todo es Tauri local ahora.
+  const [serverAddress, setServerAddress] = useState('local');
+  const [transcriptServerAddress, setTranscriptServerAddress] = useState('local');
   const [activeSummaryPolls, setActiveSummaryPolls] = useState<Map<string, NodeJS.Timeout>>(new Map());
 
   // Use recording state from RecordingStateContext (single source of truth)
@@ -112,8 +115,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      setServerAddress('http://localhost:5167');
-      setTranscriptServerAddress('http://127.0.0.1:8178/stream');
+      // v23: backend Python eliminado, Maity es 100% local.
+      // Mantenemos placeholders truthy para no romper effect deps.
+      setServerAddress('local');
+      setTranscriptServerAddress('local');
     };
     fetchSettings();
   }, []);
