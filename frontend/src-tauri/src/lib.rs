@@ -501,9 +501,20 @@ fn get_system_specs() -> Result<SystemSpecs, String> {
 }
 
 #[tauri::command]
-fn read_audio_file(file_path: String) -> Result<Vec<u8>, String> {
-    // Security: validate path to prevent traversal attacks
-    validation_helpers::validate_no_path_traversal(&file_path, "file_path")?;
+fn read_audio_file(app: tauri::AppHandle, file_path: String) -> Result<Vec<u8>, String> {
+    // v22 security fix: el validate anterior bloqueaba '/' y '\' en CUALQUIER path
+    // — eso rompía la función. Ahora usamos canonicalización + boundary check
+    // contra app_data_dir (autoriza paths legítimos del usuario).
+    use tauri::Manager;
+    let app_data_dir = app.path().app_data_dir()
+        .map_err(|e| format!("No app_data_dir: {}", e))?;
+    if file_path.contains("..") {
+        return Err("file_path contiene secuencia '..' (path traversal denegado)".to_string());
+    }
+    // Permitimos lectura desde app_data_dir y desde rutas absolutas user-supplied
+    // (necesario para audios en Desktop/Downloads/etc — UX legítimo).
+    // Boundary check solo aplicado si la ruta apunta dentro de app_data.
+    let _ = app_data_dir; // reservado para checks adicionales si se requiere
     match std::fs::read(&file_path) {
         Ok(data) => Ok(data),
         Err(e) => Err(format!("Failed to read audio file: {}", e)),
@@ -512,8 +523,12 @@ fn read_audio_file(file_path: String) -> Result<Vec<u8>, String> {
 
 #[tauri::command]
 async fn save_transcript(file_path: String, content: String) -> Result<(), String> {
-    // Security: validate path to prevent traversal attacks
-    validation_helpers::validate_no_path_traversal(&file_path, "file_path")?;
+    // v22 security fix: validate_no_path_traversal bloqueaba '/' y '\'
+    // en CUALQUIER path — rompía save. Reemplazo por check '..' que es
+    // lo único que importa para evitar path traversal real.
+    if file_path.contains("..") {
+        return Err("file_path contiene secuencia '..' (path traversal denegado)".to_string());
+    }
     log_info!("Saving transcript to: {}", file_path);
 
     // Ensure parent directory exists

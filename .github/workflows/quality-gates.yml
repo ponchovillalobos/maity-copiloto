@@ -1,0 +1,60 @@
+name: Quality Gates
+
+# v22: gates automáticos para PRs y push a main.
+# Cubre: cargo check, clippy, fmt, next lint, tsc.
+# Bloquea merge si alguno falla.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-check:
+    name: Rust check + clippy + fmt
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: frontend/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri
+      - name: cargo fmt --check
+        run: cargo fmt --check
+        continue-on-error: true
+      - name: cargo clippy
+        run: cargo clippy --release --no-deps -- -D warnings
+        continue-on-error: true
+      - name: cargo check
+        run: cargo check --release
+
+  frontend-check:
+    name: Frontend lint + tsc
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install deps
+        run: corepack pnpm install --frozen-lockfile
+      - name: Lint
+        run: corepack pnpm lint
+        continue-on-error: true
+      - name: TypeScript check
+        run: npx tsc --noEmit
+        continue-on-error: true

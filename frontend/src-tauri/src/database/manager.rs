@@ -130,7 +130,10 @@ impl DatabaseManager {
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
-            .expect("failed to get app data dir");
+            .map_err(|e| sqlx::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("failed to get app data dir: {}", e),
+            )))?;
 
         let tauri_db_path = app_data_dir.join("meeting_minutes.sqlite");
 
@@ -145,7 +148,10 @@ impl DatabaseManager {
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
-            .expect("failed to get app data dir");
+            .map_err(|e| sqlx::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("failed to get app data dir: {}", e),
+            )))?;
 
         if !app_data_dir.exists() {
             fs::create_dir_all(&app_data_dir).map_err(|e| sqlx::Error::Io(e))?;
