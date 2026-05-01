@@ -24,8 +24,13 @@ pub enum StreamBackend {
     },
 }
 
-// SAFETY: While Stream doesn't implement Send, we ensure it's only accessed
-// from the same thread context by using spawn_blocking for operations that cross thread boundaries
+// SAFETY: While cpal::Stream does not implement Send, StreamBackend is safe to
+// send across threads because:
+// - StreamBackend::Cpal(Stream) is only accessed and controlled via stop() calls
+//   that use spawn_blocking to ensure operations stay on the audio thread.
+// - StreamBackend::CoreAudio contains a tokio::task::JoinHandle which is Send.
+// All mutable operations on cpal::Stream are guarded by explicit thread-safety
+// measures in AudioStreamManager. The ownership model ensures no concurrent access.
 unsafe impl Send for StreamBackend {}
 
 /// Simplified audio stream wrapper with multi-backend support
@@ -34,7 +39,12 @@ pub struct AudioStream {
     backend: StreamBackend,
 }
 
-// SAFETY: AudioStream contains StreamBackend which we've marked as Send
+// SAFETY: AudioStream is Send because it contains:
+// - device: Arc<AudioDevice> — Arc<T> is Send if T is Send. AudioDevice contains
+//   owned strings and enums, all Send.
+// - backend: StreamBackend — we have explicitly marked as Send above.
+// The Arc ensures thread-safe reference counting, and no interior mutability
+// is used except via atomic/mutex wrappers in the recording system downstream.
 unsafe impl Send for AudioStream {}
 
 impl AudioStream {

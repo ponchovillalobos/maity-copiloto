@@ -1,6 +1,6 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-    "productName": "Maity",
+    "productName": "Maity Copiloto",
     "version": "0.4.0",
     "identifier": "com.maity.ai",
     "build": {
@@ -13,7 +13,7 @@
         "windows": [
             {
                 "label": "main",
-                "title": "Maity",
+                "title": "Maity Copiloto",
                 "width": 1100,
                 "height": 700,
                 "resizable": true,
@@ -66,13 +66,22 @@
                     "permissions": [
                         "fs:default",
                         "fs:allow-read-file",
-                        "fs:read-all",
-                        "fs:write-all",
                         "fs:allow-app-read",
+                        "fs:allow-app-read-recursive",
                         "fs:allow-app-write",
+                        "fs:allow-app-write-recursive",
+                        "fs:allow-appdata-read",
+                        "fs:allow-appdata-read-recursive",
+                        "fs:allow-appdata-write",
+                        "fs:allow-appdata-write-recursive",
                         "fs:allow-download-write",
                         "fs:allow-download-read",
-                        "fs:scope-download",
+                        "fs:allow-document-read",
+                        "fs:allow-document-write",
+                        "fs:allow-audio-read",
+                        "fs:allow-audio-write",
+                        "fs:read-all",
+                        "fs:write-all",
                         "core:path:default",
                         "core:event:default",
                         "core:window:default",

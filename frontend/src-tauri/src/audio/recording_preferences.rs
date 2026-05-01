@@ -43,36 +43,36 @@ impl Default for RecordingPreferences {
 pub fn get_default_recordings_folder() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        // Windows: %USERPROFILE%\Music\meetily-recordings
+        // Windows: %USERPROFILE%\Music\maity-copiloto-recordings
         if let Some(music_dir) = dirs::audio_dir() {
-            music_dir.join("meetily-recordings")
+            music_dir.join("maity-copiloto-recordings")
         } else {
             // Fallback to Documents if Music folder is not available
             dirs::document_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
-                .join("meetily-recordings")
+                .join("maity-copiloto-recordings")
         }
     }
 
     #[cfg(target_os = "macos")]
     {
-        // macOS: ~/Movies/meetily-recordings
+        // macOS: ~/Movies/maity-copiloto-recordings
         if let Some(movies_dir) = dirs::video_dir() {
-            movies_dir.join("meetily-recordings")
+            movies_dir.join("maity-copiloto-recordings")
         } else {
             // Fallback to Documents if Movies folder is not available
             dirs::document_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
-                .join("meetily-recordings")
+                .join("maity-copiloto-recordings")
         }
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        // Linux/Others: ~/Documents/meetily-recordings
+        // Linux/Others: ~/Documents/maity-copiloto-recordings
         dirs::document_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("meetily-recordings")
+            .join("maity-copiloto-recordings")
     }
 }
 
@@ -248,11 +248,23 @@ pub async fn open_recordings_folder<R: Runtime>(app: AppHandle<R>) -> Result<(),
 pub async fn select_recording_folder<R: Runtime>(
     _app: AppHandle<R>,
 ) -> Result<Option<String>, String> {
-    // Use Tauri's dialog to select folder
-    // For now, return None - this would need to be implemented with tauri-plugin-dialog
-    // when it's available in the Cargo.toml
-    warn!("Folder selection not yet implemented - using dialog plugin");
-    Ok(None)
+    // Use rfd (native dialog library) which is already in Cargo.toml dependencies
+    // This provides cross-platform folder selection without plugin overhead
+    match rfd::AsyncFileDialog::new()
+        .pick_folder()
+        .await
+    {
+        Some(folder_handle) => {
+            let path = folder_handle.path().to_path_buf();
+            let path_str = path.to_string_lossy().to_string();
+            info!("User selected recording folder: {}", path_str);
+            Ok(Some(path_str))
+        }
+        None => {
+            info!("User cancelled folder selection");
+            Ok(None)
+        }
+    }
 }
 
 // Backend selection commands

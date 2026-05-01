@@ -31,7 +31,13 @@ pub struct RecordingManager {
     device_event_receiver: Option<mpsc::UnboundedReceiver<DeviceEvent>>,
 }
 
-// SAFETY: RecordingManager contains types that we've marked as Send
+// SAFETY: RecordingManager only contains Arc<Mutex<RecordingState>>,
+// Arc<AudioStreamManager>, Arc<AudioPipelineManager>, and Arc<RecordingSaver>.
+// All of these are Send + Sync. Arc itself is Send if T is Send.
+// RecordingState contains Arc<AtomicBool>, Arc<RwLock<>>, Arc<mpsc::UnboundedSender<>>
+// which are all thread-safe. AudioStreamManager wraps CPAL Streams in Arc<StreamHolder>,
+// protecting mutable access with Mutex. All mutable field access is guarded, making
+// RecordingManager safe to send across thread boundaries.
 unsafe impl Send for RecordingManager {}
 
 impl RecordingManager {

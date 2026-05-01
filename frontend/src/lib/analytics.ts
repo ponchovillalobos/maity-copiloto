@@ -162,34 +162,35 @@ export class Analytics {
     }
   }
 
-  // User ID management with persistent storage
+  // User ID management with persistent storage (requires analytics consent)
   static async getPersistentUserId(): Promise<string> {
     try {
-      // First check if we have a stored user ID
+      // Check analytics consent before persisting user ID
       const { Store } = await import('@tauri-apps/plugin-store');
       const store = await Store.load('analytics.json');
-      
+
+      const analyticsConsent = await store.get<boolean>('analytics_consent');
+
+      // If no consent, return ephemeral anonymous ID
+      if (analyticsConsent !== true) {
+        return `anon-${crypto.randomUUID()}`;
+      }
+
       let userId = await store.get<string>('user_id');
-      
+
       if (!userId) {
-        // Generate new user ID
+        // Generate new user ID only with consent
         userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         await store.set('user_id', userId);
         await store.set('is_first_launch', true);
         await store.save();
       }
-      
+
       return userId;
     } catch (error) {
       console.error('Failed to get persistent user ID:', error);
-      // Fallback to session storage
-      let userId = sessionStorage.getItem('maity_user_id');
-      if (!userId) {
-        userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        sessionStorage.setItem('maity_user_id', userId);
-        sessionStorage.setItem('is_first_launch', 'true');
-      }
-      return userId;
+      // Fallback to session ephemeral ID (no persistent storage without consent)
+      return `anon-${crypto.randomUUID()}`;
     }
   }
 

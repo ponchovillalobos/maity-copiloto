@@ -21,10 +21,17 @@ pub fn create_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     // Pass can_record=true initially, will be updated by update_tray_menu immediately
     let menu = build_menu(app, RecordingState::Stopped, true)?;
 
+    let tray_icon = app.default_window_icon()
+        .ok_or_else(|| tauri::Error::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Failed to load tray icon"
+        )))?
+        .clone();
+
     TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
         .tooltip("Maity")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
         .on_menu_event(|app, event| handle_menu_event(app, event.id.as_ref()))
         .build(app)?;
 

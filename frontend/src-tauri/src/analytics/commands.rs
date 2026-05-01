@@ -9,13 +9,14 @@ static ANALYTICS_CLIENT: std::sync::Mutex<Option<Arc<AnalyticsClient>>> = std::s
 #[command]
 pub async fn init_analytics() -> Result<(), String> {
     // Read API key from environment variable for security
-    // Falls back to embedded key only in release builds
-    let api_key = std::env::var("POSTHOG_API_KEY")
-        .or_else(|_| std::env::var("MAITY_POSTHOG_KEY"))
-        .unwrap_or_else(|_| {
-            // Embedded key for distribution builds (public project key, not secret)
-            "phc_cohhHPgfQfnNWl33THRRpCftuRtWx2k5svtKrkpFb04".to_string()
-        });
+    let api_key = match std::env::var("POSTHOG_API_KEY")
+        .or_else(|_| std::env::var("MAITY_POSTHOG_KEY")) {
+        Ok(key) => key,
+        Err(_) => {
+            log::debug!("PostHog API key not configured via environment; analytics disabled");
+            return Ok(()); // Early return if no key configured
+        }
+    };
 
     let config = AnalyticsConfig {
         api_key,

@@ -2,7 +2,7 @@
     <h1>
         <img src="docs/Meetily-6.png" style="border-radius: 10px;" />
         <br>
-        Maity Desktop - Asistente de Reuniones con IA
+        Maity Copiloto - Asistente de Reuniones con IA
     </h1>
     <br>
     <a href="https://github.com/ponchovillalobos/maity-desktop/releases/"><img src="https://img.shields.io/badge/Descargar-v0.2.1-brightgreen" alt="Descargar"></a>
@@ -17,9 +17,9 @@
 
 ---
 
-## Que es Maity Desktop?
+## Que es Maity Copiloto?
 
-Maity Desktop es un asistente de reuniones con inteligencia artificial enfocado en **privacidad**. Graba tus reuniones, las transcribe **localmente en tu computadora** usando modelos de IA (Parakeet/Canary) y genera resumenes inteligentes con proveedores de LLM de tu eleccion.
+Maity Copiloto es un asistente de reuniones con inteligencia artificial enfocado en **privacidad**. Graba tus reuniones, las transcribe **localmente en tu computadora** usando modelos de IA (Parakeet/Canary) y genera resumenes inteligentes con proveedores de LLM de tu eleccion.
 
 **Tu audio nunca sale de tu computadora.** Toda la transcripcion se procesa localmente sin enviar datos a la nube. No necesitas internet para transcribir tus reuniones.
 
