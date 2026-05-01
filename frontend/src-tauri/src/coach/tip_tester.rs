@@ -117,7 +117,7 @@ pub async fn dev_run_tip_tests(
         "tipsrun-{}",
         chrono::Utc::now().format("%Y-%m-%d-%H-%M-%S")
     );
-    let build_version = "v14".to_string();
+    let build_version = "v16".to_string();
 
     log::info!(
         "[tip_tester] STARTED run_id={} scenarios={} build_version={}",
