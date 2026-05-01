@@ -17,7 +17,9 @@ use crate::{
     validation_helpers,
 };
 
-// Hardcoded server URL
+// DEPRECATED v21: Backend Python (FastAPI) eliminado. Esta constante existe
+// solo para compatibilidad con comandos profile/licensing huérfanos que
+// frontend ya no invoca. NO usar en código nuevo.
 const APP_SERVER_URL: &str = "http://localhost:5167";
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -94,13 +94,11 @@ graph TD
 
 #### Motor de Resumenes
 
-- Genera resumenes de reuniones utilizando LLMs configurables.
-- Proveedores soportados:
-  - **Ollama** (local): Modelos como Llama, Mistral, etc., ejecutados localmente.
-  - **Claude**: API de Anthropic.
-  - **Groq**: API de inferencia rapida.
-  - **OpenRouter**: Gateway a multiples proveedores de LLM.
-- Se conecta via el backend FastAPI opcional (`backend/app/main.py`) en `http://localhost:5167`.
+- Genera resumenes de reuniones 100% LOCAL utilizando llama-helper sidecar (GGUF runtime).
+- Modelos default: qwen3:1.7b para evaluacion + coach, qwen3:0.6b legacy.
+- Sin dependencias de nube (Claude/Groq/OpenRouter eliminados de UI principal).
+- v21 cleanup: backend Python (`backend/app/main.py:5167`) ELIMINADO. Toda la persistencia
+  ahora vive en SQLite local manejado directamente desde Rust (sin servidor HTTP intermedio).
 
 ## Pipeline de Audio
 
