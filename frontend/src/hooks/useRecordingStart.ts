@@ -162,14 +162,26 @@ export function useRecordingStart(
       // Set STARTING status before initiating backend recording
       setStatus(RecordingStatus.STARTING, 'Initializing recording...');
 
-      // Start the actual backend recording
-      logger.debug('Starting backend recording with meeting:', randomTitle);
-      await recordingService.startRecordingWithDevices(
-        selectedDevices?.micDevice || null,
-        selectedDevices?.systemDevice || null,
-        randomTitle
-      );
-      logger.debug('Backend recording started successfully');
+      // UX: toast loading visible mientras backend prepara (~2-5s)
+      // evita que usuario presione "iniciar" dos veces por desesperación
+      const startToastId = toast.loading('Preparando grabación... (configurando audio + transcripción)', {
+        duration: Infinity,
+      });
+
+      try {
+        // Start the actual backend recording
+        logger.debug('Starting backend recording with meeting:', randomTitle);
+        await recordingService.startRecordingWithDevices(
+          selectedDevices?.micDevice || null,
+          selectedDevices?.systemDevice || null,
+          randomTitle
+        );
+        logger.debug('Backend recording started successfully');
+        toast.success('Grabación iniciada', { id: startToastId, duration: 2000 });
+      } catch (e) {
+        toast.error(`Error iniciando: ${e instanceof Error ? e.message : String(e)}`, { id: startToastId, duration: 5000 });
+        throw e;
+      }
 
       // Update state after successful backend start
       // Note: RECORDING status will be set by RecordingStateContext event listener

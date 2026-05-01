@@ -138,6 +138,17 @@ const server = http.createServer((req, res) => {
     return jsonReply(res, rows);
   }
 
+  if (url.pathname === '/api/evaluations') {
+    const limit = Math.min(500, Number(url.searchParams.get('limit')) || 100);
+    const rows = safeRows(
+      `SELECT meeting_id, puntuacion_global, nivel, prompt_version, model_used,
+              duration_minutes, created_at
+       FROM meeting_evaluations ORDER BY created_at DESC LIMIT ?`,
+      [limit],
+    );
+    return jsonReply(res, rows);
+  }
+
   if (url.pathname === '/api/improvements') {
     const limit = Math.min(200, Number(url.searchParams.get('limit')) || 100);
     const rows = safeRows(

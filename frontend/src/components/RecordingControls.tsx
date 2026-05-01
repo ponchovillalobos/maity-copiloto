@@ -416,7 +416,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
                             } rounded-full text-white transition-colors shadow-xl relative`}
                           aria-label="Iniciar grabación"
                         >
-                          {isValidatingModel ? (
+                          {isValidatingModel || isStarting ? (
                             <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
                           ) : (
                             <Mic size={28} />
