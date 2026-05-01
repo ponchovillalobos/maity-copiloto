@@ -1,156 +1,30 @@
 //! Comandos Tauri del copiloto IA.
 //!
-//! Reusa `summary::llm_client::generate_summary` con un system prompt
-//! especializado en sales coaching. SOLO permite proveedor Ollama (privacidad).
+//! Contiene todos los comandos Tauri. Reusa tipos y helpers de:
+//! - types: CoachSuggestion, CoachStatus, CoachModelsConfig
+//! - parser: parse_llm_output, infer_tip_type
+//! - model_state: gestión de modelos Ollama
 
 use crate::coach::context::{build_context, ContextMode};
+
+// Re-exportar para mantener compatibilidad con módulos que importan desde aquí
+pub use crate::coach::model_state::{
+    CHAT_MODEL, CURRENT_MODEL, EVALUATION_MODEL, SHARED_CLIENT,
+};
+pub use crate::coach::types::{CoachModelsConfig, CoachStatus, CoachSuggestion};
+
+use crate::coach::model_state::{LAST_LATENCY_MS, check_ollama_running};
+use crate::coach::parser::{infer_tip_type, parse_llm_output};
 use crate::coach::prompt::{
-    build_user_prompt_v3, DEFAULT_MODEL, MAITY_COPILOTO_V3_LITE_PROMPT, MeetingType,
+    build_user_prompt_v3, MAITY_COPILOTO_V3_LITE_PROMPT, MeetingType,
 };
 use crate::coach::retry::{with_backoff, RetryConfig};
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use crate::validation_helpers;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{LazyLock, Mutex};
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Manager;
-
-/// Modelo activo (mutable, defaulteado a Phi-3.5).
-pub static CURRENT_MODEL: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new(DEFAULT_MODEL.to_string()));
-
-/// Modelo activo para evaluación post-meeting (configurable por usuario).
-/// Default `gemma3:4b` para compatibilidad con laptops 8GB RAM.
-pub static EVALUATION_MODEL: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new("gemma3:4b".to_string()));
-
-/// Modelo activo para chat con reuniones (configurable por usuario).
-pub static CHAT_MODEL: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new("gemma3:4b".to_string()));
-
-/// Latencia del último request (ms). 0 = aún no medido.
-static LAST_LATENCY_MS: AtomicU64 = AtomicU64::new(0);
-
-/// Shared HTTP client for Ollama requests (eliminates cold-start per-request overhead).
-/// HTTP client compartido entre coach_suggest y coach_chat.
-/// Timeout 60s para chat (respuestas más largas); pool reutiliza conexiones TCP
-/// a localhost:11434 → elimina 20-50ms de setup por request.
-pub static SHARED_CLIENT: LazyLock<Client> = LazyLock::new(|| {
-    Client::builder()
-        .timeout(Duration::from_secs(60))
-        .pool_max_idle_per_host(4)
-        .build()
-        .expect("Failed to create shared HTTP client for Ollama")
-});
-
-/// Get current model without locking (for startup warm-up).
-pub fn get_current_model() -> Result<String, String> {
-    CURRENT_MODEL
-        .lock()
-        .map(|g| g.clone())
-        .map_err(|e| format!("Failed to get current model: {}", e))
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CoachSuggestion {
-    pub tip: String,
-    #[serde(default = "default_category")]
-    pub category: String,
-    /// Subcategoría específica de la técnica (ej: "spin_problem_to_implication").
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub subcategory: Option<String>,
-    /// Framework de origen (ej: "SPIN", "Chris Voss", "Cialdini").
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub technique: Option<String>,
-    /// Nivel de prioridad: "critical" | "important" | "soft".
-    /// Se deriva de confidence si el LLM no la provee.
-    #[serde(default = "default_priority")]
-    pub priority: String,
-    #[serde(default = "default_confidence")]
-    pub confidence: f32,
-    /// V3.1: tipo de tip — "recognition"|"observation"|"corrective"|"introspective".
-    /// Se infiere si el LLM no lo provee (fallback).
-    #[serde(default = "default_tip_type")]
-    pub tip_type: String,
-    pub timestamp: i64,
-    pub model: String,
-    pub latency_ms: u64,
-}
-
-fn default_priority() -> String {
-    "soft".to_string()
-}
-
-fn default_confidence() -> f32 {
-    0.7
-}
-
-fn default_category() -> String {
-    "general".to_string()
-}
-
-fn default_tip_type() -> String {
-    "observation".to_string()
-}
-
-/// Infiere `tip_type` a partir del tip + priority + confidence cuando el LLM no lo provee.
-///
-/// Heurística:
-/// - Empieza con "Excelente/Bien/Perfecto/Gran/Buen" → recognition
-/// - Empieza con "¿" → introspective
-/// - Empieza con "Noto/He notado/Observo" → observation
-/// - priority in {critical, important} → corrective
-/// - resto → observation
-pub fn infer_tip_type(tip: &str, priority: &str) -> String {
-    let trimmed = tip.trim_start();
-    let lower = trimmed.to_lowercase();
-    const RECOG: &[&str] = &[
-        "excelente", "bien hecho", "perfecto", "gran ", "buen ", "increible",
-        "muy bien", "genial",
-    ];
-    if RECOG.iter().any(|p| lower.starts_with(p)) {
-        return "recognition".to_string();
-    }
-    if trimmed.starts_with('¿') || trimmed.starts_with('?') {
-        return "introspective".to_string();
-    }
-    const OBS: &[&str] = &["noto", "he notado", "observo", "veo que"];
-    if OBS.iter().any(|p| lower.starts_with(p)) {
-        return "observation".to_string();
-    }
-    match priority {
-        "critical" | "important" => "corrective".to_string(),
-        _ => "observation".to_string(),
-    }
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct CoachStatus {
-    pub model: String,
-    pub ollama_running: bool,
-    pub last_latency_ms: u64,
-}
-
-/// Salida cruda esperada del LLM (JSON dentro del content).
-#[derive(Debug, Deserialize)]
-struct RawSuggestion {
-    tip: String,
-    #[serde(default = "default_category")]
-    category: String,
-    /// V3.1 nuevo: tipo de tip (opcional, se infiere si falta).
-    #[serde(default)]
-    tip_type: Option<String>,
-    #[serde(default)]
-    subcategory: Option<String>,
-    #[serde(default)]
-    technique: Option<String>,
-    #[serde(default)]
-    priority: Option<String>,
-    #[serde(default = "default_confidence")]
-    confidence: f32,
-}
 
 /// Genera una sugerencia de coaching v3.0 con 31 frameworks + routing explícito.
 ///
@@ -177,8 +51,8 @@ pub async fn coach_suggest(
     trigger_signal: Option<String>,
 ) -> Result<CoachSuggestion, String> {
     // Validate input parameters
-    let _ = validation_helpers::validate_language(&role)?; // Validate role field
-    let _ = validation_helpers::validate_language(&language)?; // Validate language field
+    let _ = validation_helpers::validate_language(&role)?;
+    let _ = validation_helpers::validate_language(&language)?;
 
     let validated_meeting_id = if let Some(mid) = meeting_id {
         Some(validation_helpers::validate_meeting_id(&mid)?)
@@ -203,11 +77,7 @@ pub async fn coach_suggest(
         .map_err(|e| format!("Mutex envenenado: {}", e))?
         .clone();
 
-    // Prioridad de contexto:
-    // 1. window del frontend (en vivo, más reciente que DB)
-    // 2. DB via meeting_id (reuniones guardadas)
-    // Optimización P0: cap window a 600 chars (~150 tokens) para tip <2s en CPU.
-    // Mantenemos solo el tail (últimas líneas) — más relevante para coaching live.
+    // Window de contexto: tamaño máximo 600 chars para latencia <2s en CPU
     const WINDOW_CHAR_CAP: usize = 600;
     let trimmed_window = if window.chars().count() > WINDOW_CHAR_CAP {
         let total: Vec<char> = window.chars().collect();
@@ -216,6 +86,7 @@ pub async fn coach_suggest(
     } else {
         window.clone()
     };
+
     let effective_window = if !trimmed_window.trim().is_empty() {
         trimmed_window
     } else if let Some(mid) = validated_meeting_id.as_ref() {
@@ -266,8 +137,6 @@ pub async fn coach_suggest(
         &model,
     );
 
-    // Coach Suggest usa retry con timeout corto (8s) + 2 intentos
-    // Si Ollama está saturado, rearma con backoff exponencial
     let retry_config = RetryConfig {
         max_attempts: 2,
         initial_backoff_ms: 800,
@@ -275,16 +144,12 @@ pub async fn coach_suggest(
         backoff_multiplier: 2.0,
     };
 
-    // Resolvemos app_data_dir UNA VEZ; el sidecar BuiltInAI lo necesita para
-    // ubicar el GGUF (no asume valor por defecto, falla rápido si no se pasa).
     let app_data_dir = app
         .path()
         .app_data_dir()
         .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
 
     let raw_result = with_backoff(&retry_config, "coach_suggest", |_attempt| {
-        // Crear cliente local con timeout corto (60s para BuiltInAI: el sidecar
-        // arranca lazy y la primera llamada puede tardar ~10-30s).
         let client = Client::builder()
             .timeout(Duration::from_secs(60))
             .pool_max_idle_per_host(2)
@@ -305,9 +170,6 @@ pub async fn coach_suggest(
                 &user_prompt_clone,
                 None,
                 None,
-                // P0 perf: tips ultra-cortos para <2s en CPU.
-                // max_tokens 80→50 (1 oración + JSON wrapper basta).
-                // 50 tokens / 14 tok/s decode = 3.5s en lugar de 5.7s.
                 Some(50),
                 Some(0.3),
                 Some(0.7),
@@ -392,10 +254,6 @@ pub async fn coach_suggest(
         latency_ms,
     };
 
-    // Nota: NO emitimos `coach-tip-update` aquí.
-    // El frontend (CoachContext) aplica filtros (confianza, vaguedad, prefijo)
-    // y re-emite el evento solo si el tip pasa esos filtros, garantizando que
-    // panel principal y ventana flotante muestren EXACTAMENTE los mismos tips.
     Ok(suggestion)
 }
 
@@ -414,14 +272,6 @@ pub fn coach_set_model(model_id: String) -> Result<(), String> {
         .map_err(|e| format!("Mutex envenenado: {}", e))?;
     *current = model_id;
     Ok(())
-}
-
-/// Configuración de los 3 modelos del coach (tips/evaluación/chat).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CoachModelsConfig {
-    pub tips_model: String,
-    pub evaluation_model: String,
-    pub chat_model: String,
 }
 
 /// Devuelve los 3 modelos configurados (tips + evaluación + chat).
@@ -475,7 +325,7 @@ pub async fn coach_get_status() -> Result<CoachStatus, String> {
         .clone();
 
     let ollama_running = check_ollama_running().await;
-    let last_latency_ms = LAST_LATENCY_MS.load(Ordering::Relaxed);
+    let last_latency_ms = LAST_LATENCY_MS.load(std::sync::atomic::Ordering::Relaxed);
 
     Ok(CoachStatus {
         model,
@@ -484,77 +334,9 @@ pub async fn coach_get_status() -> Result<CoachStatus, String> {
     })
 }
 
-/// Health check rápido a Ollama (timeout 2s).
-async fn check_ollama_running() -> bool {
-    let client = match Client::builder().timeout(Duration::from_secs(2)).build() {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-    client
-        .get("http://localhost:11434/api/tags")
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
-}
-
-/// Parsea la salida del LLM. Tolerante a markdown wrapping, thinking tags y ruido alrededor del JSON.
-fn parse_llm_output(raw: &str) -> Result<RawSuggestion, String> {
-    let cleaned = crate::coach::parse_helpers::clean_llm_output(raw);
-
-    // Intento directo
-    if let Ok(parsed) = serde_json::from_str::<RawSuggestion>(&cleaned) {
-        return Ok(parsed);
-    }
-
-    // Buscar el primer { y el último } (tolerante a texto antes/después)
-    let start = cleaned.find('{');
-    let end = cleaned.rfind('}');
-    if let (Some(s), Some(e)) = (start, end) {
-        if e > s {
-            let slice = &cleaned[s..=e];
-            return serde_json::from_str::<RawSuggestion>(slice)
-                .map_err(|err| format!("JSON inválido: {} | raw: {}", err, slice));
-        }
-    }
-
-    Err(format!(
-        "No se pudo parsear salida del LLM (no encontré JSON): {}",
-        cleaned
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_parse_directo() {
-        let raw = r#"{"tip":"Hola","category":"rapport","confidence":0.8}"#;
-        let result = parse_llm_output(raw).unwrap();
-        assert_eq!(result.tip, "Hola");
-        assert_eq!(result.category, "rapport");
-        assert!((result.confidence - 0.8).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_parse_con_markdown() {
-        let raw = "```json\n{\"tip\":\"Pregunta sobre el fin de semana\",\"category\":\"icebreaker\",\"confidence\":0.7}\n```";
-        let result = parse_llm_output(raw).unwrap();
-        assert_eq!(result.category, "icebreaker");
-    }
-
-    #[test]
-    fn test_parse_con_ruido_alrededor() {
-        let raw = r#"Aquí va mi respuesta: {"tip":"Cierra ahora","category":"closing","confidence":0.95} Espero ayude."#;
-        let result = parse_llm_output(raw).unwrap();
-        assert_eq!(result.tip, "Cierra ahora");
-    }
-
-    #[test]
-    fn test_parse_invalido() {
-        assert!(parse_llm_output("texto sin json").is_err());
-    }
 
     #[test]
     fn test_set_model_acepta_cualquier_ollama() {

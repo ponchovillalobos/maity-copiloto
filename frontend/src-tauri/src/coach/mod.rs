@@ -16,8 +16,10 @@ pub mod evaluator;
 pub mod floating;
 pub mod meeting_chat;
 pub mod meeting_type;
+pub mod model_state;
 pub mod nudge_engine;
 pub mod parse_helpers;
+pub mod parser;
 pub mod playbook;
 pub mod prompt;
 pub mod prompts;
@@ -25,6 +27,7 @@ pub mod prospecting;
 pub mod retry;
 pub mod tip_tester;
 pub mod trigger;
+pub mod types;
 pub mod wer;
 #[cfg(test)]
 mod stress_tests;
@@ -45,5 +48,6 @@ pub use custom_prompts::{
 pub use evaluator::{
     coach_evaluate_communication, CommunicationFeedback, CommunicationObservations,
 };
+pub use model_state::{CHAT_MODEL, CURRENT_MODEL, EVALUATION_MODEL, SHARED_CLIENT};
 pub use nudge_engine::coach_evaluate_nudge;
 pub use trigger::{analyze_turn, coach_analyze_trigger, TriggerCategory, TriggerSignal};
