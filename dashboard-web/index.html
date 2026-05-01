@@ -241,9 +241,23 @@ async function refresh() {
     const scores = evals.map(e => e.puntuacion_global).filter(s => s != null);
     const avg = scores.length ? (scores.reduce((a,b)=>a+b,0) / scores.length).toFixed(1) : '0';
     const levelCounts = evals.reduce((acc, e) => { const l = e.nivel || 'unknown'; acc[l] = (acc[l]||0)+1; return acc; }, {});
+    // A/B comparativo por prompt_version
+    const byPrompt = evals.reduce((acc, e) => {
+      const v = e.prompt_version || 'unknown';
+      if (!acc[v]) acc[v] = { scores: [], count: 0 };
+      acc[v].count++;
+      if (e.puntuacion_global != null) acc[v].scores.push(e.puntuacion_global);
+      return acc;
+    }, {});
+    const promptBadges = Object.entries(byPrompt)
+      .map(([v, d]) => {
+        const a = d.scores.length ? (d.scores.reduce((a,b)=>a+b,0)/d.scores.length).toFixed(1) : '–';
+        return `<span class="badge badge-untested" title="${d.count} evaluaciones, score promedio ${a}">${v}: ${d.count} (avg ${a})</span>`;
+      }).join(' ');
     document.getElementById('evals-summary').innerHTML =
       `<b>${total}</b> evaluaciones · score promedio <b class="wer-good">${avg}/100</b> · ` +
-      Object.entries(levelCounts).map(([k,v]) => `<span class="badge badge-untested">${k}: ${v}</span>`).join(' ');
+      Object.entries(levelCounts).map(([k,v]) => `<span class="badge badge-untested">${k}: ${v}</span>`).join(' ') +
+      `<br><span style="font-size:0.7rem;color:var(--muted);">A/B prompts: </span>` + promptBadges;
     document.getElementById('evals-rows').innerHTML = evals.slice(0, 30).map(e => `
       <tr>
         <td class="num"><b>${e.puntuacion_global ?? '–'}</b>/100</td>
