@@ -5,3 +5,4 @@
 //! probar prompts sin tocar la lógica del cliente LLM.
 
 pub mod evaluation_v4;
+pub mod evaluation_v5_fast;

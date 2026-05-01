@@ -23,6 +23,7 @@ pub mod prompt;
 pub mod prompts;
 pub mod prospecting;
 pub mod retry;
+pub mod tip_tester;
 pub mod trigger;
 pub mod wer;
 #[cfg(test)]

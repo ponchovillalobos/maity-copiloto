@@ -95,7 +95,10 @@ pub fn get_available_models() -> Vec<ModelDef> {
             template: "qwen3".to_string(),
             download_url: "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf".to_string(),
             size_mb: 1057,
-            context_size: 8192,
+            // Qwen3 nativo soporta 32k+. Subido a 16k para evaluación post-meeting
+            // que requiere prompt v4 ~12KB sys + transcript + JSON estructurado output.
+            // Bug previo: ctx 8192 + prompt 5000+ tokens + max_tokens 1500 = overflow → "failed to eval".
+            context_size: 16384,
             layer_count: 28,
             sampling: SamplingParams {
                 temperature: 0.3,

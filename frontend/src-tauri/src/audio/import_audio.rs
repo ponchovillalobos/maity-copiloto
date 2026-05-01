@@ -720,6 +720,164 @@ pub async fn dev_import_two_audios<R: Runtime>(
     })
 }
 
+// ============================================================================
+// BATCH: scan folder de scenarios y devolver lista para procesar secuencialmente
+// ============================================================================
+
+/// Un scenario candidato dentro de la carpeta batch (cada subcarpeta).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchScenario {
+    pub name: String,
+    pub user_audio_path: String,
+    pub interlocutor_audio_path: String,
+    /// Texto de referencia user (líneas `[user] ...` del .txt). Vacío si no hay .txt.
+    pub ground_truth_user: String,
+    /// Texto de referencia interlocutor (líneas `[interlocutor] ...` del .txt). Vacío si no hay .txt.
+    pub ground_truth_interlocutor: String,
+}
+
+/// Parsea un archivo .txt con líneas `[user] ...` / `[interlocutor] ...` y devuelve
+/// dos buffers separados.
+fn parse_ground_truth_txt(path: &PathBuf) -> (String, String) {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return (String::new(), String::new()),
+    };
+    let mut user = String::new();
+    let mut inter = String::new();
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("[user]") {
+            if !user.is_empty() {
+                user.push(' ');
+            }
+            user.push_str(rest.trim());
+        } else if let Some(rest) = trimmed.strip_prefix("[interlocutor]") {
+            if !inter.is_empty() {
+                inter.push(' ');
+            }
+            inter.push_str(rest.trim());
+        }
+    }
+    (user, inter)
+}
+
+/// Lee flag externo `%APPDATA%/com.maity.ai/autorun.json` para gatillar batch
+/// automático sin clicks. Formato del archivo:
+/// `{"enabled": true, "folder": "D:\\Poncho\\..."}`
+/// El frontend (home page) lee este flag y redirige a /dev?mode=batch&autorun=1.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutorunBatchFlag {
+    pub enabled: bool,
+    #[serde(default)]
+    pub folder: Option<String>,
+}
+
+#[tauri::command]
+pub async fn check_autorun_batch_flag<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Option<AutorunBatchFlag>, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No app_data_dir: {}", e))?;
+    let flag_path = app_data_dir.join("autorun.json");
+    if !flag_path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(&flag_path)
+        .map_err(|e| format!("Failed to read autorun.json: {}", e))?;
+    let flag: AutorunBatchFlag =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid autorun.json: {}", e))?;
+    Ok(Some(flag))
+}
+
+/// Escanea una carpeta y detecta cada subcarpeta-scenario con sus dos audios
+/// separados + ground truth. Convención esperada (basada en `D:/Poncho/Videos/
+/// Edicion-Claude/output/`):
+///
+/// - `<subfolder>/<name>-valentina.mp3` o `<subfolder>/pista-valentina.mp3` → user
+/// - `<subfolder>/<name>-cliente.mp3` o `<subfolder>/pista-cliente.mp3` → interlocutor
+/// - `<subfolder>/<name>.txt` con líneas `[user] ...` / `[interlocutor] ...` → ground truth
+///
+/// Devuelve solo scenarios donde ambos audios existen. Skipea carpetas vacías
+/// o incompletas.
+#[tauri::command]
+pub async fn dev_list_batch_scenarios(
+    folder_path: String,
+) -> Result<Vec<BatchScenario>, String> {
+    let root = PathBuf::from(&folder_path);
+    if !root.exists() || !root.is_dir() {
+        return Err(format!("Carpeta no encontrada o no es directorio: {}", folder_path));
+    }
+
+    let mut scenarios = Vec::new();
+
+    let entries = std::fs::read_dir(&root).map_err(|e| format!("read_dir error: {}", e))?;
+    for entry in entries.flatten() {
+        let subdir = entry.path();
+        if !subdir.is_dir() {
+            continue;
+        }
+        let scenario_name = match subdir.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+
+        let mut user_audio: Option<PathBuf> = None;
+        let mut inter_audio: Option<PathBuf> = None;
+        let mut txt_file: Option<PathBuf> = None;
+
+        let files = match std::fs::read_dir(&subdir) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        for f in files.flatten() {
+            let p = f.path();
+            if !p.is_file() {
+                continue;
+            }
+            let fname = match p.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+            let lower = fname.to_lowercase();
+            if lower.ends_with(".mp3") || lower.ends_with(".wav") || lower.ends_with(".m4a") {
+                if lower.contains("-valentina.") || lower.contains("-user.") {
+                    user_audio = Some(p.clone());
+                } else if lower.contains("-cliente.") || lower.contains("-interlocutor.") {
+                    inter_audio = Some(p.clone());
+                }
+            } else if lower.ends_with(".txt") {
+                txt_file = Some(p.clone());
+            }
+        }
+
+        // Skip si falta cualquiera de los dos audios.
+        let (Some(ua), Some(ia)) = (user_audio, inter_audio) else {
+            log::debug!("[batch] skip {} (faltan audios separados)", scenario_name);
+            continue;
+        };
+
+        let (gt_user, gt_inter) = if let Some(t) = txt_file {
+            parse_ground_truth_txt(&t)
+        } else {
+            (String::new(), String::new())
+        };
+
+        scenarios.push(BatchScenario {
+            name: scenario_name,
+            user_audio_path: ua.to_string_lossy().to_string(),
+            interlocutor_audio_path: ia.to_string_lossy().to_string(),
+            ground_truth_user: gt_user,
+            ground_truth_interlocutor: gt_inter,
+        });
+    }
+
+    scenarios.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(scenarios)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

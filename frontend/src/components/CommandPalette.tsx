@@ -31,7 +31,9 @@ export type CommandId =
   | 'go-home'
   | 'reload'
   | 'clear-cache'
-  | 'open-dashboard';
+  | 'open-dashboard'
+  | 'open-dev'
+  | 'run-batch-iterations';
 
 interface CommandDef {
   id: CommandId;
@@ -236,6 +238,29 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         keywords: ['dash', 'metrics', 'metricas', 'iter', 'control'],
         group: 'Navegación',
         action: () => router.push('/dashboard'),
+      },
+      {
+        id: 'open-dev',
+        slash: '/dev',
+        label: 'Página de pruebas /dev',
+        description: 'Importar audios y testear pipeline',
+        icon: <ChevronRight className="w-4 h-4" />,
+        keywords: ['test', 'audio', 'qa', 'import'],
+        group: 'Navegación',
+        action: () => router.push('/dev'),
+      },
+      {
+        id: 'run-batch-iterations',
+        slash: '/batch',
+        label: 'Iniciar batch automático (todos los audios)',
+        description: 'Procesa toda la carpeta D:\\Poncho\\Videos\\Edicion-Claude\\output con WER',
+        icon: <ChevronRight className="w-4 h-4" />,
+        keywords: ['batch', 'auto', 'iter', 'todos', 'run'],
+        group: 'Sistema',
+        action: () => {
+          const folder = encodeURIComponent('D:\\Poncho\\Videos\\Edicion-Claude\\output');
+          router.push(`/dev?mode=batch&autorun=1&folder=${folder}`);
+        },
       },
       {
         id: 'open-settings',

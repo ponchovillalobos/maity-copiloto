@@ -27,6 +27,32 @@ import { useRouter } from 'next/navigation';
 import { logger } from '@/lib/logger';
 
 export default function Home() {
+  const _autoRouter = useRouter();
+  // Auto-redirect a /dev modo batch si:
+  //  (a) localStorage tiene flag, o
+  //  (b) existe archivo `%APPDATA%/com.maity.ai/autorun.json` con {"enabled":true,"folder":"..."}
+  useEffect(() => {
+    (async () => {
+      try {
+        if (typeof window !== 'undefined' && localStorage.getItem('maity_autorun_batch') === '1') {
+          const folder = localStorage.getItem('maity_autorun_folder') || 'D:\\Poncho\\Videos\\Edicion-Claude\\output';
+          localStorage.removeItem('maity_autorun_batch');
+          _autoRouter.replace(`/dev?mode=batch&autorun=1&folder=${encodeURIComponent(folder)}`);
+          return;
+        }
+        // Tauri-side flag file (writable from Bash externally)
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const cfg = await invoke<{ enabled: boolean; folder?: string } | null>('check_autorun_batch_flag').catch(() => null);
+          if (cfg && cfg.enabled) {
+            const folder = cfg.folder || 'D:\\Poncho\\Videos\\Edicion-Claude\\output';
+            _autoRouter.replace(`/dev?mode=batch&autorun=1&folder=${encodeURIComponent(folder)}`);
+          }
+        } catch {}
+      } catch {}
+    })();
+  }, [_autoRouter]);
+
   // Local page state (not moved to contexts)
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
 

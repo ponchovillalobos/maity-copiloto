@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "description": "Ground truth de tips esperados por scenario. Cada scenario tiene 3-5 tips que un coach experto daría en distintos puntos de la conversación. Usado para comparar tips generados por Maity vs gold standard.",
+  "scenarios": {
+    "venta_ibm_cto_junior": {
+      "meeting_type": "sales",
+      "context_summary": "Vendedora junior IBM intentando vender FlashSystem a CTO experto. Da datos imprecisos (latencia 100µs ~depende~), no maneja objeciones técnicas, no califica al cliente.",
+      "expected_tips": [
+        {"category": "data", "tip": "Pregunta el RPO/RTO actual antes de pitch. CTO necesita números, no marketing."},
+        {"category": "objection", "tip": "Si dudas en latencia, di 'le envío benchmark exacto en 24h' en vez de 'depende'."},
+        {"category": "discovery", "tip": "Antes de seguir features, pregunta: ¿qué está fallando hoy en su storage?"},
+        {"category": "credibility", "tip": "Reemplaza 'creo que', 'depende', 'no sé exactamente' por datos firmes o admite no saber."},
+        {"category": "next_step", "tip": "Cierra con compromiso: '¿le agendo demo técnica con sales engineer la próxima semana?'"}
+      ]
+    },
+    "atencion_telefonia_cancelacion": {
+      "meeting_type": "service",
+      "context_summary": "Cliente molesto pidiendo cancelar. Asesor recita script sin empatía.",
+      "expected_tips": [
+        {"category": "empathy", "tip": "Antes de retención, valida: 'entiendo su frustración, antes de continuar, ¿puedo entender qué pasó?'"},
+        {"category": "discovery", "tip": "Pregunta 'qué tendría que cambiar para que se quedara' antes de ofrecer descuento."},
+        {"category": "tone", "tip": "Baja velocidad de habla. Cliente molesto necesita pausas, no monólogo."},
+        {"category": "ownership", "tip": "Asume responsabilidad sin culpar al sistema: 'voy a resolverlo personalmente'."}
+      ]
+    },
+    "atencion_aerolinea_vuelo_perdido": {
+      "meeting_type": "service",
+      "context_summary": "Pasajero pierde vuelo, asesor frío sin ofrecer alternativas proactivas.",
+      "expected_tips": [
+        {"category": "empathy", "tip": "Reconoce el impacto: 'sé que perder un vuelo es estresante, vamos a resolverlo'."},
+        {"category": "proactive", "tip": "Ofrece 3 alternativas concretas (siguiente vuelo, otra aerolínea código compartido, reembolso) antes que pregunte."},
+        {"category": "compensation", "tip": "Si la responsabilidad es de la aerolínea, mención voucher/asistencia sin que pelee."},
+        {"category": "closing", "tip": "Confirma plan en 1 frase: 'le mando confirmación al correo en 5 min'."}
+      ]
+    },
+    "venta_autos_excelente": {
+      "meeting_type": "sales",
+      "context_summary": "Vendedor experto cierra venta con manejo de objeciones impecable.",
+      "expected_tips": [
+        {"category": "praise", "tip": "Buen uso de pregunta abierta: 'qué le hizo decidir hoy'. Mantén esa técnica."},
+        {"category": "next_step", "tip": "Confirma documentos antes de cerrar: 'reviso licencia + comprobante mientras voy por el contrato'."},
+        {"category": "upsell", "tip": "Después del 'sí', ofrecer paquete extendido: 'por $500 más al mes, ¿le interesa garantía 5 años?'"}
+      ]
+    },
+    "reunion_estrategia_ceo_cfo": {
+      "meeting_type": "team_meeting",
+      "context_summary": "CEO discute prioridades 2026 con CFO. Tono ejecutivo, decisiones.",
+      "expected_tips": [
+        {"category": "structure", "tip": "Antes de decisión, resume las 3 opciones con costo/beneficio. CFO necesita números."},
+        {"category": "data_request", "tip": "Pide cifras concretas: 'si invertimos $X en Y, ¿cuál es el ROI esperado a 12 meses?'"},
+        {"category": "alignment", "tip": "Cierra cada tema con un 'queda claro: hacemos X, responsable es Y, fecha Z'."}
+      ]
+    },
+    "coaching_comunicacion_ejecutiva": {
+      "meeting_type": "coaching",
+      "context_summary": "Coach trabajando comunicación ejecutiva con líder. Tono reflexivo, preguntas poderosas.",
+      "expected_tips": [
+        {"category": "deep_question", "tip": "Pregunta lo no dicho: 'cuando dices `me cuesta`, ¿qué emoción aparece?'"},
+        {"category": "silence", "tip": "Tras pregunta poderosa, espera 5 segundos. No llenes el silencio."},
+        {"category": "reformulate", "tip": "Reformula con sus palabras + emoción detectada: 'lo que escucho es X, y siento que Y te preocupa'."}
+      ]
+    }
+  }
+}

@@ -186,10 +186,15 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
   };
 
   const isCompletingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
   // Auto-save on state change (debounced)
   useEffect(() => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    // CRÍTICO: no guardar antes de cargar el estado persistido. De lo contrario
+    // la mount inicial (con currentStep=1 default) sobrescribe completed=true.
+    if (!hasLoadedRef.current) return;
 
     // Don't auto-save if completed (to avoid overwriting completion status)
     // Also don't auto-save if we are currently in the process of completing
@@ -326,6 +331,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
     } catch (error) {
       console.error('[OnboardingContext] Failed to load onboarding status:', error);
+    } finally {
+      hasLoadedRef.current = true;
     }
   };
 

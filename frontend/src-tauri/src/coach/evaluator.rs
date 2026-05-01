@@ -9,7 +9,13 @@
 //! tests unitarios.
 
 use crate::coach::evaluation_types::MeetingEvaluation;
-use crate::coach::prompts::evaluation_v4::{EVALUATION_V4_SYSTEM_PROMPT, PROMPT_VERSION};
+// v5_fast prompt: 4KB vs 14KB de v4. Target eval_ms < 180s (vs ~430s con v4).
+// El v4 completo se mantiene en `prompts::evaluation_v4::EVALUATION_V4_SYSTEM_PROMPT`
+// para release final con detalle radar/timeline/empatía granular.
+use crate::coach::prompts::evaluation_v5_fast::{
+    EVALUATION_V5_FAST_PROMPT as EVALUATION_V4_SYSTEM_PROMPT,
+    PROMPT_VERSION_FAST as PROMPT_VERSION,
+};
 use crate::state::AppState;
 use crate::summary::llm_client::{generate_summary, LLMProvider};
 use reqwest::Client;
@@ -575,6 +581,19 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
 
     let start = std::time::Instant::now();
 
+    // Truncar transcript del user_prompt si es muy largo. Qwen3:1.7b tiene
+    // context_size 8192 tokens. Sistema prompt ~5k chars (~1.2k tokens) +
+    // estructura user_prompt ~500 chars + transcripción ~variable. Reservamos
+    // 1500 tokens (~6000 chars) para output JSON. Capeamos transcript en 4000
+    // chars para mantener total <= 6000 tokens input + 1500 output = 7500 < 8192.
+    let user_prompt = if user_prompt.len() > 4000 {
+        let mut truncated = user_prompt.chars().take(4000).collect::<String>();
+        truncated.push_str("\n[transcript truncado en 4000 chars]");
+        truncated
+    } else {
+        user_prompt
+    };
+
     // Usamos el runtime LOCAL embebido (llama-helper + GGUF). NO depende de Ollama.
     let raw = generate_summary(
         &client,
@@ -585,7 +604,7 @@ pub async fn coach_evaluate_post_meeting<R: tauri::Runtime>(
         &user_prompt,
         None,
         None,
-        Some(8192),
+        Some(800),
         Some(0.2),
         Some(0.9),
         Some(&app_data_dir),

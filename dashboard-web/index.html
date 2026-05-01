@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Maity Copiloto — PM Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.1);
+    --text: #e7e7ea;
+    --muted: #888;
+    --emerald: #34d399;
+    --amber: #fbbf24;
+    --rose: #f87171;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 1.5rem; line-height: 1.4; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  h1 { font-size: 1.4rem; font-weight: 700; }
+  .sub { color: var(--muted); font-size: 0.75rem; }
+  .grid { display: grid; gap: 1rem; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 900px) { .grid-3, .grid-2 { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; }
+  .card h2 { font-size: 0.85rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; }
+  .kpi { background: rgba(0,0,0,0.3); border-radius: 8px; padding: 0.6rem; }
+  .kpi-label { font-size: 0.65rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
+  .kpi-value { font-size: 1.4rem; font-weight: 700; }
+  .kpi-sub { font-size: 0.65rem; color: var(--muted); margin-top: 0.1rem; }
+  .table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  .table th, .table td { padding: 0.4rem; text-align: left; border-bottom: 1px solid var(--border); }
+  .table th { font-size: 0.65rem; text-transform: uppercase; color: var(--muted); }
+  .table tr:hover { background: rgba(255,255,255,0.02); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .wer-good { color: var(--emerald); }
+  .wer-mid { color: var(--amber); }
+  .wer-bad { color: var(--rose); }
+  .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); margin-right: 0.5rem; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% {opacity:1;} 50% {opacity:0.3;} }
+  .badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.65rem; }
+  .badge-ok { background: rgba(52,211,153,0.15); color: var(--emerald); }
+  .badge-broken { background: rgba(248,113,113,0.15); color: var(--rose); }
+  .badge-warn { background: rgba(251,191,36,0.15); color: var(--amber); }
+  .badge-untested { background: rgba(255,255,255,0.05); color: var(--muted); }
+  .charts-row { height: 240px; }
+  canvas { max-height: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 style="font-size:1.8rem;">📊 Maity Copiloto — PM Dashboard</h1>
+    <div class="sub" style="font-size:0.9rem;"><span class="pulse"></span> LIVE · <span id="last-update">—</span> · refresh 3s · puerto 3119</div>
+  </div>
+  <div class="sub" style="text-align:right; font-size:0.9rem;" id="system-info">cargando…</div>
+</header>
+
+<div id="status-banner" style="background:linear-gradient(90deg,#1e3a8a,#312e81);padding:1rem 1.5rem;border-radius:10px;margin-bottom:1rem;display:flex;align-items:center;gap:1rem;">
+  <div style="font-size:2.5rem;">⚡</div>
+  <div style="flex:1;">
+    <div style="font-size:1.1rem;font-weight:700;color:#fff;" id="banner-title">Conectado al SQLite de Maity</div>
+    <div style="font-size:0.85rem;color:#dbeafe;" id="banner-sub">Esperando primera iteración. Lanzá batch desde la app para ver métricas acá.</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:2rem;font-weight:800;color:#fff;" id="banner-count">0</div>
+    <div style="font-size:0.7rem;color:#dbeafe;">iteraciones</div>
+  </div>
+</div>
+
+<section class="grid grid-3" style="margin-bottom: 1rem;">
+  <div class="card">
+    <h2>📈 KPIs</h2>
+    <div class="grid grid-2" style="gap: 0.5rem;">
+      <div class="kpi"><div class="kpi-label">Iteraciones</div><div class="kpi-value" id="kpi-total">–</div><div class="kpi-sub" id="kpi-7d">– últ 7d</div></div>
+      <div class="kpi"><div class="kpi-label">Pipeline avg</div><div class="kpi-value" id="kpi-pipeline">–</div><div class="kpi-sub">30d</div></div>
+      <div class="kpi"><div class="kpi-label">WER user</div><div class="kpi-value" id="kpi-wer-user">–</div><div class="kpi-sub">30d avg</div></div>
+      <div class="kpi"><div class="kpi-label">WER interloc.</div><div class="kpi-value" id="kpi-wer-inter">–</div><div class="kpi-sub">30d avg</div></div>
+      <div class="kpi"><div class="kpi-label">Eval score</div><div class="kpi-value" id="kpi-score">–</div><div class="kpi-sub">0-10</div></div>
+      <div class="kpi"><div class="kpi-label">Última run</div><div class="kpi-value" style="font-size: 0.85rem;" id="kpi-last">–</div><div class="kpi-sub" id="kpi-last-when">–</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📉 Tendencia WER</h2>
+    <div class="charts-row"><canvas id="chart-wer"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>⏱ Pipeline timing (últ 20)</h2>
+    <div class="charts-row"><canvas id="chart-timing"></canvas></div>
+  </div>
+</section>
+
+<section class="grid grid-2" style="margin-bottom: 1rem;">
+  <div class="card">
+    <h2>🎯 Radar por categoría (avg de scenarios)</h2>
+    <div style="height: 280px;"><canvas id="chart-category-radar"></canvas></div>
+    <div class="sub" style="margin-top: 0.5rem;">Categorías: atención, ventas, reuniones, coaching. Ejes: WER user (invertido), WER inter (invertido), eval score, completitud.</div>
+  </div>
+  <div class="card">
+    <h2>🔥 Heatmap latencias por etapa (últ 20)</h2>
+    <div id="latency-heatmap" style="height: 280px;"></div>
+    <div class="sub" style="margin-top: 0.5rem;">Eje X = scenarios. Eje Y = etapa pipeline. Color: verde &lt;30s, ámbar &lt;60s, rojo &gt;60s.</div>
+  </div>
+</section>
+
+<section class="card" style="margin-bottom: 1rem;">
+  <h2>📋 Iteraciones (live)</h2>
+  <div style="overflow-x: auto;">
+    <table class="table">
+      <thead><tr>
+        <th>#</th><th>Scenario</th><th>Layout</th><th class="num">Dur</th><th class="num">Pipeline</th>
+        <th class="num">WER user</th><th class="num">WER inter.</th>
+        <th class="num">Score</th><th class="num">Sec.</th><th>Modelos</th><th>Fecha</th>
+      </tr></thead>
+      <tbody id="iter-rows"><tr><td colspan="11" style="text-align:center; color: var(--muted); padding: 2rem;">Esperando primer run…</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" style="margin-bottom: 1rem;">
+  <h2>💡 Tips test (Maity vs ground truth)</h2>
+  <div id="tips-summary" class="sub" style="margin-bottom: 0.5rem;">–</div>
+  <div style="overflow-x: auto; max-height: 350px; overflow-y: auto;">
+    <table class="table">
+      <thead><tr>
+        <th>Run</th><th>Scenario</th><th>Tipo</th>
+        <th>Expected</th><th>Generado Maity</th>
+        <th class="num">Latency</th><th class="num">Sim</th><th class="num">Novel</th><th>Dup</th>
+      </tr></thead>
+      <tbody id="tips-rows"><tr><td colspan="9" style="text-align:center;color:var(--muted);padding:1rem;">Sin tests de tips aún. Ejecutar: <code>node dashboard-web/test_runner.mjs</code></td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" style="margin-bottom: 1rem;">
+  <h2>🛠 Mejoras aplicadas (timeline iteraciones)</h2>
+  <div id="improvements-summary" class="sub" style="margin-bottom: 0.5rem;">–</div>
+  <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
+    <table class="table">
+      <thead><tr>
+        <th>Fecha</th>
+        <th>Iter / Build</th>
+        <th>Categoría</th>
+        <th>Mejora</th>
+        <th>Archivos</th>
+        <th>Antes → Después</th>
+      </tr></thead>
+      <tbody id="improvements-rows"><tr><td colspan="6" style="text-align:center; color:var(--muted); padding:1rem;">Cargando mejoras…</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" style="margin-bottom: 1rem;">
+  <h2>📜 Logs Maity en vivo (stdout)</h2>
+  <div id="log-meta" class="sub" style="margin-bottom: 0.5rem;">–</div>
+  <pre id="log-stream" style="background: #000; color: #0f0; padding: 0.75rem; border-radius: 6px; font-size: 0.7rem; line-height: 1.3; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: 'Consolas', monospace;">esperando logs…</pre>
+</section>
+
+<section class="card">
+  <h2>🔘 Auditoría de botones</h2>
+  <div id="buttons-summary" class="sub" style="margin-bottom: 0.5rem;">–</div>
+  <div style="overflow-x: auto;">
+    <table class="table">
+      <thead><tr><th>Status</th><th>Botón</th><th>Categoría</th><th>Archivo</th><th>Última check</th></tr></thead>
+      <tbody id="buttons-rows"></tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+const fmtTime = (s) => s == null ? '–' : new Date(s).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'medium' });
+const fmtPct = (w) => w == null ? '–' : `${(w * 100).toFixed(1)}%`;
+const werCls = (w) => w == null ? '' : w < 0.1 ? 'wer-good' : w < 0.2 ? 'wer-mid' : 'wer-bad';
+
+let werChart, timingChart, categoryRadarChart;
+
+function categorize(label) {
+  const l = (label || '').toLowerCase();
+  if (l.startsWith('atencion_')) return 'atención';
+  if (l.startsWith('venta_') || l.includes('venta') || l.includes('cierre')) return 'ventas';
+  if (l.startsWith('reunion_') || l.includes('standup') || l.includes('estrategia')) return 'reuniones';
+  if (l.includes('coach') || l.includes('mentoria') || l.includes('feedback')) return 'coaching';
+  if (l.includes('llamada') || l.includes('servicio')) return 'atención';
+  return 'otros';
+}
+
+function avgBy(arr, fn) {
+  const vals = arr.map(fn).filter(v => v != null && !isNaN(v));
+  return vals.length === 0 ? null : vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+async function fetchJSON(url) { try { const r = await fetch(url); return await r.json(); } catch { return null; } }
+
+async function refresh() {
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-MX');
+
+  const [sys, sum, iters, btns, logs, improvements, tipTests] = await Promise.all([
+    fetchJSON('/api/system'),
+    fetchJSON('/api/summary'),
+    fetchJSON('/api/iterations?limit=100'),
+    fetchJSON('/api/buttons'),
+    fetchJSON('/api/logs?lines=200'),
+    fetchJSON('/api/improvements?limit=200'),
+    fetchJSON('/api/tip_tests?limit=200'),
+  ]);
+
+  if (tipTests) {
+    const runs = new Set(tipTests.map(t => t.test_run_id));
+    const dupCount = tipTests.filter(t => t.is_duplicate === 1).length;
+    const avgLatency = (() => {
+      const lats = tipTests.map(t => t.latency_ms).filter(Boolean);
+      return lats.length ? Math.round(lats.reduce((a,b)=>a+b,0)/lats.length) : 0;
+    })();
+    document.getElementById('tips-summary').innerHTML =
+      `<b>${tipTests.length}</b> tips testeados · ${runs.size} runs · ${dupCount} duplicados · avg latency ${avgLatency}ms`;
+    document.getElementById('tips-rows').innerHTML = tipTests.length === 0
+      ? '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:1rem;">Sin tests aún</td></tr>'
+      : tipTests.slice(0, 50).map(t => {
+        const exp = (t.expected_tips || '').slice(0, 80);
+        const gen = (t.generated_tip || '').slice(0, 80);
+        const sim = t.similarity_score != null ? (t.similarity_score * 100).toFixed(0) + '%' : '–';
+        const novel = t.novelty_score != null ? (t.novelty_score * 100).toFixed(0) + '%' : '–';
+        return `<tr>
+          <td style="font-size:0.65rem;color:var(--muted);">${(t.test_run_id || '').slice(-8)}</td>
+          <td style="font-size:0.7rem;">${t.scenario}</td>
+          <td><span class="badge badge-untested">${t.meeting_type || '–'}</span></td>
+          <td style="font-size:0.65rem;color:var(--muted);max-width:180px;">${exp}…</td>
+          <td style="font-size:0.7rem;max-width:200px;">${gen}…</td>
+          <td class="num" style="font-size:0.7rem;">${t.latency_ms ? t.latency_ms+'ms' : '–'}</td>
+          <td class="num" style="font-size:0.7rem;">${sim}</td>
+          <td class="num" style="font-size:0.7rem;">${novel}</td>
+          <td>${t.is_duplicate === 1 ? '<span class="wer-bad">DUP</span>' : '✓'}</td>
+        </tr>`;
+      }).join('');
+  }
+
+  if (improvements) {
+    const applied = improvements.filter(i => i.status !== 'queued').length;
+    const queued = improvements.filter(i => i.status === 'queued').length;
+    const byCat = improvements.reduce((acc, i) => { acc[i.category] = (acc[i.category] || 0) + 1; return acc; }, {});
+    const catBadges = Object.entries(byCat).map(([k, v]) => `<span class="badge badge-untested" style="margin-right:0.3rem;">${k}: ${v}</span>`).join('');
+    document.getElementById('improvements-summary').innerHTML = `<b class="wer-good">${applied} aplicadas</b> · <b class="wer-mid">${queued} en cola</b> · ${catBadges}`;
+    document.getElementById('improvements-rows').innerHTML = improvements.map(im => {
+      const statusBadge = im.status === 'queued'
+        ? '<span class="badge badge-warn">⏳ queued</span>'
+        : '<span class="badge badge-ok">✓ applied</span>';
+      return `
+      <tr>
+        <td style="font-size:0.7rem;color:var(--muted);">${fmtTime(im.created_at)}</td>
+        <td style="font-size:0.7rem;">${statusBadge}<br><span style="color:var(--muted);font-size:0.65rem;">${im.iteration_label || '–'}</span></td>
+        <td><span class="badge badge-untested">${im.category}</span></td>
+        <td style="font-weight:500;color:var(--text);">${im.title}<div style="font-size:0.7rem;color:var(--muted);font-weight:normal;margin-top:0.2rem;">${im.description || ''}</div></td>
+        <td style="font-size:0.65rem;color:var(--muted);max-width:200px;">${(im.files_changed || '').replace(/,/g,', ')}</td>
+        <td style="font-size:0.7rem;">${im.before_metric ? '<span class="wer-bad">'+im.before_metric+'</span> → <span class="wer-good">'+(im.after_metric||'?')+'</span>' : '–'}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1rem;">Sin mejoras aún</td></tr>';
+  }
+
+  if (logs) {
+    const errors = logs.lines.filter(l => /ERROR|panicked|FAILED|FATAL/i.test(l));
+    const warns = logs.lines.filter(l => /WARN/i.test(l));
+    const meta = document.getElementById('log-meta');
+    meta.innerHTML = `${logs.file} · <b>${logs.total}</b> líneas · <span class="wer-bad">errores: ${errors.length}</span> · <span class="wer-mid">warns: ${warns.length}</span>`;
+    const stream = document.getElementById('log-stream');
+    const wasAtBottom = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 100;
+    if (logs.lines.length > 0) {
+      stream.innerHTML = logs.lines.map(l => {
+        const stripped = l.replace(/\x1b\[[0-9;]*m/g, '');
+        if (/ERROR|panicked|FAILED|FATAL/i.test(stripped))
+          return `<span style="color:#f87171;background:rgba(248,113,113,0.1);">${stripped.replace(/</g,'&lt;')}</span>`;
+        if (/WARN/i.test(stripped))
+          return `<span style="color:#fbbf24;">${stripped.replace(/</g,'&lt;')}</span>`;
+        if (/INFO/i.test(stripped))
+          return `<span style="color:#60a5fa;">${stripped.replace(/</g,'&lt;')}</span>`;
+        return stripped.replace(/</g,'&lt;');
+      }).join('\n');
+    } else {
+      stream.textContent = logs.error || 'esperando logs…';
+    }
+    if (wasAtBottom) stream.scrollTop = stream.scrollHeight;
+  }
+
+  if (sys) document.getElementById('system-info').textContent =
+    `${sys.cpu_count} CPUs · RAM ${sys.ram_used_gb}/${sys.ram_total_gb} GB (${sys.ram_pct}%) · ${sys.platform}`;
+
+  if (sum) {
+    document.getElementById('banner-count').textContent = sum.total ?? 0;
+    if ((sum.total ?? 0) > 0) {
+      document.getElementById('banner-title').textContent = `${sum.total} iteraciones procesadas`;
+      document.getElementById('banner-sub').textContent = `Última: ${sum.last_iteration_at || '–'}`;
+    }
+    document.getElementById('kpi-total').textContent = sum.total ?? 0;
+    document.getElementById('kpi-7d').textContent = `${sum.last_7d ?? 0} últ 7d`;
+    document.getElementById('kpi-pipeline').textContent = sum.avg_pipeline_ms != null ? `${(sum.avg_pipeline_ms / 1000).toFixed(1)}s` : '–';
+    const wu = document.getElementById('kpi-wer-user');
+    wu.textContent = fmtPct(sum.avg_wer_user); wu.className = `kpi-value ${werCls(sum.avg_wer_user)}`;
+    const wi = document.getElementById('kpi-wer-inter');
+    wi.textContent = fmtPct(sum.avg_wer_interlocutor); wi.className = `kpi-value ${werCls(sum.avg_wer_interlocutor)}`;
+    document.getElementById('kpi-score').textContent = sum.avg_evaluation_score != null ? sum.avg_evaluation_score.toFixed(1) : '–';
+    if (sum.last_run) {
+      document.getElementById('kpi-last').textContent = sum.last_run.iteration_label || '–';
+      document.getElementById('kpi-last-when').textContent = fmtTime(sum.last_run.created_at);
+    }
+  }
+
+  if (iters && iters.length > 0) {
+    const tbody = document.getElementById('iter-rows');
+    tbody.innerHTML = iters.map(i => `
+      <tr>
+        <td>${i.id}</td>
+        <td title="${i.iteration_label ?? ''}">${(i.iteration_label || '').slice(0, 35)}</td>
+        <td>${i.channel_layout}</td>
+        <td class="num">${Math.round(i.total_duration_seconds || 0)}s</td>
+        <td class="num">${i.total_pipeline_ms != null ? (i.total_pipeline_ms / 1000).toFixed(1) + 's' : '–'}</td>
+        <td class="num ${werCls(i.wer_user)}">${fmtPct(i.wer_user)}</td>
+        <td class="num ${werCls(i.wer_interlocutor)}">${fmtPct(i.wer_interlocutor)}</td>
+        <td class="num">${i.evaluation_score != null ? i.evaluation_score.toFixed(1) : '–'}</td>
+        <td class="num">${i.evaluation_sections_filled != null ? i.evaluation_sections_filled + '/15' : '–'}</td>
+        <td style="font-size: 0.7rem; color: var(--muted);">${(i.coach_model || '').split(':')[1]} / ${(i.evaluation_model || '').split(':')[1]}</td>
+        <td style="font-size: 0.7rem; color: var(--muted);">${fmtTime(i.created_at)}</td>
+      </tr>`).join('');
+
+    // WER trend chart
+    const trendData = [...iters].reverse().slice(-50);
+    const labels = trendData.map(i => `#${i.id}`);
+    const werUserData = trendData.map(i => i.wer_user != null ? (i.wer_user * 100).toFixed(1) : null);
+    const werInterData = trendData.map(i => i.wer_interlocutor != null ? (i.wer_interlocutor * 100).toFixed(1) : null);
+    const scoreData = trendData.map(i => i.evaluation_score);
+    if (!werChart) {
+      werChart = new Chart(document.getElementById('chart-wer'), {
+        type: 'line',
+        data: { labels, datasets: [
+          { label: 'WER user %', data: werUserData, borderColor: '#60a5fa', backgroundColor: 'transparent', spanGaps: true, pointRadius: 2, tension: 0.2 },
+          { label: 'WER interlocutor %', data: werInterData, borderColor: '#a78bfa', backgroundColor: 'transparent', spanGaps: true, pointRadius: 2, tension: 0.2 },
+          { label: 'Eval score', data: scoreData, borderColor: '#34d399', backgroundColor: 'transparent', spanGaps: true, yAxisID: 'y2', pointRadius: 2, tension: 0.2 },
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y2: { position: 'right', max: 10, ticks: { color: '#888' }, grid: { display: false } }, x: { ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } } }, plugins: { legend: { labels: { color: '#aaa', font: { size: 11 } } } } },
+      });
+    } else {
+      werChart.data.labels = labels;
+      werChart.data.datasets[0].data = werUserData;
+      werChart.data.datasets[1].data = werInterData;
+      werChart.data.datasets[2].data = scoreData;
+      werChart.update('none');
+    }
+
+    // Pipeline timing stacked bar
+    const last20 = trendData.slice(-20);
+    const stackLabels = last20.map(i => `#${i.id}`);
+    if (!timingChart) {
+      timingChart = new Chart(document.getElementById('chart-timing'), {
+        type: 'bar',
+        data: { labels: stackLabels, datasets: [
+          { label: 'Decode', data: last20.map(i => (i.decode_ms || 0) / 1000), backgroundColor: '#60a5fa' },
+          { label: 'STT user', data: last20.map(i => (i.transcribe_user_ms || 0) / 1000), backgroundColor: '#34d399' },
+          { label: 'STT inter.', data: last20.map(i => (i.transcribe_interlocutor_ms || 0) / 1000), backgroundColor: '#a78bfa' },
+          { label: 'Eval', data: last20.map(i => (i.evaluation_ms || 0) / 1000), backgroundColor: '#fbbf24' },
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { stacked: true, beginAtZero: true, ticks: { color: '#888', callback: v => v + 's' }, grid: { color: 'rgba(255,255,255,0.05)' } } }, plugins: { legend: { labels: { color: '#aaa', font: { size: 11 } } } } },
+      });
+    } else {
+      timingChart.data.labels = stackLabels;
+      timingChart.data.datasets[0].data = last20.map(i => (i.decode_ms || 0) / 1000);
+      timingChart.data.datasets[1].data = last20.map(i => (i.transcribe_user_ms || 0) / 1000);
+      timingChart.data.datasets[2].data = last20.map(i => (i.transcribe_interlocutor_ms || 0) / 1000);
+      timingChart.data.datasets[3].data = last20.map(i => (i.evaluation_ms || 0) / 1000);
+      timingChart.update('none');
+    }
+  }
+
+  if (iters && iters.length > 0) {
+    // Category radar
+    const cats = ['atención', 'ventas', 'reuniones', 'coaching'];
+    const grouped = cats.map(c => iters.filter(i => categorize(i.iteration_label) === c));
+    const radarData = cats.map((c, idx) => {
+      const g = grouped[idx];
+      if (g.length === 0) return [0, 0, 0, 0];
+      const wu = avgBy(g, i => i.wer_user);
+      const wi = avgBy(g, i => i.wer_interlocutor);
+      const score = avgBy(g, i => i.evaluation_score);
+      const sec = avgBy(g, i => i.evaluation_sections_filled);
+      return [
+        wu == null ? 0 : Math.max(0, 100 - wu * 100),
+        wi == null ? 0 : Math.max(0, 100 - wi * 100),
+        score == null ? 0 : score * 10,
+        sec == null ? 0 : (sec / 15) * 100,
+      ];
+    });
+    if (!categoryRadarChart) {
+      categoryRadarChart = new Chart(document.getElementById('chart-category-radar'), {
+        type: 'radar',
+        data: {
+          labels: ['STT user (100-WER%)', 'STT inter (100-WER%)', 'Eval score×10', 'Completitud %'],
+          datasets: cats.map((c, idx) => ({
+            label: `${c} (n=${grouped[idx].length})`,
+            data: radarData[idx],
+            borderColor: ['#60a5fa', '#34d399', '#fbbf24', '#a78bfa'][idx],
+            backgroundColor: ['rgba(96,165,250,0.1)', 'rgba(52,211,153,0.1)', 'rgba(251,191,36,0.1)', 'rgba(167,139,250,0.1)'][idx],
+            pointRadius: 3,
+          })),
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, max: 100, ticks: { color: '#666', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.08)' }, angleLines: { color: 'rgba(255,255,255,0.08)' }, pointLabels: { color: '#aaa', font: { size: 10 } } } }, plugins: { legend: { labels: { color: '#aaa', font: { size: 11 } } } } },
+      });
+    } else {
+      categoryRadarChart.data.datasets.forEach((ds, idx) => {
+        ds.data = radarData[idx];
+        ds.label = `${cats[idx]} (n=${grouped[idx].length})`;
+      });
+      categoryRadarChart.update('none');
+    }
+
+    // Latency heatmap (D3)
+    const last20 = iters.slice(0, 20).reverse();
+    const stages = ['decode', 'transcribe_user', 'transcribe_interlocutor', 'evaluation'];
+    const stageLabels = ['Decode', 'STT user', 'STT inter', 'Eval'];
+    const cellW = 32;
+    const cellH = 36;
+    const maxMs = Math.max(60000, ...last20.flatMap(i => stages.map(s => i[s + '_ms'] || 0)));
+    const colorScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([maxMs, 0]);
+    const container = d3.select('#latency-heatmap').html('');
+    const w = Math.max(400, last20.length * cellW + 80);
+    const h = stages.length * cellH + 30;
+    const svg = container.append('svg').attr('width', '100%').attr('height', h).attr('viewBox', `0 0 ${w} ${h}`);
+    stageLabels.forEach((lbl, si) => {
+      svg.append('text').attr('x', 5).attr('y', si * cellH + cellH / 2 + 18).attr('fill', '#aaa').attr('font-size', '10').text(lbl);
+    });
+    last20.forEach((iter, ci) => {
+      stages.forEach((stage, si) => {
+        const ms = iter[stage + '_ms'] || 0;
+        svg.append('rect')
+          .attr('x', 80 + ci * cellW)
+          .attr('y', 20 + si * cellH)
+          .attr('width', cellW - 2)
+          .attr('height', cellH - 4)
+          .attr('rx', 3)
+          .attr('fill', ms === 0 ? '#222' : colorScale(ms))
+          .append('title')
+          .text(`#${iter.id} ${stage}: ${ms != null ? (ms / 1000).toFixed(1) : '–'}s`);
+        if (ms > 0) {
+          svg.append('text')
+            .attr('x', 80 + ci * cellW + (cellW - 2) / 2)
+            .attr('y', 20 + si * cellH + (cellH - 4) / 2 + 3)
+            .attr('text-anchor', 'middle')
+            .attr('fill', '#000')
+            .attr('font-size', '9')
+            .attr('font-weight', '600')
+            .text(`${(ms / 1000).toFixed(0)}`);
+        }
+      });
+      svg.append('text')
+        .attr('x', 80 + ci * cellW + (cellW - 2) / 2)
+        .attr('y', stages.length * cellH + 28)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#666')
+        .attr('font-size', '9')
+        .text(`#${iter.id}`);
+    });
+  }
+
+  if (btns) {
+    const counts = btns.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc; }, {});
+    document.getElementById('buttons-summary').innerHTML =
+      Object.entries(counts).map(([k, v]) => `<span class="badge badge-${k === 'untested' ? 'untested' : k}">${k}: ${v}</span>`).join(' ');
+    document.getElementById('buttons-rows').innerHTML = btns.map(b => `
+      <tr>
+        <td><span class="badge badge-${b.status === 'untested' ? 'untested' : b.status}">${b.status}</span></td>
+        <td>${b.display_name} <span style="color: var(--muted); font-size: 0.7rem;">${b.id}</span></td>
+        <td><span class="badge badge-untested">${b.category}</span></td>
+        <td style="font-size: 0.7rem; color: var(--muted);">${(b.source_file || '').split('/').pop()}${b.source_line ? ':' + b.source_line : ''}</td>
+        <td style="font-size: 0.7rem; color: var(--muted);">${b.last_checked_at ? fmtTime(b.last_checked_at) : 'nunca'}</td>
+      </tr>`).join('');
+  }
+}
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

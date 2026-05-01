@@ -2,6 +2,7 @@ use log::{debug as log_debug, error as log_error, info as log_info, warn as log_
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter, Runtime};
+use url::Url;
 
 use crate::{
     database::{
@@ -1139,9 +1140,32 @@ pub async fn debug_backend_connection<R: Runtime>(app: AppHandle<R>) -> Result<S
     }
 }
 
+// Allowlist of trusted domains for external URL opening
+const ALLOWED_HOSTS: &[&str] = &[
+    "github.com", "ollama.com", "huggingface.co",
+    "maity.zackriya.com", "anthropic.com",
+];
+
+fn validate_url_origin(url: &str) -> Result<(), String> {
+    let parsed = Url::parse(url)
+        .map_err(|_| "Invalid URL format".to_string())?;
+
+    let host = parsed.host_str()
+        .ok_or_else(|| "URL missing host".to_string())?;
+
+    if ALLOWED_HOSTS.iter().any(|&allowed| host == allowed || host.ends_with(&format!(".{}", allowed))) {
+        Ok(())
+    } else {
+        Err(format!("URL host '{}' not in allowlist", host))
+    }
+}
+
 #[tauri::command]
 pub async fn open_external_url(url: String) -> Result<(), String> {
     use std::process::Command;
+
+    // Validate URL origin before opening
+    validate_url_origin(&url)?;
 
     let result = if cfg!(target_os = "windows") {
         Command::new("cmd").args(&["/C", "start", &url]).output()

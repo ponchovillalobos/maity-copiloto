@@ -10,12 +10,12 @@
  * Solo accesible vía URL directa (`/dev`). NO aparece en navegación principal.
  */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { listen } from '@tauri-apps/api/event';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { safeInvoke } from '@/lib/safeInvoke';
-import { Upload, Loader2, FileAudio, CheckCircle2, AlertCircle, Target } from 'lucide-react';
+import { quietInvoke, safeInvoke } from '@/lib/safeInvoke';
+import { Upload, Loader2, FileAudio, CheckCircle2, AlertCircle, Target, Layers, FolderOpen, X } from 'lucide-react';
 
 interface ImportProgress {
   stage: 'decoding' | 'transcribing' | 'evaluating' | 'done';
@@ -45,11 +45,30 @@ interface ImportResult {
   maity_transcript_full: string;
 }
 
-type Mode = 'single' | 'qa';
+type Mode = 'single' | 'qa' | 'batch';
+
+interface BatchScenario {
+  name: string;
+  user_audio_path: string;
+  interlocutor_audio_path: string;
+  ground_truth_user: string;
+  ground_truth_interlocutor: string;
+}
+
+interface BatchRunStatus {
+  name: string;
+  status: 'pending' | 'running' | 'done' | 'error';
+  wer_user?: number;
+  wer_inter?: number;
+  pipeline_ms?: number;
+  error?: string;
+}
 
 export default function DevImportPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>('single');
+  const searchParams = useSearchParams();
+  const initialAutoMode = (searchParams?.get('mode') as Mode) || 'single';
+  const [mode, setMode] = useState<Mode>(initialAutoMode);
 
   // Single mode
   const [filePath, setFilePath] = useState<string | null>(null);
@@ -64,6 +83,14 @@ export default function DevImportPage() {
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+
+  // Batch mode
+  const [batchFolder, setBatchFolder] = useState<string>('D:\\Poncho\\Videos\\Edicion-Claude\\output');
+  const [batchScenarios, setBatchScenarios] = useState<BatchScenario[]>([]);
+  const [batchRuns, setBatchRuns] = useState<BatchRunStatus[]>([]);
+  const [batchCurrentIdx, setBatchCurrentIdx] = useState(0);
+  const [batchAbort, setBatchAbort] = useState(false);
+  const batchAbortRef = useRef(false);
 
   useEffect(() => {
     const u = listen<ImportProgress>('dev-import-progress', (e) => {
@@ -144,6 +171,142 @@ export default function DevImportPage() {
     setRunning(false);
   };
 
+  const handlePickFolder = async () => {
+    try {
+      const selected = await openDialog({ multiple: false, directory: true });
+      if (typeof selected === 'string') {
+        setBatchFolder(selected);
+        setBatchScenarios([]);
+        setBatchRuns([]);
+      }
+    } catch (e) {
+      setError(`No se pudo abrir selector de carpeta: ${String(e)}`);
+    }
+  };
+
+  const handleScanBatchFolder = async () => {
+    if (!batchFolder.trim()) return;
+    setError(null);
+    const list = await safeInvoke<BatchScenario[]>(
+      'dev_list_batch_scenarios',
+      { folderPath: batchFolder.trim() },
+      'No se pudo escanear la carpeta.',
+    );
+    if (list) {
+      setBatchScenarios(list);
+      setBatchRuns(list.map((s) => ({ name: s.name, status: 'pending' })));
+    }
+  };
+
+  const handleStartBatch = async () => {
+    if (batchScenarios.length === 0) return;
+    setRunning(true);
+    setError(null);
+    setBatchAbort(false);
+    batchAbortRef.current = false;
+
+    for (let i = 0; i < batchScenarios.length; i++) {
+      if (batchAbortRef.current) {
+        setError('Batch abortado por el usuario.');
+        break;
+      }
+      const sc = batchScenarios[i];
+      setBatchCurrentIdx(i);
+      setBatchRuns((prev) => prev.map((r, idx) => (idx === i ? { ...r, status: 'running' } : r)));
+
+      const t0 = Date.now();
+      const res = await quietInvoke<ImportResult>('dev_import_two_audios', {
+        userAudioPath: sc.user_audio_path,
+        interlocutorAudioPath: sc.interlocutor_audio_path,
+        groundTruthUser: sc.ground_truth_user.trim() || null,
+        groundTruthInterlocutor: sc.ground_truth_interlocutor.trim() || null,
+        meetingName: sc.name,
+      });
+      const elapsed = Date.now() - t0;
+
+      setBatchRuns((prev) =>
+        prev.map((r, idx) =>
+          idx === i
+            ? res
+              ? {
+                  ...r,
+                  status: 'done',
+                  wer_user: res.wer_user?.wer,
+                  wer_inter: res.wer_interlocutor?.wer,
+                  pipeline_ms: elapsed,
+                }
+              : { ...r, status: 'error', error: 'invoke falló' }
+            : r,
+        ),
+      );
+    }
+
+    setRunning(false);
+    setBatchCurrentIdx(batchScenarios.length);
+  };
+
+  const handleAbortBatch = () => {
+    batchAbortRef.current = true;
+    setBatchAbort(true);
+  };
+
+  // Auto-run desde URL: /dev?mode=batch&autorun=1&folder=<path>
+  const autoRunRef = useRef(false);
+  useEffect(() => {
+    if (autoRunRef.current) return;
+    if (mode !== 'batch') return;
+    const autorun = searchParams?.get('autorun');
+    const folder = searchParams?.get('folder');
+    if (autorun !== '1' || !folder) return;
+    autoRunRef.current = true;
+    setBatchFolder(folder);
+    (async () => {
+      const list = await safeInvoke<BatchScenario[]>(
+        'dev_list_batch_scenarios',
+        { folderPath: folder },
+        'No se pudo escanear la carpeta.',
+      );
+      if (!list || list.length === 0) return;
+      setBatchScenarios(list);
+      setBatchRuns(list.map((s) => ({ name: s.name, status: 'pending' })));
+      setRunning(true);
+      batchAbortRef.current = false;
+      for (let i = 0; i < list.length; i++) {
+        if (batchAbortRef.current) break;
+        const sc = list[i];
+        setBatchCurrentIdx(i);
+        setBatchRuns((prev) => prev.map((r, idx) => (idx === i ? { ...r, status: 'running' } : r)));
+        const t0 = Date.now();
+        const res = await quietInvoke<ImportResult>('dev_import_two_audios', {
+          userAudioPath: sc.user_audio_path,
+          interlocutorAudioPath: sc.interlocutor_audio_path,
+          groundTruthUser: sc.ground_truth_user.trim() || null,
+          groundTruthInterlocutor: sc.ground_truth_interlocutor.trim() || null,
+          meetingName: sc.name,
+        });
+        const elapsed = Date.now() - t0;
+        setBatchRuns((prev) =>
+          prev.map((r, idx) =>
+            idx === i
+              ? res
+                ? { ...r, status: 'done', wer_user: res.wer_user?.wer, wer_inter: res.wer_interlocutor?.wer, pipeline_ms: elapsed }
+                : { ...r, status: 'error', error: 'invoke falló' }
+              : r,
+          ),
+        );
+      }
+      setRunning(false);
+      setBatchCurrentIdx(list.length);
+      try {
+        const tt = await quietInvoke<{ run_id: string; tips_generated: number; avg_similarity: number }>('dev_run_tip_tests', {});
+        if (tt) console.log('[dev/batch] tip_tests:', tt);
+      } catch (e) {
+        console.warn('[dev/batch] dev_run_tip_tests failed:', e);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
   const overallPct = progress
     ? progress.stage === 'done'
       ? 100
@@ -191,9 +354,138 @@ export default function DevImportPage() {
             <Target className="inline w-4 h-4 mr-2" />
             QA con ground truth
           </button>
+          <button
+            onClick={() => setMode('batch')}
+            disabled={running}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              mode === 'batch'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/5 text-gray-300 hover:bg-white/10'
+            }`}
+          >
+            <Layers className="inline w-4 h-4 mr-2" />
+            Batch (carpeta entera)
+          </button>
         </div>
 
-        {mode === 'single' ? (
+        {mode === 'batch' ? (
+          <section className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-6 space-y-4">
+            <div className="text-xs text-purple-100/80 leading-relaxed">
+              Escanea una carpeta con subcarpetas-scenarios. Cada subfolder debe
+              contener: <code>*-valentina.mp3</code> (user), <code>*-cliente.mp3</code> (interlocutor)
+              y opcionalmente <code>*.txt</code> con líneas <code>[user] ...</code> /
+              <code>[interlocutor] ...</code> como ground truth. Procesa secuencial,
+              persiste cada iteración en `dev_iterations` para ver en /dashboard.
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-200 block mb-2">Carpeta raíz</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={batchFolder}
+                  onChange={(e) => setBatchFolder(e.target.value)}
+                  placeholder="D:\\Poncho\\Videos\\Edicion-Claude\\output"
+                  disabled={running}
+                  className="flex-1 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-gray-100 placeholder:text-gray-500 focus:outline-none focus:border-purple-400 disabled:opacity-50"
+                />
+                <button
+                  onClick={handlePickFolder}
+                  disabled={running}
+                  className="rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-3 py-2 text-sm text-gray-200 disabled:opacity-50"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleScanBatchFolder}
+                  disabled={running || !batchFolder.trim()}
+                  className="rounded-lg bg-purple-500 hover:bg-purple-600 disabled:bg-gray-700 px-4 py-2 text-sm text-white"
+                >
+                  Escanear
+                </button>
+              </div>
+            </div>
+
+            {batchScenarios.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-200">
+                    {batchScenarios.length} scenarios detectados
+                  </span>
+                  {!running ? (
+                    <button
+                      onClick={handleStartBatch}
+                      className="rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium px-4 py-2"
+                    >
+                      Procesar todos
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleAbortBatch}
+                      className="rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium px-4 py-2 flex items-center gap-2"
+                    >
+                      <X className="w-4 h-4" />
+                      Abortar
+                    </button>
+                  )}
+                </div>
+
+                {running && (
+                  <div className="text-xs text-purple-200">
+                    Procesando {batchCurrentIdx + 1}/{batchScenarios.length}: <b>{batchScenarios[batchCurrentIdx]?.name}</b>
+                  </div>
+                )}
+
+                <div className="max-h-96 overflow-y-auto rounded-lg border border-white/10 bg-black/20">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-900 text-[10px] uppercase text-gray-400 border-b border-white/10">
+                      <tr>
+                        <th className="text-left p-2">#</th>
+                        <th className="text-left p-2">Scenario</th>
+                        <th className="text-left p-2">Status</th>
+                        <th className="text-right p-2">WER user</th>
+                        <th className="text-right p-2">WER inter</th>
+                        <th className="text-right p-2">Tiempo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {batchRuns.map((r, idx) => {
+                        const werColor = (w?: number) =>
+                          w == null ? 'text-gray-500' : w < 0.1 ? 'text-emerald-400' : w < 0.2 ? 'text-amber-400' : 'text-rose-400';
+                        const statusBadge = {
+                          pending: <span className="text-gray-500">⏳ pending</span>,
+                          running: <span className="text-blue-400">⚙ running</span>,
+                          done: <span className="text-emerald-400">✓ done</span>,
+                          error: <span className="text-rose-400">✗ error</span>,
+                        }[r.status];
+                        return (
+                          <tr key={r.name} className="border-b border-white/5">
+                            <td className="p-2 text-gray-500 tabular-nums">{idx + 1}</td>
+                            <td className="p-2 text-gray-200">{r.name}</td>
+                            <td className="p-2">{statusBadge}</td>
+                            <td className={`p-2 text-right tabular-nums ${werColor(r.wer_user)}`}>
+                              {r.wer_user != null ? `${(r.wer_user * 100).toFixed(1)}%` : '–'}
+                            </td>
+                            <td className={`p-2 text-right tabular-nums ${werColor(r.wer_inter)}`}>
+                              {r.wer_inter != null ? `${(r.wer_inter * 100).toFixed(1)}%` : '–'}
+                            </td>
+                            <td className="p-2 text-right tabular-nums text-gray-400">
+                              {r.pipeline_ms != null ? `${(r.pipeline_ms / 1000).toFixed(1)}s` : '–'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="text-[10px] text-gray-500">
+                  Después de procesar todo, abre <a href="/dashboard" className="underline text-purple-300">/dashboard</a> para ver tendencias agregadas.
+                </div>
+              </div>
+            )}
+          </section>
+        ) : mode === 'single' ? (
           <section className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">
             <div>
               <label className="text-sm font-medium text-gray-200 block mb-2">Archivo de audio</label>
@@ -318,7 +610,7 @@ export default function DevImportPage() {
           />
         </div>
 
-        <button
+        {mode !== 'batch' && <button
           onClick={handleStart}
           disabled={running || (mode === 'single' ? !filePath : !userAudioPath || !interAudioPath)}
           className={`w-full rounded-lg ${
@@ -335,7 +627,7 @@ export default function DevImportPage() {
           ) : (
             <>Procesar reunión simulada</>
           )}
-        </button>
+        </button>}
 
         {progress && (
           <section className="rounded-xl border border-white/10 bg-white/5 p-6 space-y-4">

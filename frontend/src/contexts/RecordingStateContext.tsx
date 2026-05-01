@@ -113,8 +113,8 @@ export function RecordingStateProvider({ children }: { children: React.ReactNode
       clearInterval(pollingIntervalRef.current);
     }
 
-    logger.debug('[RecordingStateContext] Starting state polling (500ms interval)');
-    pollingIntervalRef.current = setInterval(syncWithBackend, 500);
+    logger.debug('[RecordingStateContext] Starting state polling (1500ms interval)');
+    pollingIntervalRef.current = setInterval(syncWithBackend, 1500);
   };
 
   /**

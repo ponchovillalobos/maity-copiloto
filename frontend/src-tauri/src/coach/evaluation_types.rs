@@ -4,8 +4,46 @@
 //! campos son opcionales en deserialización (`#[serde(default)]`) para tolerar
 //! que el LLM omita secciones — el frontend renderiza solo lo presente.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
+
+/// Deserializador tolerante: acepta tanto enteros como floats en campos u32.
+/// Qwen3 a veces emite `1.5` para duración en minutos, redondeamos a u32.
+fn de_flexible_u32<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
+    let v = serde_json::Value::deserialize(d)?;
+    Ok(match v {
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_u64() {
+                i as u32
+            } else if let Some(f) = n.as_f64() {
+                f.round().max(0.0) as u32
+            } else {
+                0
+            }
+        }
+        _ => 0,
+    })
+}
+
+fn de_flexible_u32_map<'de, D: Deserializer<'de>>(
+    d: D,
+) -> Result<HashMap<String, u32>, D::Error> {
+    let raw: HashMap<String, serde_json::Value> = HashMap::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .map(|(k, v)| {
+            let n = match v {
+                serde_json::Value::Number(num) => num
+                    .as_u64()
+                    .map(|i| i as u32)
+                    .or_else(|| num.as_f64().map(|f| f.round().max(0.0) as u32))
+                    .unwrap_or(0),
+                _ => 0,
+            };
+            (k, n)
+        })
+        .collect())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MeetingEvaluation {
@@ -93,15 +131,15 @@ pub struct Meta {
     pub tipo: String,
     #[serde(default)]
     pub hablantes: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_flexible_u32")]
     pub palabras_totales: u32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_flexible_u32")]
     pub oraciones_totales: u32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_flexible_u32")]
     pub turnos_totales: u32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_flexible_u32")]
     pub duracion_minutos: u32,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_flexible_u32_map")]
     pub palabras_por_hablante: HashMap<String, u32>,
     #[serde(default)]
     pub fecha: String,

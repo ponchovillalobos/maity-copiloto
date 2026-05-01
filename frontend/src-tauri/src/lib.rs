@@ -49,6 +49,19 @@ pub mod validation_helpers {
         Ok(())
     }
 
+    pub fn validate_path_boundary(user_path: &str, app_data_dir: &std::path::Path) -> Result<(), String> {
+        // Canonicalize user-provided path to resolve symlinks
+        let canonical_user = std::fs::canonicalize(user_path)
+            .map_err(|e| format!("Invalid path '{}': {}", user_path, e))?;
+
+        // Ensure canonical path is within app data boundary
+        if !canonical_user.starts_with(app_data_dir) {
+            return Err(format!("Path '{}' is outside app data directory scope", user_path));
+        }
+
+        Ok(())
+    }
+
     pub fn validate_meeting_name(name: &str) -> Result<String, String> {
         let trimmed = validate_string_length(name, "meeting_name", 500)?;
         validate_no_path_traversal(&trimmed, "meeting_name")?;
@@ -1305,6 +1318,9 @@ pub fn run() {
             coach::evaluator::coach_get_post_meeting_evaluation,
             audio::import_audio::dev_import_audio_file,
             audio::import_audio::dev_import_two_audios,
+            audio::import_audio::dev_list_batch_scenarios,
+            audio::import_audio::check_autorun_batch_flag,
+            coach::tip_tester::dev_run_tip_tests,
             observability::iteration_log::dashboard_list_iterations,
             observability::iteration_log::dashboard_get_iteration_detail,
             observability::iteration_log::dashboard_get_summary,
