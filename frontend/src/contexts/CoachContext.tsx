@@ -142,10 +142,11 @@ function tipSimilarity(a: string, b: string): number {
   return union === 0 ? 0 : inter / union;
 }
 
-// Dedup más estricto: anti-paráfrasis. 0.55 captura "Pregúntale: '¿qué te preocupa más?'"
-// vs "Dile: '¿cuál es tu mayor preocupación?'" — semánticamente iguales.
-const TIP_DEDUP_THRESHOLD = 0.55;
-const TIP_DEDUP_WINDOW = 15;
+// v25 fix: tips se repetían en producción. Threshold ahora 0.40 (más estricto)
+// + ventana 25 (mira histórico más amplio). Captura paráfrasis y reemplazos
+// de prefijos ("Dile" vs "Pregúntale" vs "Respóndele").
+const TIP_DEDUP_THRESHOLD = 0.40;
+const TIP_DEDUP_WINDOW = 25;
 
 /** Mensaje de chat del usuario o respuesta del coach. */
 export interface CoachChatMessage {
@@ -484,12 +485,27 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       const minute = sessionStartRef.current
         ? Math.floor((now - sessionStartRef.current) / 60_000)
         : 0;
-      // V3.1: incluir tip_type en cada entrada previa para que el LLM rote (anti-repetición).
-      // Formato compacto "[tipo] tip" — el prompt V3 LITE entiende la convención.
-      const previousTips = suggestionsRef.current.slice(-5).map((s) => {
+      // v25 fix: enviamos los últimos 15 tips (era 5). El modelo necesita ver
+      // historial más amplio para evitar repetición real. Formato "[tipo] tip"
+      // sigue convención del prompt V3 LITE.
+      const previousTips = suggestionsRef.current.slice(-15).map((s) => {
         const tt = s.tip_type ?? 'observation';
         return `[${tt}] ${s.tip}`;
       });
+
+      // v25 fix: si trigger no provee category hint, ROTAMOS según minuto + meeting_type
+      // para forzar al LLM a explorar distintas dimensiones de coaching.
+      const meetingTypeKey = (meetingTypeRef.current || 'auto').toLowerCase();
+      const rotationByType: Record<string, string[]> = {
+        sales: ['discovery', 'objection', 'closing', 'rapport', 'negotiation'],
+        service: ['empathy', 'discovery', 'ownership', 'closing', 'tone'],
+        team_meeting: ['structure', 'alignment', 'data_request', 'closing', 'facilitation'],
+        coaching: ['deep_question', 'silence', 'reformulate', 'rapport', 'introspective'],
+        webinar: ['pacing', 'engagement', 'structure', 'closing', 'rapport'],
+      };
+      const rotation = rotationByType[meetingTypeKey] || ['rapport', 'discovery', 'listening', 'pacing', 'closing'];
+      const rotatedCategory = rotation[(minute || 0) % rotation.length];
+      const finalCategory = suggestedCategory ?? rotatedCategory;
 
       const suggestion = await invoke<CoachSuggestion>('coach_suggest', {
         window,
@@ -499,7 +515,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         meetingType: meetingTypeRef.current,
         minute,
         previousTips,
-        suggestedCategory: suggestedCategory ?? null,
+        suggestedCategory: finalCategory,
         triggerSignal: triggerSignalParam ?? null,
       });
 

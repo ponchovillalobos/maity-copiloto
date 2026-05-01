@@ -126,7 +126,7 @@ pub fn build_user_prompt_v3(
     };
 
     format!(
-        "TIPO DE REUNIÓN: {}\nMINUTO ACTUAL: {}\n{}{}\n\n<transcripcion>\n{}\n</transcripcion>\n\n<tips_previos>\n{}\n</tips_previos>\n\nAnaliza y responde con UN JSON con el tip más relevante.",
+        "TIPO DE REUNIÓN: {}\nMINUTO ACTUAL: {}\n{}{}\n\n<transcripcion>\n{}\n</transcripcion>\n\n<tips_previos>\n{}\n</tips_previos>\n\nREGLA CRÍTICA ANTI-REPETICIÓN: tu nuevo tip DEBE ser DISTINTO en contenido y categoría a TODOS los <tips_previos>. PROHIBIDO repetir frases similares (ej: si ya dijiste 'Pregúntale qué le preocupa', NO digas 'Dile qué le preocupa' ni paráfrasis). Cada tip debe abordar un ASPECTO DIFERENTE: si previo fue empatía, ahora dato concreto; si previo fue pregunta abierta, ahora cierre. La categoría sugerida arriba es una pista — explora otra dimensión cada vez.\n\nAnaliza y responde con UN JSON con el tip más relevante Y DISTINTO a los previos.",
         meeting_type.as_label(),
         minute,
         category_hint,
