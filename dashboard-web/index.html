@@ -127,6 +127,11 @@
 <section class="card" style="margin-bottom: 1rem;">
   <h2>💡 Tips test (Maity vs ground truth)</h2>
   <div id="tips-summary" class="sub" style="margin-bottom: 0.5rem;">–</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:0.75rem;">
+    <div><canvas id="chart-tips-diversity" height="140"></canvas></div>
+    <div><canvas id="chart-tips-dup" height="140"></canvas></div>
+    <div><canvas id="chart-tips-latency" height="140"></canvas></div>
+  </div>
   <div style="overflow-x: auto; max-height: 350px; overflow-y: auto;">
     <table class="table">
       <thead><tr>
@@ -166,9 +171,13 @@
 <section class="card">
   <h2>🔘 Auditoría de botones</h2>
   <div id="buttons-summary" class="sub" style="margin-bottom: 0.5rem;">–</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;">
+    <div><canvas id="chart-buttons-status" height="160"></canvas></div>
+    <div><canvas id="chart-buttons-category" height="160"></canvas></div>
+  </div>
   <div style="overflow-x: auto;">
     <table class="table">
-      <thead><tr><th>Status</th><th>Botón</th><th>Categoría</th><th>Archivo</th><th>Última check</th></tr></thead>
+      <thead><tr><th>Status</th><th>Botón</th><th>Categoría</th><th>Archivo</th><th>Notas</th><th>Última check</th></tr></thead>
       <tbody id="buttons-rows"></tbody>
     </table>
   </div>
@@ -220,6 +229,48 @@ async function refresh() {
     })();
     document.getElementById('tips-summary').innerHTML =
       `<b>${tipTests.length}</b> tips testeados · ${runs.size} runs · ${dupCount} duplicados · avg latency ${avgLatency}ms`;
+
+    // Comparación por build_version (v14, v15, v16, etc.)
+    const byBuild = {};
+    tipTests.forEach(t => {
+      const v = t.build_version || 'unknown';
+      if (!byBuild[v]) byBuild[v] = { total: 0, unique: new Set(), dup: 0, lat: [] };
+      byBuild[v].total++;
+      if (t.generated_tip) byBuild[v].unique.add(t.generated_tip);
+      if (t.is_duplicate) byBuild[v].dup++;
+      if (t.latency_ms) byBuild[v].lat.push(t.latency_ms);
+    });
+    const builds = Object.keys(byBuild).sort();
+    const colors = ['#ef4444','#f59e0b','#22c55e','#3b82f6','#8b5cf6'];
+    if (builds.length > 0) {
+      const mkBar = (canvasId, title, dataFn, color) => {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        if (ctx._chart) ctx._chart.destroy();
+        ctx._chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: builds,
+            datasets: [{
+              label: title,
+              data: builds.map(b => dataFn(byBuild[b])),
+              backgroundColor: builds.map((_,i) => colors[i % colors.length]),
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { title: { display: true, text: title, font: { size: 11 } }, legend: { display: false } },
+            scales: { y: { ticks: { font: { size: 10 } } }, x: { ticks: { font: { size: 10 } } } }
+          }
+        });
+      };
+      mkBar('chart-tips-diversity', 'Tips únicos %',
+        d => Math.round((d.unique.size / d.total) * 100), '#22c55e');
+      mkBar('chart-tips-dup', 'Duplicados %',
+        d => Math.round((d.dup / d.total) * 100), '#ef4444');
+      mkBar('chart-tips-latency', 'Latencia avg ms',
+        d => d.lat.length ? Math.round(d.lat.reduce((a,b)=>a+b,0)/d.lat.length) : 0, '#3b82f6');
+    }
     document.getElementById('tips-rows').innerHTML = tipTests.length === 0
       ? '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:1rem;">Sin tests aún</td></tr>'
       : tipTests.slice(0, 50).map(t => {
@@ -474,8 +525,48 @@ async function refresh() {
         <td>${b.display_name} <span style="color: var(--muted); font-size: 0.7rem;">${b.id}</span></td>
         <td><span class="badge badge-untested">${b.category}</span></td>
         <td style="font-size: 0.7rem; color: var(--muted);">${(b.source_file || '').split('/').pop()}${b.source_line ? ':' + b.source_line : ''}</td>
+        <td style="font-size: 0.65rem; color: var(--muted); max-width:280px;">${b.notes || '–'}</td>
         <td style="font-size: 0.7rem; color: var(--muted);">${b.last_checked_at ? fmtTime(b.last_checked_at) : 'nunca'}</td>
       </tr>`).join('');
+
+    // Pie status
+    const statusColors = { ok: '#22c55e', broken: '#ef4444', warn: '#f59e0b', untested: '#64748b', deprecated: '#94a3b8' };
+    const ctxS = document.getElementById('chart-buttons-status');
+    if (ctxS) {
+      if (ctxS._chart) ctxS._chart.destroy();
+      ctxS._chart = new Chart(ctxS, {
+        type: 'doughnut',
+        data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: Object.keys(counts).map(k => statusColors[k] || '#888') }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Status de botones', font: { size: 11 } }, legend: { position: 'right', labels: { font: { size: 10 } } } } }
+      });
+    }
+    // Bar by category
+    const catCounts = btns.reduce((acc, b) => {
+      acc[b.category] = acc[b.category] || { ok: 0, broken: 0, warn: 0, untested: 0 };
+      acc[b.category][b.status] = (acc[b.category][b.status] || 0) + 1;
+      return acc;
+    }, {});
+    const cats = Object.keys(catCounts).sort();
+    const ctxC = document.getElementById('chart-buttons-category');
+    if (ctxC && cats.length) {
+      if (ctxC._chart) ctxC._chart.destroy();
+      ctxC._chart = new Chart(ctxC, {
+        type: 'bar',
+        data: {
+          labels: cats,
+          datasets: ['ok','broken','warn','untested'].map(s => ({
+            label: s,
+            data: cats.map(c => catCounts[c][s] || 0),
+            backgroundColor: statusColors[s],
+          }))
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { title: { display: true, text: 'Por categoría', font: { size: 11 } }, legend: { position: 'top', labels: { font: { size: 9 } } } },
+          scales: { x: { stacked: true, ticks: { font: { size: 9 } } }, y: { stacked: true, ticks: { font: { size: 9 } } } }
+        }
+      });
+    }
   }
 }
 

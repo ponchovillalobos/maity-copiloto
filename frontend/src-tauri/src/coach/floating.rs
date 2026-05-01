@@ -11,8 +11,15 @@ const DEFAULT_WIDTH: f64 = 320.0;
 const DEFAULT_HEIGHT: f64 = 380.0;
 
 /// Abre la ventana flotante. Si ya existe, la enfoca y la muestra.
+/// FIX v17: la burbuja SOLO debe aparecer durante grabación. Si no se está
+/// grabando, retorna error sin abrir nada (UX consistente: el coach es vivo,
+/// no decoración estática).
 #[tauri::command]
 pub async fn open_floating_coach<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    if !crate::audio::recording_commands::is_recording().await {
+        return Err("La burbuja del coach solo aparece durante una grabación activa.".to_string());
+    }
+
     if let Some(existing) = app.get_webview_window(FLOATING_LABEL) {
         existing.show().map_err(|e| e.to_string())?;
         existing.set_always_on_top(true).map_err(|e| e.to_string())?;

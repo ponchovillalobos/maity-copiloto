@@ -151,7 +151,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/api/buttons') {
     const rows = safeRows(
-      'SELECT id, display_name, source_file, source_line, category, status, notes, last_checked_at FROM button_audit ORDER BY category, display_name',
+      'SELECT id, display_name, source_file, source_line, category, status, notes, last_checked_at FROM button_audit ORDER BY status DESC, category, display_name',
     );
     return jsonReply(res, rows);
   }
