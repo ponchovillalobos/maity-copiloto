@@ -453,6 +453,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       if (isManual) {
         window = '[Solicitud manual: usuario pidió un tip. Genera un consejo general útil para iniciar/avanzar la conversación.]';
       } else {
+        tipInFlightRef.current = false; // v28.3: liberar lock antes de return
         logger.debug('[Coach] Skip: ventana muy corta');
         return;
       }
@@ -473,16 +474,19 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     const now = Date.now();
     if (!isManual) {
       if (now < suppressUntilRef.current) {
+        tipInFlightRef.current = false; // v28.3
         logger.debug(`[Coach] Skip: suppress activo hasta ${new Date(suppressUntilRef.current).toISOString()}`);
         return;
       }
       if (now - lastTipTimestampRef.current < TIP_COOLDOWN_MS) {
+        tipInFlightRef.current = false; // v28.3
         logger.debug(`[Coach] Skip: cooldown 45s activo`);
         return;
       }
       if (sessionStartRef.current) {
         const sessionAge = now - sessionStartRef.current;
         if (sessionAge < FIRST_MINUTES_COOLDOWN_MS && suggestionsRef.current.length >= 1) {
+          tipInFlightRef.current = false; // v28.3
           logger.debug('[Coach] Skip: primeros 2 min, ya hay 1 tip');
           return;
         }
