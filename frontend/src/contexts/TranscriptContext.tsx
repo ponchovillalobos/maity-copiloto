@@ -370,15 +370,15 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           // tener acceso al transcriptsRef en memoria del frontend principal.
           // Fire-and-forget — no bloquear el procesamiento de transcripts si falla.
           //
-          // v31.3: ACEPTA TAMBIÉN parciales (is_partial=true). Antes solo se
-          // alimentaba con finales, lo que dejaba el buffer vacío en audience
-          // mode (el cliente habla largo sin pausas con finalización de chunks)
-          // → tips dejaban de generarse 15+ min seguidos. El backend trunca a
-          // últimos 60 chunks naturalmente, sin riesgo de overflow.
+          // v31.8: pasa sequence_id + is_partial. Backend dedup por
+          // sequence_id (mismo chunk re-emitido por VAD jitter o parcial→final
+          // sustituye en mismo slot, no agrega ni borra prefijos ajenos).
           if (update.text && update.text.trim().length > 0) {
             void invoke('coach_push_transcript_chunk', {
+              sequenceId: update.sequence_id ?? 0,
               speaker: update.source_type ?? 'voz',
               text: update.text,
+              isPartial: update.is_partial ?? false,
             }).catch(() => undefined);
           }
 

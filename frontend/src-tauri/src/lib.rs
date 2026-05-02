@@ -884,6 +884,20 @@ pub fn run() {
                             }
                             _ => {}
                         }
+
+                        // v31.7: migración tabla coach_settings (tabla separada de settings)
+                        // — coach carga sidecar con tips_model legacy si no se actualiza.
+                        let _ = sqlx::query(
+                            "UPDATE coach_settings SET tips_model='qwen3:1.7b', chat_model='qwen3:1.7b' \
+                             WHERE tips_model LIKE 'gemma%' OR chat_model LIKE 'gemma%'"
+                        )
+                        .execute(pool)
+                        .await
+                        .map(|r| {
+                            if r.rows_affected() > 0 {
+                                log::info!("🧹 v31.7: coach_settings tips_model/chat_model → qwen3:1.7b ({} filas)", r.rows_affected());
+                            }
+                        });
                     }
                 }
 

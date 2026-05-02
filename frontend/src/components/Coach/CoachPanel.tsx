@@ -356,13 +356,12 @@ export function CoachPanel() {
             <BookmarkButton />
             <button
               onClick={async () => {
-                // v31.2: usar la única ruta — coach_request_simple_tip
-                // (Rust lee live_transcript del AppState). NO triggerNow viejo.
+                // v31.8: triggerNow del contexto envuelve coach_simple_tick
+                // y hace pushSuggestion en el panel cuando hay resultado.
                 try {
-                  const { invoke } = await import('@tauri-apps/api/core');
-                  await invoke('coach_request_simple_tip', {});
+                  await triggerNow();
                 } catch (e) {
-                  console.warn('[CoachPanel] coach_request_simple_tip falló:', e);
+                  console.warn('[CoachPanel] triggerNow falló:', e);
                 }
               }}
               disabled={loading || !!ollamaDown}

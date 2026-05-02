@@ -166,7 +166,7 @@ pub async fn coach_simple_tick(
         ) {
             Ok(_) => Some(AtomicFlightGuard { app: app.clone() }),
             Err(_) => {
-                log::info!("[coach_simple_tick] otro tick en vuelo, skip");
+                log::info!("[coach_simple_tick] tick concurrente en vuelo — skip (auto/manual rate-limit)");
                 return Ok(None);
             }
         }
@@ -183,7 +183,7 @@ pub async fn coach_simple_tick(
             if let Ok(buf) = state.live_transcript.lock() {
                 if !buf.is_empty() {
                     let mut lines: Vec<String> = Vec::with_capacity(buf.len());
-                    for (speaker, text) in buf.iter() {
+                    for (_sid, speaker, text) in buf.iter() {
                         let label = match speaker.as_str() {
                             "user" => "USUARIO",
                             "interlocutor" => "INTERLOCUTOR",
@@ -212,24 +212,22 @@ pub async fn coach_simple_tick(
         trimmed.to_string()
     };
 
-    // Resolver meeting_id: param explícito > AppState > "live" fallback.
-    // v31.3: warning visible si cae al fallback "live" — la burbuja consulta
-    // por meeting_id activo y NO encontrará tips si quedan bajo "live".
+    // v31.8: meeting_id obligatorio (param explícito o AppState). Sin él,
+    // los tips quedarían huérfanos en DB invisibles para la burbuja
+    // (que pollea por activeMeetingId). Mejor return Ok(None) con log.
     let resolved_meeting_id: String = if let Some(mid) = meeting_id.filter(|s| !s.is_empty()) {
         mid
     } else if let Some(state) = app.try_state::<crate::state::AppState>() {
-        state
-            .active_meeting_id
-            .lock()
-            .ok()
-            .and_then(|g| g.clone())
-            .unwrap_or_else(|| {
-                log::warn!("[coach_simple_tick] active_meeting_id es None — fallback meeting_id='live' (la burbuja podría no encontrar este tip si su meeting actual es distinto)");
-                "live".to_string()
-            })
+        match state.active_meeting_id.lock().ok().and_then(|g| g.clone()) {
+            Some(mid) => mid,
+            None => {
+                log::warn!("[coach_simple_tick] sin active_meeting_id — skip (burbuja no podría ver el tip)");
+                return Ok(None);
+            }
+        }
     } else {
-        log::warn!("[coach_simple_tick] AppState NO disponible — fallback meeting_id='live'");
-        "live".to_string()
+        log::error!("[coach_simple_tick] AppState NO disponible — skip");
+        return Ok(None);
     };
 
     // invoca sidecar — timeout duro 15s vía CancellationToken.
@@ -339,11 +337,11 @@ pub async fn coach_simple_tick(
         log::info!("[coach_simple_tick] tip rechazado: {} palabras < 5 (\"{}\")", word_count, tip_text);
         return Ok(None);
     }
-    // v30.3: máximo 25 palabras (cap duro contra descripciones largas).
-    if word_count > 25 {
-        log::info!("[coach_simple_tick] tip truncado: {} palabras > 25", word_count);
-        let truncado: String = tip_text.split_whitespace().take(22).collect::<Vec<_>>().join(" ");
-        tip_text = format!("{}…", truncado);
+    // v31.8: alineado con prompt (5-15 palabras). Tip más largo se trunca a 15.
+    if word_count > 15 {
+        log::info!("[coach_simple_tick] tip truncado: {} palabras > 15", word_count);
+        let truncado: String = tip_text.split_whitespace().take(15).collect::<Vec<_>>().join(" ");
+        tip_text = truncado;
     }
     // v30.3: filtro backend que exige verbo imperativo al inicio. Rechaza
     // descripciones tipo "Bien hecho:", "La inteligencia es…", "Es importante…"
@@ -420,15 +418,48 @@ pub async fn coach_simple_tick(
         id: None,
     };
 
-    // INSERT a coach_tips_log — DB es la ÚNICA fuente de verdad para la
-    // burbuja flotante (que pollea coach_get_recent_tips cada 3s).
-    // v31.5: si INSERT falla, retornamos Err para que el frontend SEPA que
-    // el tip no se persistió. Antes era `let _ = ...` silencioso → panel veía
-    // tip pero burbuja no lo encontraba en DB.
     let state = app
         .try_state::<crate::state::AppState>()
         .ok_or_else(|| "AppState no disponible para INSERT".to_string())?;
     let pool = state.db_manager.pool();
+
+    // v31.7: dedup post-LLM. Si el modelo repite "Reconoce: Entiendo que esto
+    // puede ser frustrante..." 5 veces seguidas, no lo guardamos. Comparamos
+    // contra los últimos 3 tips del meeting actual con Jaccard sobre tokens.
+    // Threshold 0.55 = >55% palabras compartidas → repetitivo.
+    use sqlx::Row;
+    if let Ok(rows) = sqlx::query("SELECT tip FROM coach_tips_log WHERE meeting_id = ? ORDER BY id DESC LIMIT 3")
+        .bind(&resolved_meeting_id)
+        .fetch_all(pool)
+        .await
+    {
+        let new_lower = tip_text.to_lowercase();
+        let new_tokens: std::collections::HashSet<&str> = new_lower
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|s| s.len() > 2)
+            .collect();
+        for row in &rows {
+            if let Ok(prev) = row.try_get::<String, _>("tip") {
+                let prev_lower = prev.to_lowercase();
+                let prev_tokens: std::collections::HashSet<&str> = prev_lower
+                    .split(|c: char| !c.is_alphanumeric())
+                    .filter(|s| s.len() > 2)
+                    .collect();
+                let inter = new_tokens.intersection(&prev_tokens).count();
+                let union = new_tokens.union(&prev_tokens).count().max(1);
+                let jaccard = inter as f32 / union as f32;
+                if jaccard > 0.55 {
+                    log::info!(
+                        "[coach_simple_tick] tip rechazado: jaccard {:.2} > 0.55 vs tip previo (\"{}\")",
+                        jaccard,
+                        prev.chars().take(50).collect::<String>()
+                    );
+                    return Ok(None);
+                }
+            }
+        }
+    }
+
     sqlx::query(
         "INSERT INTO coach_tips_log (meeting_id, tip, category, priority, tip_type, confidence, model, trigger_signal)
          VALUES (?, ?, 'general', 'soft', 'observation', 0.7, ?, 'simple_tick')",
@@ -461,9 +492,12 @@ pub async fn coach_simple_tick(
 #[tauri::command]
 pub async fn coach_push_transcript_chunk(
     app: tauri::AppHandle,
+    sequence_id: u64,
     speaker: String,
     text: String,
+    is_partial: bool,
 ) -> Result<(), String> {
+    let _ = is_partial; // sólo informativo en el caller; backend usa sequence_id
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return Ok(());
@@ -476,24 +510,15 @@ pub async fn coach_push_transcript_chunk(
         .lock()
         .map_err(|e| format!("Mutex envenenado: {}", e))?;
 
-    // v31.5: dedup en TODO el buffer (no solo último). Si parciales del
-    // mismo speaker llegan alternados con otro hablante, antes podían
-    // duplicarse. Ahora buscamos cualquier match exacto en el buffer y
-    // saltamos. Para parciales extendidos (prefijo/sufijo) reemplazamos
-    // la entrada existente in-place.
-    let dup_idx = buf.iter().position(|(s, t)| s == &speaker && t.as_str() == trimmed);
-    if dup_idx.is_some() {
-        return Ok(());
-    }
-    let extension_idx = buf.iter().position(|(s, t)| {
-        s == &speaker && (trimmed.starts_with(t.as_str()) || t.starts_with(trimmed))
-    });
-    if let Some(idx) = extension_idx {
-        buf[idx] = (speaker, trimmed.to_string());
+    // v31.8: dedup por sequence_id. Mismo evento re-emitido (parcial→final,
+    // VAD jitter) reemplaza la entrada existente. Distinto sequence_id =
+    // distinto chunk, agregar. Sin prefix matching cruzado entre chunks.
+    if let Some(idx) = buf.iter().position(|(sid, _, _)| *sid == sequence_id) {
+        buf[idx] = (sequence_id, speaker, trimmed.to_string());
         return Ok(());
     }
 
-    buf.push_back((speaker, trimmed.to_string()));
+    buf.push_back((sequence_id, speaker, trimmed.to_string()));
     while buf.len() > 40 {
         buf.pop_front();
     }

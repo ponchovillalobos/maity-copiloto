@@ -14,15 +14,12 @@ pub struct AppState {
     /// `clear_active_meeting_id`. Burbuja consulta vía `get_active_meeting_id`.
     pub active_meeting_id: Mutex<Option<String>>,
 
-    /// v31.2 (2026-05-02): buffer en memoria de los últimos chunks transcritos.
-    /// Cada elemento: (speaker_label, text). TranscriptContext alimenta vía
-    /// `coach_push_transcript_chunk` cada vez que llega `transcript-update`.
-    /// `coach_simple_tick` (y por extensión `coach_request_simple_tip`) lee
-    /// de aquí cuando se invoca sin window explícito — esto permite a la
-    /// burbuja flotante (otra webview, sin acceso a transcriptsRef del
-    /// CoachContext) pedir tips sin pasar el contexto.
-    /// Cap a 60 chunks (≈3-5 min de conversación). Limpieza al cerrar grabación.
-    pub live_transcript: Mutex<VecDeque<(String, String)>>,
+    /// v31.8 (2026-05-02): buffer transcripts. Tupla (sequence_id, speaker, text).
+    /// TranscriptContext alimenta vía `coach_push_transcript_chunk` con sequence_id
+    /// del transcript-update. Dedup por sequence_id: parcial→final reemplaza
+    /// la entrada en mismo slot, distinto sequence_id agrega nueva.
+    /// Cap a 40 chunks (≈3-4 min). Limpieza al cerrar grabación.
+    pub live_transcript: Mutex<VecDeque<(u64, String, String)>>,
 
     /// v31.5 (2026-05-02): lock contra coach_simple_tick concurrente.
     /// El tick automático cada 30s (CoachContext) y el botón manual
