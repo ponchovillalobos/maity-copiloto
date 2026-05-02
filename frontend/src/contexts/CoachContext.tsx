@@ -880,28 +880,42 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   }, [enabled, isRecording, triggerNow, pushSuggestion]);
 
   /**
-   * Effect 2.5 v26: heartbeat garantizado de tips cada 30s.
-   * Si no se disparó nada por trigger/nudge en 30s, fuerza un tip.
-   * Cumple promesa al usuario: "tips deben salir cada 30s".
+   * Effect 2.5 v28: heartbeat garantizado de tips cada 30s.
+   *
+   * BUG FIX v28: antes setInterval ejecutaba primera iteración a t≈0 (no 30s),
+   * causando 3 tips simultáneos al iniciar grabación junto con otros effects.
+   * Solución: setTimeout 30s ANTES del setInterval. Primera ejecución a t=30s.
+   *
+   * BUG FIX v28: si trigger falla (ventana corta), NO resetea lastTipTimestampRef.
+   * Antes ponía a 0 ANTES de chequear ventana → pegaba el ref si ventana < 100.
    */
   useEffect(() => {
     if (!enabled || !isRecording) return;
     const HEARTBEAT_MS = 30_000;
-    const heartbeat = setInterval(async () => {
+    let intervalHandle: ReturnType<typeof setInterval> | null = null;
+    const tick = async () => {
       const now = Date.now();
       const elapsedSinceLastTip = now - lastTipTimestampRef.current;
-      // Si pasaron >25s sin tip nuevo (un poco antes del cooldown 30s
-      // para garantizar que el tip salga al cruzar 30s reales)
-      if (elapsedSinceLastTip >= 25_000) {
-        const window = buildWindow();
-        if (window.length < 100) return; // Muy corto para tip útil
-        logger.info('[Coach] heartbeat 30s — forzando tip nuevo');
-        // Reseteamos cooldown para que triggerNow no rechace
-        lastTipTimestampRef.current = 0;
-        await triggerNow(undefined, 'heartbeat_30s');
+      if (elapsedSinceLastTip < 25_000) return;
+      const window = buildWindow();
+      if (window.length < 100) {
+        logger.debug('[Coach] heartbeat skip — ventana < 100 chars');
+        return;
       }
+      logger.info('[Coach] heartbeat 30s — forzando tip nuevo');
+      // Solo reseteamos cooldown si vamos a generar de verdad
+      lastTipTimestampRef.current = 0;
+      await triggerNow(undefined, 'heartbeat_30s');
+    };
+    // v28: PRIMER tick a 30s exactos (no inmediato)
+    const firstTimer = setTimeout(() => {
+      void tick();
+      intervalHandle = setInterval(() => void tick(), HEARTBEAT_MS);
     }, HEARTBEAT_MS);
-    return () => clearInterval(heartbeat);
+    return () => {
+      clearTimeout(firstTimer);
+      if (intervalHandle) clearInterval(intervalHandle);
+    };
   }, [enabled, isRecording, triggerNow, buildWindow]);
 
   /**

@@ -116,10 +116,30 @@ export default function FloatingPage() {
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
 
+    // v28 F4: catch-up al abrir — cargar histórico desde DB ANTES de listen.
+    // Sin esto, si floating abre tarde pierde tips ya generados.
+    (async () => {
+      try {
+        const recent = await invoke<CoachTip[]>('coach_get_recent_tips', { meetingId: null, limit: 50 });
+        if (recent && recent.length > 0) {
+          setTipsHistory(recent);
+        }
+      } catch (e) {
+        console.warn('[floating] catch-up failed:', e);
+      }
+    })();
+
     listen<CoachTip>('coach-tip-update', (e) => {
-      setTipsHistory((prev) => [e.payload, ...prev].slice(0, 50));
+      setTipsHistory((prev) => {
+        // v28: dedup contra histórico ya cargado (evita doble entrada catch-up + live)
+        const newTip = e.payload;
+        if (prev.some(p => p.tip === newTip.tip && Math.abs((p.timestamp || 0) - (newTip.timestamp || 0)) < 5)) {
+          return prev;
+        }
+        return [newTip, ...prev].slice(0, 50);
+      });
       setTipIndex(0);
-      setRequestingTip(false); // Tip llegó — quita el spinner.
+      setRequestingTip(false);
     }).then(u => unlisteners.push(u));
 
     // Limpia tips cuando la sesión termina (grabación stop / nueva reunión).

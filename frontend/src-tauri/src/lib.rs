@@ -1328,6 +1328,7 @@ pub fn run() {
             coach::commands::coach_set_model_for_purpose,
             coach::commands::coach_get_models,
             coach::commands::coach_get_status,
+            coach::commands::coach_get_recent_tips,
             coach::evaluator::coach_evaluate_communication,
             coach::evaluator::coach_evaluate_post_meeting,
             coach::evaluator::coach_get_post_meeting_evaluation,

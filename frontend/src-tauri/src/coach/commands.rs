@@ -256,8 +256,34 @@ pub async fn coach_suggest(
         latency_ms,
     };
 
-    // v26: persistir tip a coach_tips_log para histórico permanente.
-    // Esto permite al dashboard mostrar tips reales (no solo tip_tests).
+    // v28 F5: aplicar filtros ANTES de INSERT. Antes Rust persistía TODO,
+    // pero frontend filtraba después → dashboard veía tips que floating no.
+    // Ahora: si Rust descarta, no INSERT, no devuelve tip. Sync total.
+    let tip_lower = parsed.tip.to_lowercase();
+    let vague_words = [
+        "empatiza", "empatía", "rapport", "escucha activa", "sé empático",
+        "muestra interés", "conecta con", "establece confianza",
+    ];
+    let is_vague = vague_words.iter().any(|w| tip_lower.contains(w))
+        && !parsed.tip.contains('\'') && !parsed.tip.contains(':');
+    let has_quoted_phrase = parsed.tip.contains('\'') || parsed.tip.contains(':');
+    let needs_phrase = matches!(tip_type.as_str(), "corrective" | "observation");
+
+    if parsed.confidence < 0.55 {
+        log::info!("[coach_suggest] descartado: confidence {} < 0.55", parsed.confidence);
+        return Err(format!("Tip descartado por baja confianza ({})", parsed.confidence));
+    }
+    if is_vague {
+        log::info!("[coach_suggest] descartado: tip vago/genérico: {}", parsed.tip);
+        return Err("Tip descartado por vaguedad".to_string());
+    }
+    if needs_phrase && !has_quoted_phrase {
+        log::info!("[coach_suggest] descartado: {} sin frase concreta: {}", tip_type, parsed.tip);
+        return Err(format!("Tip {} requiere frase concreta entre comillas", tip_type));
+    }
+
+    // v26+v28: persistir tip a coach_tips_log SOLO si pasó filtros.
+    // Garantiza que dashboard y floating vean los MISMOS tips.
     if let Some(state) = app.try_state::<crate::state::AppState>() {
         let pool = state.db_manager.pool();
         let _ = sqlx::query(
@@ -285,6 +311,62 @@ pub async fn coach_suggest(
     }
 
     Ok(suggestion)
+}
+
+/// v28 F4: comando para que floating window cargue tips ya generados al abrir.
+/// Sin este catch-up, si la ventana flotante abre tarde pierde el histórico.
+#[tauri::command]
+pub async fn coach_get_recent_tips(
+    app: tauri::AppHandle,
+    meeting_id: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<CoachSuggestion>, String> {
+    use sqlx::Row;
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let pool = state.db_manager.pool();
+    let lim = limit.unwrap_or(50).min(200) as i64;
+
+    let rows = if let Some(mid) = meeting_id {
+        sqlx::query(
+            "SELECT tip, category, subcategory, technique, priority, tip_type,
+                    confidence, latency_ms, model, created_at
+             FROM coach_tips_log
+             WHERE meeting_id = ? ORDER BY id DESC LIMIT ?",
+        )
+        .bind(mid)
+        .bind(lim)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query(
+            "SELECT tip, category, subcategory, technique, priority, tip_type,
+                    confidence, latency_ms, model, created_at
+             FROM coach_tips_log ORDER BY id DESC LIMIT ?",
+        )
+        .bind(lim)
+        .fetch_all(pool)
+        .await
+    }
+    .map_err(|e| format!("DB error: {}", e))?;
+
+    let tips: Vec<CoachSuggestion> = rows
+        .iter()
+        .map(|r| CoachSuggestion {
+            tip: r.get("tip"),
+            category: r.get("category"),
+            subcategory: r.try_get("subcategory").ok(),
+            technique: r.try_get("technique").ok(),
+            priority: r.get::<String, _>("priority"),
+            confidence: r.try_get::<f64, _>("confidence").unwrap_or(0.7) as f32,
+            tip_type: r.get::<String, _>("tip_type"),
+            timestamp: 0,
+            model: r.try_get("model").unwrap_or_default(),
+            latency_ms: r.try_get::<i64, _>("latency_ms").unwrap_or(0) as u64,
+        })
+        .collect();
+    Ok(tips)
 }
 
 /// Cambia el modelo activo del coach.
