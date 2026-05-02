@@ -485,12 +485,13 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       const minute = sessionStartRef.current
         ? Math.floor((now - sessionStartRef.current) / 60_000)
         : 0;
-      // v25 fix: enviamos los últimos 15 tips (era 5). El modelo necesita ver
-      // historial más amplio para evitar repetición real. Formato "[tipo] tip"
-      // sigue convención del prompt V3 LITE.
-      const previousTips = suggestionsRef.current.slice(-15).map((s) => {
+      // v27 fix perf: comprimimos a 7 tips + truncamos cada uno a 60 chars.
+      // Performance audit: 15 tips × 80 chars = 1200 chars overhead en prompt.
+      // 7 tips × 60 chars = 420 chars (-65%). Mantiene anti-repetición efectiva.
+      const previousTips = suggestionsRef.current.slice(-7).map((s) => {
         const tt = s.tip_type ?? 'observation';
-        return `[${tt}] ${s.tip}`;
+        const short = s.tip.length > 60 ? s.tip.slice(0, 60) + '…' : s.tip;
+        return `[${tt}] ${short}`;
       });
 
       // v25 fix: si trigger no provee category hint, ROTAMOS según minuto + meeting_type

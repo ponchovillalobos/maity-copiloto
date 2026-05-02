@@ -172,7 +172,7 @@ pub async fn coach_suggest(
                 &user_prompt_clone,
                 None,
                 None,
-                Some(50),
+                Some(35), // v27: máx 35 tokens output (~12 palabras tip + JSON wrapper). Antes 50.
                 Some(0.3),
                 Some(0.7),
                 Some(&data_dir_clone),

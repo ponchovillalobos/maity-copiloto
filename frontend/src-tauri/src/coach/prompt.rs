@@ -68,7 +68,7 @@ Si el USUARIO acaba de hacer pregunta abierta poderosa:
 Reglas estrictas:
 - "tip" = frase REAL de coaching, derivada del CONTENIDO específico que aparece en la transcripción. PROHIBIDO usar frases genéricas tipo "qué te preocupa más" si el contexto no lo justifica.
 - Empieza con "Dile:", "Respóndele:", "Pregúntale:", "Bien hecho:" o "Corrección:"
-- 1 sola oración, máx 18 palabras
+- 1 sola oración, MÁX 12 palabras (el usuario lee mientras habla — tip CORTO o no sirve)
 - "category" = una de: discovery, objection, closing, pacing, rapport, service, negotiation, listening
 - "tip_type" = una de: recognition, observation, corrective, introspective
 - "recognition" SOLO si el USUARIO acaba de hacer algo objetivamente bien. 80% del tiempo usa observation o corrective.
@@ -126,7 +126,7 @@ pub fn build_user_prompt_v3(
     };
 
     format!(
-        "TIPO DE REUNIÓN: {}\nMINUTO ACTUAL: {}\n{}{}\n\n<transcripcion>\n{}\n</transcripcion>\n\n<tips_previos>\n{}\n</tips_previos>\n\nREGLA CRÍTICA ANTI-REPETICIÓN: tu nuevo tip DEBE ser DISTINTO en contenido y categoría a TODOS los <tips_previos>. PROHIBIDO repetir frases similares (ej: si ya dijiste 'Pregúntale qué le preocupa', NO digas 'Dile qué le preocupa' ni paráfrasis). Cada tip debe abordar un ASPECTO DIFERENTE: si previo fue empatía, ahora dato concreto; si previo fue pregunta abierta, ahora cierre. La categoría sugerida arriba es una pista — explora otra dimensión cada vez.\n\nAnaliza y responde con UN JSON con el tip más relevante Y DISTINTO a los previos.",
+        "TIPO DE REUNIÓN: {}\nMINUTO ACTUAL: {}\n{}{}\n\n<transcripcion>\n{}\n</transcripcion>\n\n<tips_previos>\n{}\n</tips_previos>\n\nANTI-REPETICIÓN: tip DISTINTO a previos en contenido + categoría. Máx 12 palabras.",
         meeting_type.as_label(),
         minute,
         category_hint,
