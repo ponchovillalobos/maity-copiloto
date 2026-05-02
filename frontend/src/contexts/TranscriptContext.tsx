@@ -104,6 +104,18 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
             sessionStorage.setItem('indexeddb_current_meeting_id', meetingId);
             logger.debug('[Recording Started] 💾 IndexedDB meeting ID stored:', meetingId);
 
+            // BUG #16 fix (asamblea 2026-05-02): además del sessionStorage
+            // (que NO cruza webviews en Tauri 2), publicar el meeting_id en
+            // AppState compartido vía comando Rust. Así la burbuja flotante
+            // (webview "coach-floating", origin distinto) puede consultarlo.
+            try {
+              const { invoke } = await import('@tauri-apps/api/core');
+              await invoke('set_active_meeting_id', { meetingId });
+              logger.debug('[Recording Started] 🔗 active_meeting_id publicado en AppState');
+            } catch (e) {
+              logger.warn('[Recording Started] set_active_meeting_id falló:', e);
+            }
+
             // Get meeting name
             const meetingName = await recordingService.getRecordingMeetingName();
 
@@ -155,6 +167,8 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
                 await indexedDBService.saveMeetingMetadata(metadata);
               }
             }
+            // v31.2: limpiar buffer live_transcript del AppState (Rust)
+            void invoke('coach_clear_live_transcript').catch(() => undefined);
           } catch (error) {
             console.error('Failed to update meeting metadata on stop:', error);
           }
@@ -348,6 +362,18 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           if (currentMeetingIdRef.current) {
             indexedDBService.saveTranscript(currentMeetingIdRef.current, { ...update })
               .catch(err => console.warn('IndexedDB save failed:', err));
+          }
+
+          // v31.2 (2026-05-02): alimenta el buffer live_transcript del AppState
+          // (Rust). Esto permite que cualquier webview (burbuja flotante,
+          // potenciales paneles aparte) pueda invocar coach_simple_tick sin
+          // tener acceso al transcriptsRef en memoria del frontend principal.
+          // Fire-and-forget — no bloquear el procesamiento de transcripts si falla.
+          if (!update.is_partial && update.text && update.text.trim().length > 0) {
+            void invoke('coach_push_transcript_chunk', {
+              speaker: update.source_type ?? 'voz',
+              text: update.text,
+            }).catch(() => undefined);
           }
 
           // Clear any existing timer and set a new one

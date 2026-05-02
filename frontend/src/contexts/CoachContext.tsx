@@ -800,124 +800,17 @@ export function CoachProvider({ children }: { children: ReactNode }) {
    *
    * Cooldown de 45s + suppress post-precio de 15s controlados en `triggerNow`.
    */
-  // Listener "Pedir tip ahora" SIEMPRE activo (independiente de grabación).
-  // La burbuja flotante emite `coach-request-tip` y el coach genera tip al instante.
-  useEffect(() => {
-    if (!enabled) return;
-    let unlistenManual: (() => void) | null = null;
-    let cancelled = false;
-    (async () => {
-      unlistenManual = await listen<{ source?: string }>('coach-request-tip', async () => {
-        if (cancelled) return;
-        logger.info('[Coach] Manual tip request received');
-        // Reset cooldown para que NO bloquee disparo manual.
-        lastTipTimestampRef.current = 0;
-        suppressUntilRef.current = 0;
-        await triggerNowRef.current(undefined, 'manual_request');
-      });
-    })();
-    return () => {
-      cancelled = true;
-      if (unlistenManual) unlistenManual();
-    };
-  }, [enabled]); // BUG #10 fix: triggerNow ahora vía ref, deps solo estables
-
-  useEffect(() => {
-    if (!enabled || !isRecording) return;
-    let unlisten: (() => void) | null = null;
-    let cancelled = false;
-
-    const setup = async () => {
-      const fn = await listen<any>('transcript-update', async (event) => {
-        if (cancelled) return;
-        const u = event.payload;
-        if (
-          !u ||
-          u.is_partial === true ||
-          !u.text ||
-          u.text.trim().length < 5
-        ) {
-          return;
-        }
-        // Analyze triggers for BOTH user and interlocutor speech
-        const isInterlocutor = u.source_type === 'interlocutor';
-
-        // Profanity detection differentiated by speaker.
-        // En modo audience NO emitir tips de "responde al cliente" porque el
-        // usuario no está interactuando (puede ser conferencia, podcast, etc).
-        if (PROFANITY_REGEX.test(u.text) && conversationModeRef.current !== 'audience') {
-          if (isInterlocutor) {
-            pushSuggestionRef.current(makeHeuristicTip(
-              "Cliente molesto. Dile: 'Entiendo tu frustración, tienes razón. ¿Cómo puedo solucionarlo?'",
-              "service",
-              "critical",
-            ));
-          } else {
-            pushSuggestionRef.current(makeHeuristicTip(
-              "Cuidado con tu tono. Di: 'Disculpa si sonó brusco, quiero ayudarte. Vamos a resolverlo juntos.'",
-              "self_control",
-              "critical",
-            ));
-            return; // User profanity is urgent, skip LLM tip
-          }
-        }
-
-        try {
-          const signals = await invoke<Array<{ category: string; priority: string; signal: string }>>(
-            'coach_analyze_trigger',
-            { text: u.text, isInterlocutor }
-          );
-
-          if (signals.length === 0) {
-            logger.debug('[Coach] Sin señales en turno, skip');
-            return;
-          }
-
-          const top = signals[0];
-          logger.info(`[Coach] Señal detectada: ${top.signal} (${top.priority}) → categoría ${top.category}`);
-
-          // Post-precio: activar suppress de 15s
-          if (top.signal === 'price_discussion' || top.signal === 'objection_detected') {
-            const priceDetected = u.text.toLowerCase().match(/precio|cuesta|costo|caro|cara|presupuesto/);
-            if (priceDetected) {
-              suppressUntilRef.current = Date.now() + POST_PRICE_SUPPRESS_MS;
-              logger.info('[Coach] Post-precio: suppress 15s activo');
-            }
-          }
-
-          // Disparar tip con pista de categoría + signal (speaker attribution)
-          if (top.priority === 'critical' || top.priority === 'important') {
-            await triggerNowRef.current(top.category, top.signal);
-          } else if (top.priority === 'soft') {
-            const age = Date.now() - lastTipTimestampRef.current;
-            if (age > 35_000) {
-              await triggerNowRef.current(top.category, top.signal);
-            }
-          }
-        } catch (e) {
-          logger.warn(`[Coach] Error en trigger analyze: ${e}`);
-          const age = Date.now() - lastTipTimestampRef.current;
-          if (age > 35_000) {
-            logger.info('[Coach] Fallback: trigger fallo, intentando tip generico');
-            await triggerNowRef.current(undefined);
-          }
-        }
-      });
-
-      if (cancelled) {
-        fn();
-      } else {
-        unlisten = fn;
-      }
-    };
-
-    setup();
-
-    return () => {
-      cancelled = true;
-      if (unlisten) unlisten();
-    };
-  }, [enabled, isRecording]); // BUG #10 fix: callbacks vía ref, deps estables solo
+  // v31 SIMPLIFICACIÓN RADICAL (2026-05-02):
+  // - Eliminado listener "coach-request-tip" + triggerNow del flujo manual.
+  //   La burbuja ahora invoca directamente `coach_request_simple_tip` (Rust).
+  // - Eliminado listener "transcript-update" + 18 triggers heurísticos +
+  //   coach_analyze_trigger + dedup Jaccard + audience mode + cooldowns.
+  //   El único disparador de tips es el setInterval(30s) más abajo que
+  //   invoca coach_simple_tick. Una sola ruta, sin race conditions.
+  //
+  // Si hay que volver a triggers basados en eventos del transcript, se hace
+  // en una capa SEPARADA (no aquí) y NUNCA inserta en coach_tips_log
+  // directamente — debe pasar por coach_simple_tick.
 
   /**
    * Effect 2.5 v28: heartbeat garantizado de tips cada 30s.
@@ -929,37 +822,46 @@ export function CoachProvider({ children }: { children: ReactNode }) {
    * BUG FIX v28: si trigger falla (ventana corta), NO resetea lastTipTimestampRef.
    * Antes ponía a 0 ANTES de chequear ventana → pegaba el ref si ventana < 100.
    */
+  // v30 SIMPLE LOOP (2026-05-02): substituye TODA la maquinaria heredada de
+  // triggerNow (18 detectores heurísticos + dedup Jaccard + audience mode +
+  // suppressUntilRef + FIRST_MINUTES_COOLDOWN + tipInFlightRef) por un único
+  // setInterval cada 30s que invoca el backend con `window` y `meeting_id`.
+  // Backend hace todo: LLM, INSERT, emit cross-webview. Frontend solo arma
+  // el contexto. Si pushSuggestion existe en el backend recibe vía emit.
   useEffect(() => {
     if (!enabled || !isRecording) return;
-    const HEARTBEAT_MS = 30_000;
     let intervalHandle: ReturnType<typeof setInterval> | null = null;
     const tick = async () => {
-      const now = Date.now();
-      const elapsedSinceLastTip = now - lastTipTimestampRef.current;
-      if (elapsedSinceLastTip < 25_000) return;
-      const window = buildWindowRef.current();
-      if (window.length < 100) {
-        logger.debug('[Coach] heartbeat skip — ventana < 100 chars');
-        return;
+      try {
+        const window = buildWindowRef.current();
+        if (window.length < 30) {
+          logger.debug('[Coach v30] tick skip — window <30 chars');
+          return;
+        }
+        const meetingId = currentMeetingId ?? undefined;
+        logger.info(`[Coach v30] tick 30s — invocando coach_simple_tick (${window.length} chars, meeting=${meetingId ?? 'live'})`);
+        const result = await invoke<CoachSuggestion | null>('coach_simple_tick', {
+          window,
+          meetingId,
+        });
+        if (result) {
+          logger.info(`[Coach v30] tip recibido: "${result.tip.slice(0, 60)}…"`);
+          pushSuggestionRef.current(result);
+        }
+      } catch (e) {
+        logger.warn(`[Coach v30] tick error: ${e}`);
       }
-      logger.info('[Coach] heartbeat 30s — forzando tip nuevo');
-      // BUG #8 fix: ya NO reseteamos lastTipTimestampRef aquí. El bypass de
-      // cooldown se maneja dentro de triggerNow vía `bypassCooldown` que
-      // reconoce 'heartbeat_30s'. Si el tip se emite con éxito, pushSuggestion
-      // (línea 385) actualiza el ref a Date.now(); si falla, el ref no se toca
-      // y el cooldown sigue intacto para los triggers de transcripción.
-      await triggerNowRef.current(undefined, 'heartbeat_30s');
     };
-    // v28: PRIMER tick a 30s exactos (no inmediato)
+    // PRIMER tick a 5s (warm-up sidecar + tip inicial rápido)
     const firstTimer = setTimeout(() => {
       void tick();
-      intervalHandle = setInterval(() => void tick(), HEARTBEAT_MS);
-    }, HEARTBEAT_MS);
+      intervalHandle = setInterval(() => void tick(), 30_000);
+    }, 5_000);
     return () => {
       clearTimeout(firstTimer);
       if (intervalHandle) clearInterval(intervalHandle);
     };
-  }, [enabled, isRecording]); // BUG #10 fix: callbacks vía ref, deps estables solo
+  }, [enabled, isRecording, currentMeetingId]);
 
   /**
    * Effect 3 v2.0: auto-detect meeting type a los 45s de grabación.
@@ -1160,44 +1062,12 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         score = Math.min(50, 40 + turnChanges * 3);
       }
 
-      // FEEDBACK AUTOMATICO basado en score — escalado por severidad.
-      // En modo `audience` (escucha conferencia/podcast) no aplican porque
-      // asumen que el usuario está interactuando con un cliente.
-      const lastFeedback = (window as any).__lastScoreFeedback || 0;
-      const prevScore = (window as any).__prevConnectionScore || 50;
-      const canFeedback = Date.now() - lastFeedback > 20_000; // max 1 cada 20s
-
-      if (canFeedback && totalWords > 20 && mode !== 'audience') {
-        // User frustration escalation — detect if user tone is getting aggressive
-        if (userFrustrationCount >= 2) {
-          (window as any).__lastScoreFeedback = Date.now();
-          pushSuggestion(makeHeuristicTip(
-            "Cuidado con tu tono. Di: 'disculpa, quiero asegurarme de ayudarte bien.'",
-            "self_control",
-            "critical",
-          ));
-        } else {
-          let feedbackTip: { tip: string; category: string; priority: 'critical' | 'important' | 'soft' } | null = null;
-
-          if (score <= 10) {
-            feedbackTip = { tip: "Corrección: detente ahora. Di: 'Tienes razón, disculpa. ¿Cómo puedo resolver esto para ti?'", category: "service", priority: "critical" };
-          } else if (score <= 25) {
-            feedbackTip = { tip: "Dile: 'Entiendo tu frustración. Déjame ver qué puedo hacer para solucionarlo ahora.'", category: "service", priority: "critical" };
-          } else if (score <= 40) {
-            feedbackTip = { tip: "Pregúntale: '¿Cómo puedo ayudarte mejor con esto?'", category: "rapport", priority: "important" };
-          } else if (score >= 70 && score - prevScore >= 15) {
-            feedbackTip = { tip: "Excelente: la conversación fluye bien. Sigue con ese tono.", category: "rapport", priority: "soft" };
-          } else if (score >= 85 && prevScore >= 80) {
-            feedbackTip = { tip: "Bien hecho: comunicación excepcional. El cliente se siente escuchado.", category: "rapport", priority: "soft" };
-          }
-
-          if (feedbackTip) {
-            (window as any).__lastScoreFeedback = Date.now();
-            pushSuggestion(makeHeuristicTip(feedbackTip.tip, feedbackTip.category, feedbackTip.priority));
-          }
-        }
-      }
-      (window as any).__prevConnectionScore = score;
+      // v31.2: ELIMINADO bloque de feedback automático heurístico que empujaba
+      // tips directos al estado visual via pushSuggestion. Ahora la única fuente
+      // de tips es coach_simple_tick (que pasa por DB → polling burbuja). Esto
+      // garantiza coherencia panel/burbuja y elimina rutas paralelas. Las
+      // métricas (score, totalWords) siguen calculándose y se exponen al UI
+      // pero ya NO disparan tips por su cuenta.
 
       // Trend: comparar promedio reciente vs anterior (umbral 2 pts)
       const history = scoreHistoryRef.current;
@@ -1235,58 +1105,11 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [isRecording, transcriptsRef, pushSuggestion]);
 
-  /**
-   * Effect 5.5: Nudge Engine — reemplaza timer periódico con coaching inteligente.
-   * Evalúa métricas cada 10s vía Rust nudge_engine. Solo genera tip cuando hay
-   * señal real (talk ratio, WPM, monólogo, etc.). Rate-limited: máx 1 cada 2 min.
-   */
-  const lastNudgeRef = useRef<{ time: number; type: string | null }>({ time: 0, type: null });
-  useEffect(() => {
-    if (!enabled || !isRecording) return;
-    const NUDGE_COOLDOWN_MS = 30_000; // v26: 30s para garantizar tips frecuentes (was 120s)
-
-    const timer = setInterval(async () => {
-      const now = Date.now();
-      // Rate limit: máx 1 nudge cada 2 min
-      if (now - lastNudgeRef.current.time < NUDGE_COOLDOWN_MS) return;
-      // También respetar cooldown de tips LLM
-      if (now - lastTipTimestampRef.current < TIP_COOLDOWN_MS) return;
-      // Modo audiencia: los nudges (talk ratio, monólogo, WPM) miden actividad
-      // del usuario — no aplican si está escuchando.
-      if (conversationModeRef.current === 'audience') return;
-
-      try {
-        const result = await invoke<{
-          should_nudge: boolean;
-          nudge_type: string | null;
-          tip: string | null;
-          severity: string;
-          category: string;
-        }>('coach_evaluate_nudge', {
-          userTalkRatio: metrics.userTalkRatio,
-          userQuestions: metrics.userQuestions,
-          sessionDurationSec: metrics.durationSec,
-          userWpm: metrics.userWpm,
-          longestUserMonologueSec: metrics.longestUserMonologueSec,
-          healthScore: metrics.connectionScore,
-          lastNudgeType: lastNudgeRef.current.type,
-        });
-
-        if (result.should_nudge && result.tip) {
-          const priority: 'critical' | 'important' | 'soft' =
-            result.severity === 'high' ? 'critical' :
-            result.severity === 'medium' ? 'important' : 'soft';
-          pushSuggestion(makeHeuristicTip(result.tip, result.category, priority, 'nudge-engine'));
-          lastNudgeRef.current = { time: now, type: result.nudge_type };
-          logger.info(`[Coach] Nudge: ${result.nudge_type} (${result.severity})`);
-        }
-      } catch (e) {
-        // Silent — nudge evaluation failed
-      }
-    }, 20_000); // Evaluar cada 20s (rate-limited a 1 cada 2 min) — v20 reducido de 10s
-
-    return () => clearInterval(timer);
-  }, [enabled, isRecording, metrics, pushSuggestion]);
+  // v31 SIMPLIFICACIÓN: Effect 5.5 (Nudge Engine) ELIMINADO. Era una segunda
+  // ruta paralela de generación de tips heurísticos cada 20s basados en
+  // métricas (WPM, monólogo, talk ratio). Coexistía con coach_simple_tick
+  // creando duplicados y lógica imposible de razonar. La única ruta de tips
+  // ahora es el setInterval(30s) que invoca coach_simple_tick.
 
   /**
    * Setter público para cambiar meeting type manualmente (override).

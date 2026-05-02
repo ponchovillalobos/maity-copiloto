@@ -27,6 +27,11 @@ pub struct CoachSuggestion {
     pub timestamp: i64,
     pub model: String,
     pub latency_ms: u64,
+    /// BUG #15 fix: id de la fila en `coach_tips_log` (Some en catch-up vía DB,
+    /// None en sugerencia live recién generada). Permite a la burbuja flotante
+    /// pollear `coach_get_recent_tips` y filtrar por id > lastSeenId.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<i64>,
 }
 
 /// Estado del coach: modelo activo, Ollama running, latencia.

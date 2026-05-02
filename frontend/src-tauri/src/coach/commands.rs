@@ -281,6 +281,7 @@ pub async fn coach_suggest(
         timestamp,
         model: model.clone(),
         latency_ms,
+        id: None, // se llena en coach_get_recent_tips desde la columna id de la tabla
     };
 
     // v28 F5: aplicar filtros ANTES de INSERT. Antes Rust persistía TODO,
@@ -339,6 +340,70 @@ pub async fn coach_suggest(
         .await;
     }
 
+    // BUG #12 fix (2026-05-02 runtime detection): emit `coach-tip-update`
+    // DIRECTAMENTE desde el backend a TODAS las webviews + emit_to específico
+    // a "coach-floating". El frontend también emite vía `pushSuggestion()`,
+    // pero en Windows con webviews transparent+decorations:false el `emit()`
+    // global del frontend a veces NO se propaga a la flotante (problema de
+    // routing IPC observado en runtime: tips se generaban e insertaban en DB,
+    // pero la burbuja flotante nunca los recibía).
+    //
+    // Doble estrategia para garantizar entrega:
+    //   1. `app.emit(...)` — broadcast global a todas las webviews
+    //   2. `app.emit_to("coach-floating", ...)` — directo al label de la
+    //      burbuja, bypass del routing global
+    //
+    // BUG #12.1 (2026-05-02 análisis externo): el emit backend bypassa la
+    // dedup del frontend → riesgo de mostrar tips repetidos. Mitigación:
+    // dedup pre-emit verificando si el mismo tip exacto se emitió en los
+    // últimos 60s del mismo meeting. Filtros más complejos (audience mode,
+    // Jaccard >0.40) siguen en el frontend; el backend cubre solo el caso
+    // común de "modelo genera el mismo string varias veces seguidas".
+    use tauri::{Emitter, EventTarget};
+
+    let mut should_emit = true;
+    if let Some(state) = app.try_state::<crate::state::AppState>() {
+        if let Some(mid) = &validated_meeting_id {
+            let pool = state.db_manager.pool();
+            // Última fila INSERTada para este meeting (la actual). Comparamos
+            // contra las anteriores recientes para detectar repetición exacta.
+            let recent: Result<Vec<(String,)>, _> = sqlx::query_as(
+                "SELECT tip FROM coach_tips_log
+                 WHERE meeting_id = ? AND created_at > datetime('now','-60 seconds')
+                 ORDER BY id DESC LIMIT 6 OFFSET 1",
+            )
+            .bind(mid)
+            .fetch_all(pool)
+            .await;
+            if let Ok(rows) = recent {
+                if rows.iter().any(|(t,)| t.trim() == suggestion.tip.trim()) {
+                    log::info!("[coach_suggest] dedup backend: tip exacto repetido en últimos 60s, skip emit");
+                    should_emit = false;
+                }
+            }
+        }
+    }
+
+    if should_emit {
+        let payload_json = match serde_json::to_value(&suggestion) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("[coach_suggest] serde JSON falló: {}", e);
+                serde_json::json!({})
+            }
+        };
+        if let Err(e) = app.emit("coach-tip-update", &payload_json) {
+            log::warn!("[coach_suggest] fallo emit global coach-tip-update: {}", e);
+        } else {
+            log::info!("[coach_suggest] emit global coach-tip-update OK ({})", suggestion.tip.chars().take(50).collect::<String>());
+        }
+        if let Err(e) = app.emit_to(EventTarget::webview_window("coach-floating"), "coach-tip-update", &payload_json) {
+            log::warn!("[coach_suggest] fallo emit_to coach-floating: {}", e);
+        } else {
+            log::info!("[coach_suggest] emit_to coach-floating OK");
+        }
+    }
+
     Ok(suggestion)
 }
 
@@ -359,7 +424,7 @@ pub async fn coach_get_recent_tips(
 
     let rows = if let Some(mid) = meeting_id {
         sqlx::query(
-            "SELECT tip, category, subcategory, technique, priority, tip_type,
+            "SELECT id, tip, category, subcategory, technique, priority, tip_type,
                     confidence, latency_ms, model, created_at
              FROM coach_tips_log
              WHERE meeting_id = ? ORDER BY id DESC LIMIT ?",
@@ -370,7 +435,7 @@ pub async fn coach_get_recent_tips(
         .await
     } else {
         sqlx::query(
-            "SELECT tip, category, subcategory, technique, priority, tip_type,
+            "SELECT id, tip, category, subcategory, technique, priority, tip_type,
                     confidence, latency_ms, model, created_at
              FROM coach_tips_log ORDER BY id DESC LIMIT ?",
         )
@@ -390,9 +455,21 @@ pub async fn coach_get_recent_tips(
             priority: r.get::<String, _>("priority"),
             confidence: r.try_get::<f64, _>("confidence").unwrap_or(0.7) as f32,
             tip_type: r.get::<String, _>("tip_type"),
-            timestamp: 0,
+            // BUG #14 fix (2026-05-02 agente listener): antes hardcodeado a 0,
+            // causaba que el dedup de la burbuja (page.tsx:150) tratara como
+            // duplicado a tips live cuyo timestamp diferiera <5s al casual de
+            // ambos ser 0. Parseamos `created_at` (formato ISO o "YYYY-MM-DD HH:MM:SS")
+            // a Unix epoch en segundos.
+            timestamp: r.try_get::<String, _>("created_at")
+                .ok()
+                .and_then(|s| chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%d %H:%M:%S")
+                    .or_else(|_| chrono::NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S%.f"))
+                    .ok()
+                    .map(|dt| dt.and_utc().timestamp()))
+                .unwrap_or(0),
             model: r.try_get("model").unwrap_or_default(),
             latency_ms: r.try_get::<i64, _>("latency_ms").unwrap_or(0) as u64,
+            id: r.try_get::<i64, _>("id").ok(),
         })
         .collect();
     Ok(tips)
@@ -435,6 +512,409 @@ pub async fn coach_remap_meeting_id(
         final_meeting_id
     );
     Ok(affected)
+}
+
+/// BUG #13 fix (2026-05-02): puente cross-webview para "pedir tip" desde la
+/// burbuja flotante. En Tauri 2 `emit()` desde frontend SOLO entrega listeners
+/// en la misma webview. La burbuja "coach-floating" emitía `coach-request-tip`
+/// pero CoachContext (en webview "main") nunca lo recibía → triggerNow NUNCA
+/// se invocaba → 0 tips manuales por sesión. Este comando hace el puente:
+/// burbuja invoca este Tauri command, Rust emite `coach-request-tip` con
+/// `app.emit()` global que SÍ entrega a TODAS las webviews registradas
+/// (verificado en Tauri 2.6.2 + capability `core:event:default`).
+#[tauri::command]
+pub async fn coach_request_tip_bridge(
+    app: tauri::AppHandle,
+    source: Option<String>,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    let payload = serde_json::json!({ "source": source.unwrap_or_else(|| "unknown".to_string()) });
+    app.emit("coach-request-tip", &payload)
+        .map_err(|e| format!("Fallo emit coach-request-tip: {}", e))?;
+    log::info!("[coach_request_tip_bridge] emit coach-request-tip OK");
+    Ok(())
+}
+
+/// SIMPLE LOOP v30 (2026-05-02): pipeline mínimo end-to-end.
+///
+/// Flujo:
+///   1. Frontend (CoachContext) llama cada 30s con `window` ya construido a
+///      partir de transcriptsRef (que se actualiza en vivo via
+///      `transcript-update` event).
+///   2. Backend invoca sidecar BuiltInAI con prompt simple.
+///   3. INSERT a coach_tips_log.
+///   4. `app.emit("coach-tip-update", suggestion)` → cualquier webview que
+///      escuche (la burbuja en `/floating`) lo recibe.
+///
+/// NOTA: durante grabación los transcripts viven en memoria del frontend
+/// (transcriptsRef en TranscriptContext) e IndexedDB. NO se persisten en
+/// SQLite tabla `transcripts` hasta que el usuario detenga la grabación
+/// (lo hace `save_transcript` en transcript.rs:13). Por eso este comando
+/// recibe `window` desde el frontend en lugar de leer SQLite.
+#[tauri::command]
+pub async fn coach_simple_tick(
+    app: tauri::AppHandle,
+    window: String,
+    meeting_id: Option<String>,
+) -> Result<Option<CoachSuggestion>, String> {
+    use tauri::Emitter;
+
+    // v31.2: si window viene vacío (típicamente desde la burbuja flotante
+    // que no tiene acceso a transcriptsRef), construir desde el buffer
+    // live_transcript del AppState que TranscriptContext alimenta.
+    let mut effective_window = window.trim().to_string();
+    if effective_window.len() < 30 {
+        if let Some(state) = app.try_state::<crate::state::AppState>() {
+            if let Ok(buf) = state.live_transcript.lock() {
+                if !buf.is_empty() {
+                    let mut lines: Vec<String> = Vec::with_capacity(buf.len());
+                    for (speaker, text) in buf.iter() {
+                        let label = match speaker.as_str() {
+                            "user" => "USUARIO",
+                            "interlocutor" => "INTERLOCUTOR",
+                            _ => "VOZ",
+                        };
+                        lines.push(format!("{}: {}", label, text));
+                    }
+                    effective_window = lines.join("\n");
+                    log::info!("[coach_simple_tick] window vacío → fallback live_transcript ({} chunks, {} chars)", buf.len(), effective_window.len());
+                }
+            }
+        }
+    }
+    let trimmed = effective_window.trim();
+    if trimmed.len() < 30 {
+        log::debug!("[coach_simple_tick] window+buffer vacíos, skip");
+        return Ok(None);
+    }
+
+    // v31.1: cap a últimas 800 chars (era 1500). Menos contexto = menos
+    // probabilidad de alucinación con qwen3:1.7b en CPU.
+    let window_capped: String = if trimmed.chars().count() > 800 {
+        let start = trimmed.chars().count().saturating_sub(800);
+        trimmed.chars().skip(start).collect()
+    } else {
+        trimmed.to_string()
+    };
+
+    // Resolver meeting_id: param explícito > AppState > "live" fallback.
+    let resolved_meeting_id: String = if let Some(mid) = meeting_id.filter(|s| !s.is_empty()) {
+        mid
+    } else if let Some(state) = app.try_state::<crate::state::AppState>() {
+        state
+            .active_meeting_id
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .unwrap_or_else(|| "live".to_string())
+    } else {
+        "live".to_string()
+    };
+
+    // invoca sidecar — timeout duro 15s vía CancellationToken.
+    let model = CURRENT_MODEL
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?
+        .clone();
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("No app_data_dir: {}", e))?;
+
+    // v31.1: prompt anti-alucinación. Tips 93-95 mostraron que el modelo
+    // inventa contenido absurdo ("caca", "pipí", "usuario inútil"). Forzamos
+    // que el tip se base EXCLUSIVAMENTE en lo que está en el contexto.
+    let system_prompt = "Eres Maity, coach de comunicación. SOLO puedes referirte a palabras y temas QUE APARECEN LITERALMENTE en el contexto que recibes. PROHIBIDO inventar, exagerar o usar palabras que no estén en el transcript. Si el contexto es ambiguo o no permite un consejo útil, responde solo: SIN_TIP";
+    let user_prompt = format!(
+        "TRANSCRIPT REAL DE LA CONVERSACIÓN (USUARIO = micrófono del vendedor que coacheas; INTERLOCUTOR = otro hablante):\n\n---\n{}\n---\n\n\
+         Da UN consejo al USUARIO siguiendo ESTAS REGLAS ESTRICTAS:\n\
+         1. Empieza con verbo imperativo: Pregunta, Reformula, Resume, Profundiza, Aclara, Confirma, Cierra, Propón, Valida, Reconoce, Escucha, Verifica, Comparte.\n\
+         2. Entre 8 y 18 palabras.\n\
+         3. SOLO menciona temas, palabras o nombres QUE APARECEN LITERALMENTE arriba en el TRANSCRIPT REAL. Si no aparecen, NO los uses.\n\
+         4. Si el transcript no permite un tip útil (es muy corto, sin contenido claro, ruido), responde EXACTAMENTE: SIN_TIP\n\
+         5. JAMÁS inventes citas, hechos, ni atribuyas insultos o juicios al INTERLOCUTOR si no están textualmente arriba.\n\
+         6. Una sola línea. Sin JSON, sin prefijos, sin explicaciones.\n\n\
+         Tu consejo (o SIN_TIP):",
+        window_capped
+    );
+
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let cancel_for_timeout = cancel.clone();
+    let timeout_handle = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(15)).await;
+        cancel_for_timeout.cancel();
+    });
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("HTTP client: {}", e))?;
+
+    let raw_result = generate_summary(
+        &client,
+        &LLMProvider::BuiltInAI,
+        &model,
+        "",
+        system_prompt,
+        &user_prompt,
+        None,
+        None,
+        Some(80),
+        Some(0.4), // temperatura baja → más determinismo, menos divagación
+        Some(0.9),
+        Some(&app_data_dir),
+        Some(&cancel),
+    )
+    .await;
+    timeout_handle.abort();
+
+    let raw = match raw_result {
+        Ok(t) => t,
+        Err(e) => {
+            log::warn!("[coach_simple_tick] LLM falló: {}", e);
+            return Ok(None);
+        }
+    };
+
+    // El modelo a veces ignora "sin JSON" y devuelve {"tip":"..."}.
+    // Extraemos el contenido si detectamos ese patrón.
+    let mut tip_text = raw.trim().to_string();
+    // Quitar markdown fences si existen
+    tip_text = tip_text.trim_start_matches("```json").trim_start_matches("```").to_string();
+    tip_text = tip_text.trim_end_matches("```").trim().to_string();
+    // Si parece JSON con un campo "tip", extraerlo
+    if tip_text.starts_with('{') {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&tip_text) {
+            if let Some(t) = v.get("tip").and_then(|x| x.as_str()) {
+                tip_text = t.to_string();
+            } else if let Some(t) = v.get("text").and_then(|x| x.as_str()) {
+                tip_text = t.to_string();
+            } else if let Some(t) = v.get("response").and_then(|x| x.as_str()) {
+                tip_text = t.to_string();
+            }
+        }
+    }
+    tip_text = tip_text.trim().trim_matches('"').to_string();
+    // Quitar prefijos comunes
+    for prefix in &["Tip:", "TIP:", "tip:", "Consejo:", "Sugerencia:"] {
+        if let Some(rest) = tip_text.strip_prefix(prefix) {
+            tip_text = rest.trim().to_string();
+            break;
+        }
+    }
+    if tip_text.is_empty() {
+        return Ok(None);
+    }
+    // v30.1: filtro mínimo de calidad. Rechaza outputs basura del modelo.
+    let word_count = tip_text.split_whitespace().count();
+    if word_count < 5 {
+        log::info!("[coach_simple_tick] tip rechazado: {} palabras < 5 (\"{}\")", word_count, tip_text);
+        return Ok(None);
+    }
+    // v30.3: máximo 25 palabras (cap duro contra descripciones largas).
+    if word_count > 25 {
+        log::info!("[coach_simple_tick] tip truncado: {} palabras > 25", word_count);
+        let truncado: String = tip_text.split_whitespace().take(22).collect::<Vec<_>>().join(" ");
+        tip_text = format!("{}…", truncado);
+    }
+    // v30.3: filtro backend que exige verbo imperativo al inicio. Rechaza
+    // descripciones tipo "Bien hecho:", "La inteligencia es…", "Es importante…"
+    // que no son consejos accionables.
+    let primera_palabra = tip_text
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .trim_end_matches(|c: char| !c.is_alphabetic())
+        .to_lowercase();
+    let verbos_validos = [
+        "pregunta", "preguntá", "reformula", "resume", "profundiza",
+        "cita", "aclara", "confirma", "cierra", "propón", "propon",
+        "valida", "reconoce", "espera", "explora", "cuestiona", "verifica",
+        "agradece", "muestra", "comparte", "destaca", "menciona", "sugiere",
+        "ofrece", "haz", "di", "responde", "escucha", "explica", "describe",
+        "anota", "señala", "señala", "pide", "pídele", "pidele", "indaga",
+    ];
+    if !verbos_validos.contains(&primera_palabra.as_str()) {
+        log::info!("[coach_simple_tick] tip rechazado: no empieza con verbo imperativo (\"{}\")", primera_palabra);
+        return Ok(None);
+    }
+    // v31.1: rechaza el flag SIN_TIP que el modelo emite cuando no hay base
+    // para coachear, y tips con contenido vulgar/ofensivo (anti-alucinación).
+    let lower_full = tip_text.to_lowercase();
+    if lower_full.contains("sin_tip") || lower_full == "sin tip" {
+        log::info!("[coach_simple_tick] modelo respondió SIN_TIP — sin base para coachear");
+        return Ok(None);
+    }
+    let palabras_prohibidas = [
+        "caca", "pipí", "pipi", "mierda", "puta", "pendej", "carajo",
+        "inútil", "estúpido", "idiota", "imbécil", "tonto", "imbecil",
+    ];
+    if palabras_prohibidas.iter().any(|p| lower_full.contains(p)) {
+        log::warn!("[coach_simple_tick] tip rechazado: contenido vulgar/ofensivo (\"{}\")", tip_text);
+        return Ok(None);
+    }
+    // Rechaza preguntas vacías genéricas
+    let lower = tip_text.to_lowercase();
+    let basura = [
+        "¿qué?", "qué?", "¿qué es?", "qué es?", "¿cómo?", "cómo?",
+        "explica el futuro", "explicación del futuro", "explica la importancia",
+    ];
+    if basura.iter().any(|b| lower.trim().trim_end_matches('?').trim() == b.trim_end_matches('?').trim()
+        || lower == *b) {
+        log::info!("[coach_simple_tick] tip rechazado: basura genérica (\"{}\")", tip_text);
+        return Ok(None);
+    }
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let suggestion = CoachSuggestion {
+        tip: tip_text.clone(),
+        category: "general".to_string(),
+        subcategory: None,
+        technique: None,
+        priority: "soft".to_string(),
+        confidence: 0.7,
+        tip_type: "observation".to_string(),
+        timestamp,
+        model: model.clone(),
+        latency_ms: 0,
+        id: None,
+    };
+
+    // INSERT a coach_tips_log — DB es la ÚNICA fuente de verdad para la
+    // burbuja flotante (que pollea coach_get_recent_tips cada 3s).
+    // v31: eliminado app.emit("coach-tip-update") — la burbuja descubre el
+    // tip vía polling. Una sola ruta, sin race conditions.
+    if let Some(state) = app.try_state::<crate::state::AppState>() {
+        let pool = state.db_manager.pool();
+        let _ = sqlx::query(
+            "INSERT INTO coach_tips_log (meeting_id, tip, category, priority, tip_type, confidence, model, trigger_signal)
+             VALUES (?, ?, 'general', 'soft', 'observation', 0.7, ?, 'simple_tick')",
+        )
+        .bind(&resolved_meeting_id)
+        .bind(&tip_text)
+        .bind(&model)
+        .execute(pool)
+        .await;
+    }
+
+    log::info!("[coach_simple_tick] tip OK ({} chars)", tip_text.len());
+    Ok(Some(suggestion))
+}
+
+/// v31.2: alimenta el buffer live_transcript del AppState. Llamado por
+/// TranscriptContext cada vez que llega un transcript-update. Permite que
+/// la burbuja flotante (que no tiene acceso al transcriptsRef del frontend
+/// principal) pida tips manuales sin construir su propio window.
+#[tauri::command]
+pub async fn coach_push_transcript_chunk(
+    app: tauri::AppHandle,
+    speaker: String,
+    text: String,
+) -> Result<(), String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let mut buf = state
+        .live_transcript
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?;
+    buf.push_back((speaker, trimmed.to_string()));
+    while buf.len() > 60 {
+        buf.pop_front();
+    }
+    Ok(())
+}
+
+/// v31.2: limpia el buffer live_transcript. Llamado al detener grabación.
+#[tauri::command]
+pub async fn coach_clear_live_transcript(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let mut buf = state
+        .live_transcript
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?;
+    buf.clear();
+    Ok(())
+}
+
+/// v31: bridge cross-webview para "Pedir tip" desde la burbuja flotante.
+/// Reemplaza al viejo `coach_request_tip_bridge` que disparaba el flujo
+/// triggerNow del CoachContext. Ahora invoca directamente `coach_simple_tick`
+/// con un window mínimo (la burbuja no tiene acceso a transcriptsRef).
+/// Si el window es muy corto, el comando devolverá None — el usuario verá
+/// el siguiente tip en el próximo tick automático.
+#[tauri::command]
+pub async fn coach_request_simple_tip(
+    app: tauri::AppHandle,
+    window: Option<String>,
+    meeting_id: Option<String>,
+) -> Result<Option<CoachSuggestion>, String> {
+    let win = window.unwrap_or_default();
+    coach_simple_tick(app, win, meeting_id).await
+}
+
+/// BUG #16 fix (asamblea 2026-05-02 — agente A6): Tauri 2 aísla sessionStorage
+/// entre webviews de orígenes distintos. La webview "main" (`/`) y la burbuja
+/// "coach-floating" (`/floating`) tienen sessionStorage AISLADOS. Por eso la
+/// burbuja nunca podía leer `indexeddb_current_meeting_id` que el TranscriptContext
+/// escribía desde la webview principal.
+///
+/// Solución: el `active_meeting_id` vive en AppState (compartido entre webviews
+/// porque Rust gestiona ambas). Estos 3 comandos exponen set/get/clear desde
+/// cualquier webview, eliminando dependencia del sessionStorage cross-webview.
+#[tauri::command]
+pub async fn set_active_meeting_id(
+    app: tauri::AppHandle,
+    meeting_id: String,
+) -> Result<(), String> {
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let mut guard = state
+        .active_meeting_id
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?;
+    *guard = Some(meeting_id.clone());
+    log::info!("[set_active_meeting_id] meeting_id activo = {}", meeting_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_active_meeting_id(
+    app: tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let guard = state
+        .active_meeting_id
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?;
+    Ok(guard.clone())
+}
+
+#[tauri::command]
+pub async fn clear_active_meeting_id(app: tauri::AppHandle) -> Result<(), String> {
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let mut guard = state
+        .active_meeting_id
+        .lock()
+        .map_err(|e| format!("Mutex envenenado: {}", e))?;
+    *guard = None;
+    log::info!("[clear_active_meeting_id] cleared");
+    Ok(())
 }
 
 /// Cambia el modelo activo del coach.

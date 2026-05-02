@@ -1322,15 +1322,21 @@ pub fn run() {
             health_check,
             // System specs for model recommendation
             get_system_specs,
-            // Coach (copiloto IA en tiempo real)
-            coach::commands::coach_suggest,
+            // Coach v31 (única ruta: setInterval 30s → coach_simple_tick → DB)
+            coach::commands::coach_simple_tick,
+            coach::commands::coach_request_simple_tip,
+            coach::commands::coach_push_transcript_chunk,
+            coach::commands::coach_clear_live_transcript,
+            coach::commands::coach_get_recent_tips,
+            coach::commands::coach_get_status,
             coach::commands::coach_set_model,
             coach::commands::coach_set_model_for_purpose,
             coach::commands::coach_get_models,
-            coach::commands::coach_get_status,
-            coach::commands::coach_get_recent_tips,
+            coach::commands::set_active_meeting_id,
+            coach::commands::get_active_meeting_id,
+            coach::commands::clear_active_meeting_id,
             coach::commands::coach_remap_meeting_id,
-            coach::evaluator::coach_evaluate_communication,
+            // Coach evaluación post-meeting (feature separada, no afecta loop principal)
             coach::evaluator::coach_evaluate_post_meeting,
             coach::evaluator::coach_get_post_meeting_evaluation,
             audio::import_audio::dev_import_audio_file,
@@ -1349,8 +1355,10 @@ pub fn run() {
             coach::chat::coach_chat,
             coach::chat::coach_chat_stream,
             auto_setup::auto_setup_retry,
-            coach::trigger::coach_analyze_trigger,
-            coach::nudge_engine::coach_evaluate_nudge,
+            // v31: ELIMINADOS del invoke_handler — comandos huérfanos de las
+            // viejas rutas heurísticas (trigger.rs, nudge_engine.rs). Quedaron
+            // muertos al simplificar a una sola ruta coach_simple_tick.
+            // Se removerán los archivos físicos en una iteración posterior.
             coach::meeting_type::coach_detect_meeting_type,
             coach::meeting_type::coach_clear_meeting_type_cache,
             // Coach bookmarks

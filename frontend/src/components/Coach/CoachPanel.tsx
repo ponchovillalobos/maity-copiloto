@@ -355,7 +355,16 @@ export function CoachPanel() {
           <>
             <BookmarkButton />
             <button
-              onClick={() => triggerNow()}
+              onClick={async () => {
+                // v31.2: usar la única ruta — coach_request_simple_tip
+                // (Rust lee live_transcript del AppState). NO triggerNow viejo.
+                try {
+                  const { invoke } = await import('@tauri-apps/api/core');
+                  await invoke('coach_request_simple_tip', {});
+                } catch (e) {
+                  console.warn('[CoachPanel] coach_request_simple_tip falló:', e);
+                }
+              }}
               disabled={loading || !!ollamaDown}
               className="text-[10px] px-2 py-1 rounded bg-blue-600/20 text-blue-200 border border-blue-500/30 hover:bg-blue-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition"
               title="Pedir sugerencia ahora"

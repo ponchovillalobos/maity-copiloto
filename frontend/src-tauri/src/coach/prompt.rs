@@ -6,7 +6,11 @@
 /// Modelo DEFAULT para tips + chat live (CPU-only, sin GPU).
 /// v26: VOLVEMOS a qwen3:0.6b (latencia ~4s vs 14s con 1.7b). User pidió <5s.
 /// Anti-repetición ahora vía: prompt anti-copia v25 + 15 prev_tips + dedup 0.40 + rotation.
-pub const DEFAULT_MODEL: &str = "qwen3:0.6b";
+// v30.3 (2026-05-02): subir a 1.7b. El 0.6b colapsaba en descripciones genéricas
+// ("Bien hecho:", "La inteligencia artificial es...") en lugar de tips
+// accionables con verbo imperativo. 1.7b sigue reglas estructurales del prompt.
+// Latencia esperada: 8-12s (vs 4-6s del 0.6b) — aceptable para coaching cada 30s.
+pub const DEFAULT_MODEL: &str = "qwen3:1.7b";
 
 /// Modelo secundario para detección rápida de tipo de reunión (comparte cache con default).
 pub const SECONDARY_MODEL: &str = "qwen3:0.6b";

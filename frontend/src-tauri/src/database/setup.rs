@@ -30,7 +30,11 @@ pub async fn initialize_database_on_startup(app: &AppHandle) -> Result<(), Strin
             .await
             .map_err(|e| format!("Failed to initialize database manager: {}", e))?;
 
-        app.manage(AppState { db_manager });
+        app.manage(AppState {
+            db_manager,
+            active_meeting_id: std::sync::Mutex::new(None),
+            live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+        });
         info!("Database initialized successfully");
     }
 

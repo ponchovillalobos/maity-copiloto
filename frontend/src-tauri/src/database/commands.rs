@@ -167,7 +167,11 @@ pub async fn import_and_initialize_database(
         })?;
 
     // Update app state with the new manager
-    app.manage(AppState { db_manager });
+    app.manage(AppState {
+        db_manager,
+        active_meeting_id: std::sync::Mutex::new(None),
+        live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+    });
 
     info!("Legacy database imported and initialized successfully");
 
@@ -191,7 +195,11 @@ pub async fn initialize_fresh_database(app: AppHandle) -> Result<(), String> {
         })?;
 
     // Update app state with the new manager
-    app.manage(AppState { db_manager: db_manager.clone() });
+    app.manage(AppState {
+        db_manager: db_manager.clone(),
+        active_meeting_id: std::sync::Mutex::new(None),
+        live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+    });
 
     // Set default model configuration for fresh installs
     let pool = db_manager.pool();

@@ -293,6 +293,13 @@ export function useRecordingStop(
           sessionStorage.removeItem('last_recording_meeting_name');
           // Clean up IndexedDB meeting ID (redundant with markMeetingAsSaved cleanup, but ensures cleanup)
           sessionStorage.removeItem('indexeddb_current_meeting_id');
+          // BUG #16 fix: limpiar también el AppState compartido (cross-webview)
+          try {
+            const { invoke: invokeClear } = await import('@tauri-apps/api/core');
+            await invokeClear('clear_active_meeting_id');
+          } catch (e) {
+            logger.warn('clear_active_meeting_id failed (non-blocking):', e);
+          }
 
           // Refetch meetings and set current meeting
           await refetchMeetings();

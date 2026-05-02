@@ -16,6 +16,7 @@ interface CoachTip {
   confidence?: number;
   tip_type?: string;
   timestamp?: number;
+  id?: number;
 }
 
 interface InterlocutorQuestion {
@@ -115,56 +116,82 @@ export default function FloatingPage() {
 
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let lastSeenId = 0;
 
-    // v28.1 F4 fix: catch-up SOLO si hay grabación activa de la sesión actual.
-    // Bug v28: cargaba histórico global → 37 tips antiguos al iniciar.
-    // Ahora: solo carga si meetingId activo. Sin meeting = empieza vacío.
-    // BUG #4 fix (2026-05-01): la clave era `active_meeting_id`, que nunca se
-    // escribía en ningún lado. La clave real que setea TranscriptContext.tsx:104
-    // (al iniciar grabación) y limpia useRecordingStop.ts:275 es
-    // `indexeddb_current_meeting_id`. Sin este fix, abrir la burbuja después de
-    // iniciar grabación nunca cargaba los tips ya generados.
-    (async () => {
+    // BUG #15 fix (2026-05-02): SIMPLIFICACIÓN RADICAL.
+    // El flujo de eventos cross-webview (Tauri emit + listen) demostró ser
+    // frágil incluso después de v29.2/v29.3/v29.4 (backend `app.emit` global,
+    // `emit_to` específico, bridge command). El usuario sigue sin ver tips.
+    // Solución pragmática: la burbuja POLLEA `coach_get_recent_tips` cada 3s
+    // y muestra cualquier tip nuevo (id > lastSeenId). Sin eventos, sin
+    // dedup complejo, sin race conditions. La DB es la única fuente de verdad.
+    const fetchAndAppend = async (initial: boolean = false) => {
       try {
-        const activeMeetingId = sessionStorage.getItem('indexeddb_current_meeting_id');
-        if (!activeMeetingId) {
-          // Sin sesión activa = floating empieza limpio
-          return;
-        }
-        const recent = await invoke<CoachTip[]>('coach_get_recent_tips', {
+        // BUG #16 fix (asamblea): Tauri 2 aísla sessionStorage por origin
+        // (main `/` vs floating `/floating`), así que la burbuja NUNCA podía
+        // leer el meeting_id escrito por TranscriptContext en sessionStorage.
+        // Ahora consultamos el AppState compartido vía comando Rust.
+        const activeMeetingId = await invoke<string | null>('get_active_meeting_id').catch(() => null);
+        if (!activeMeetingId) return;
+        const recent = await invoke<(CoachTip & { id?: number })[]>('coach_get_recent_tips', {
           meetingId: activeMeetingId,
-          limit: 20
+          limit: 50,
         });
-        if (recent && recent.length > 0) {
+        if (!recent || recent.length === 0) return;
+        if (initial) {
+          // Carga histórica completa
           setTipsHistory(recent);
+          setTipIndex(0);
+          // Marca el id máximo conocido (orden DESC en backend, primer = más reciente)
+          const maxId = Math.max(...recent.map((r) => r.id ?? 0));
+          if (maxId > 0) lastSeenId = maxId;
+        } else {
+          // Filtra tips nuevos por id > lastSeenId
+          const fresh = recent.filter((r) => (r.id ?? 0) > lastSeenId);
+          if (fresh.length === 0) return;
+          // Backend devuelve DESC, fresh está ordenado DESC también
+          setTipsHistory((prev) => {
+            // Evita duplicados defensivamente
+            const seen = new Set(prev.map((p) => p.tip + '|' + (p.timestamp ?? 0)));
+            const merged = [...fresh.filter((f) => !seen.has(f.tip + '|' + (f.timestamp ?? 0))), ...prev];
+            return merged.slice(0, 50);
+          });
+          setTipIndex(0);
+          setRequestingTip(false);
+          const maxId = Math.max(...fresh.map((r) => r.id ?? 0));
+          if (maxId > lastSeenId) lastSeenId = maxId;
+          console.info(`[floating] +${fresh.length} tips nuevos via poll (lastSeenId=${lastSeenId})`);
         }
       } catch (e) {
-        console.warn('[floating] catch-up failed:', e);
+        console.warn('[floating] poll failed:', e);
       }
-    })();
+    };
 
-    listen<CoachTip>('coach-tip-update', (e) => {
-      setTipsHistory((prev) => {
-        // v28: dedup contra histórico ya cargado (evita doble entrada catch-up + live)
-        const newTip = e.payload;
-        if (prev.some(p => p.tip === newTip.tip && Math.abs((p.timestamp || 0) - (newTip.timestamp || 0)) < 5)) {
-          return prev;
-        }
-        return [newTip, ...prev].slice(0, 50);
-      });
-      setTipIndex(0);
-      setRequestingTip(false);
-    }).then(u => unlisteners.push(u));
+    fetchAndAppend(true);
+    pollTimer = setInterval(() => fetchAndAppend(false), 3000);
+    // v30: el ciclo de generación de tips (cada 30s) lo dispara el
+    // CoachContext (en webview "main") porque allí vive `transcriptsRef`
+    // con el contexto en vivo. La burbuja solo CONSUME — escucha eventos
+    // y pollea DB.
 
-    // Limpia tips cuando la sesión termina (grabación stop / nueva reunión).
+    // v31: ELIMINADO listener de `coach-tip-update`. La DB es la única fuente
+    // de verdad: el polling cada 3s garantiza que la burbuja muestre cualquier
+    // tip nuevo en <3s tras INSERT. Sin eventos cross-webview = sin race
+    // conditions ni duplicados con el polling.
+
     listen('coach-tips-clear', () => {
       setTipsHistory([]);
       setTipIndex(0);
-    }).then(u => unlisteners.push(u));
+      lastSeenId = 0;
+    }).then((u) => unlisteners.push(u));
 
-    listen<MeetingMetrics>('meeting-metrics', (e) => setMetrics(e.payload)).then(u => unlisteners.push(u));
+    listen<MeetingMetrics>('meeting-metrics', (e) => setMetrics(e.payload)).then((u) => unlisteners.push(u));
 
-    return () => unlisteners.forEach(u => u());
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+      unlisteners.forEach((u) => u());
+    };
   }, []);
 
   const handleClose = async () => {
@@ -466,13 +493,15 @@ export default function FloatingPage() {
               })
             )}
           </div>
-          {/* Botón "Pedir tip ahora" — con estado generando. */}
+          {/* Botón "Pedir tip ahora" — invoca directamente coach_request_simple_tip
+              que ejecuta coach_simple_tick en backend. El tip aparece via polling
+              de coach_get_recent_tips (próximo ciclo 3s). v31: una sola ruta. */}
           <button
             onClick={() => {
               setRequestingTip(true);
-              void emit('coach-request-tip', { source: 'floating' });
-              // Auto-reset estado tras 30s o cuando llegue tip nuevo (manejado en useEffect).
-              setTimeout(() => setRequestingTip(false), 30000);
+              void invoke('coach_request_simple_tip', {})
+                .catch((e) => console.warn('[floating] coach_request_simple_tip failed:', e))
+                .finally(() => setTimeout(() => setRequestingTip(false), 15000));
             }}
             disabled={requestingTip}
             className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-[#485df4]/40 hover:bg-[#485df4]/60 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] flex-shrink-0"
