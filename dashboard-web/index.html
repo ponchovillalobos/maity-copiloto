@@ -61,20 +61,44 @@
   <div class="sub" style="text-align:right; font-size:0.9rem;" id="system-info">cargando…</div>
 </header>
 
-<!-- v23: panel runtime LIVE — detecta grabación + alertas CPU/RAM -->
+<!-- v26: panel runtime LIVE con timeline + separación RAM modelo vs app -->
 <section id="runtime-panel" class="card" style="margin-bottom:1rem;background:linear-gradient(90deg,#0f172a,#1e293b);border-left:4px solid #64748b;transition:all .3s;">
-  <div style="display:flex;align-items:center;gap:1rem;">
+  <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.6rem;">
     <div id="runtime-icon" style="font-size:2.5rem;">💤</div>
     <div style="flex:1;">
       <div style="font-size:1rem;font-weight:700;" id="runtime-title">Maity en idle</div>
       <div style="font-size:0.8rem;color:var(--muted);" id="runtime-sub">Sistema sin actividad de grabación</div>
       <div id="runtime-warnings" style="margin-top:0.4rem;display:flex;gap:0.4rem;flex-wrap:wrap;"></div>
     </div>
-    <div style="text-align:right;font-family:ui-monospace,monospace;font-size:0.85rem;">
-      <div>CPU <b id="runtime-cpu" class="wer-good">—</b></div>
-      <div>RAM <b id="runtime-ram" class="wer-good">—</b></div>
-      <div>App <b id="runtime-proc" class="wer-good">—</b>MB</div>
+    <div style="text-align:right;font-family:ui-monospace,monospace;font-size:0.78rem;line-height:1.5;">
+      <div>SO total CPU <b id="runtime-cpu" class="wer-good">—</b></div>
+      <div>SO total RAM <b id="runtime-ram" class="wer-good">—</b> (<span id="runtime-ram-mb">—</span>)</div>
+      <div style="margin-top:0.3rem;border-top:1px solid #334;padding-top:0.3rem;">
+        <span style="color:var(--muted);">Maity app:</span> CPU <b id="runtime-app-cpu">—</b> · RAM <b id="runtime-app-ram">—</b>MB
+      </div>
+      <div>
+        <span style="color:var(--muted);">Modelo LLM:</span> CPU <b id="runtime-model-cpu">—</b> · RAM <b id="runtime-model-ram">—</b>MB
+      </div>
+      <div style="margin-top:0.2rem;font-weight:600;">
+        TOTAL Maity: <b id="runtime-total" class="wer-good">—</b>MB
+      </div>
     </div>
+  </div>
+  <!-- Timeline 60s -->
+  <canvas id="runtime-chart" height="60" style="width:100%;"></canvas>
+</section>
+
+<!-- v26: Tips live monitor durante grabación -->
+<section id="tips-live-panel" class="card" style="margin-bottom:1rem;border-left:4px solid #8b5cf6;">
+  <h2 style="margin-bottom:0.4rem;">⚡ Tips live (últimos 30 min)</h2>
+  <div id="tips-live-stats" class="sub" style="margin-bottom:0.5rem;">cargando…</div>
+  <div style="overflow-x:auto;max-height:280px;overflow-y:auto;">
+    <table class="table">
+      <thead><tr>
+        <th>⏱ Latency</th><th>Categoría</th><th>Conf</th><th>Tip</th><th>Sim</th><th>Dup</th><th>Hace</th>
+      </tr></thead>
+      <tbody id="tips-live-rows"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem;">Sin tips recientes. Grabá una reunión para ver tips en vivo.</td></tr></tbody>
+    </table>
   </div>
 </section>
 
@@ -671,6 +695,9 @@ setInterval(refresh, 3000);
 let runtimeIntervalMs = 3000;
 let runtimeTimer = null;
 
+// v26: ring buffer de últimos 60 puntos (60s a 1s sample)
+const runtimeHistory = { ts: [], total: [], app: [], model: [], cpu: [] };
+
 async function pollRuntime() {
   try {
     const r = await fetch('/api/runtime').then(r => r.json());
@@ -681,7 +708,12 @@ async function pollRuntime() {
     const warns = document.getElementById('runtime-warnings');
     const cpu = document.getElementById('runtime-cpu');
     const ram = document.getElementById('runtime-ram');
-    const proc = document.getElementById('runtime-proc');
+    const ramMb = document.getElementById('runtime-ram-mb');
+    const appCpu = document.getElementById('runtime-app-cpu');
+    const appRam = document.getElementById('runtime-app-ram');
+    const modelCpu = document.getElementById('runtime-model-cpu');
+    const modelRam = document.getElementById('runtime-model-ram');
+    const total = document.getElementById('runtime-total');
 
     if (r.error || r.stale) {
       panel.style.borderLeftColor = '#64748b';
@@ -690,8 +722,7 @@ async function pollRuntime() {
       title.textContent = 'Maity no está corriendo';
       sub.textContent = 'Lanzá la app para activar el monitor en vivo';
       warns.innerHTML = '';
-      cpu.textContent = ram.textContent = proc.textContent = '—';
-      // En modo stale, sample lento
+      cpu.textContent = ram.textContent = ramMb.textContent = appCpu.textContent = appRam.textContent = modelCpu.textContent = modelRam.textContent = total.textContent = '—';
       if (runtimeIntervalMs !== 3000) { runtimeIntervalMs = 3000; restartTimer(); }
       return;
     }
@@ -701,8 +732,8 @@ async function pollRuntime() {
       panel.style.borderLeftColor = '#ef4444';
       panel.style.background = 'linear-gradient(90deg,#7f1d1d,#991b1b)';
       icon.textContent = '🔴';
-      title.textContent = 'GRABANDO — monitoreo activo';
-      sub.textContent = 'Sample 1s · alertas si CPU>85% o RAM>90%';
+      title.textContent = 'GRABANDO — monitoreo activo cada 1s';
+      sub.textContent = 'Tips cada 30s · alertas si CPU>85% o RAM>90%';
     } else {
       panel.style.borderLeftColor = '#22c55e';
       panel.style.background = 'linear-gradient(90deg,#064e3b,#065f46)';
@@ -715,8 +746,26 @@ async function pollRuntime() {
     cpu.className = r.cpu_pct > 85 ? 'wer-bad' : (r.cpu_pct > 70 ? 'wer-mid' : 'wer-good');
     ram.textContent = `${r.ram_pct}%`;
     ram.className = r.ram_pct > 90 ? 'wer-bad' : (r.ram_pct > 80 ? 'wer-mid' : 'wer-good');
-    proc.textContent = r.process_ram_mb;
-    proc.className = r.process_ram_mb > 4000 ? 'wer-bad' : 'wer-good';
+    ramMb.textContent = `${(r.ram_used_mb/1024).toFixed(1)}/${(r.ram_total_mb/1024).toFixed(1)}GB`;
+
+    appCpu.textContent = `${(r.process_cpu_pct||0).toFixed(0)}%`;
+    appRam.textContent = r.process_ram_mb;
+    modelCpu.textContent = `${(r.model_cpu_pct||0).toFixed(0)}%`;
+    modelRam.textContent = r.model_ram_mb || 0;
+    const maityTotal = r.maity_total_ram_mb || (r.process_ram_mb + (r.model_ram_mb||0));
+    total.textContent = maityTotal;
+    total.className = maityTotal > 6000 ? 'wer-bad' : (maityTotal > 4000 ? 'wer-mid' : 'wer-good');
+
+    // Ring buffer
+    runtimeHistory.ts.push(Date.now());
+    runtimeHistory.total.push(maityTotal);
+    runtimeHistory.app.push(r.process_ram_mb);
+    runtimeHistory.model.push(r.model_ram_mb||0);
+    runtimeHistory.cpu.push(r.cpu_pct);
+    if (runtimeHistory.ts.length > 60) {
+      ['ts','total','app','model','cpu'].forEach(k => runtimeHistory[k].shift());
+    }
+    drawRuntimeChart();
 
     if (r.warnings && r.warnings.length) {
       warns.innerHTML = r.warnings.map(w => {
@@ -740,8 +789,113 @@ function restartTimer() {
   if (runtimeTimer) clearInterval(runtimeTimer);
   runtimeTimer = setInterval(pollRuntime, runtimeIntervalMs);
 }
+
+function drawRuntimeChart() {
+  const canvas = document.getElementById('runtime-chart');
+  if (!canvas || !runtimeHistory.ts.length) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.clientWidth;
+  const H = canvas.height = 60;
+  ctx.clearRect(0, 0, W, H);
+
+  const n = runtimeHistory.ts.length;
+  const maxRam = Math.max(...runtimeHistory.total, 4000);
+  const stepX = W / Math.max(60, n);
+
+  // RAM total Maity (rojo) line
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.beginPath();
+  runtimeHistory.total.forEach((v, i) => {
+    const x = i * stepX;
+    const y = H - (v / maxRam) * (H - 8);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Modelo (naranja)
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5; ctx.beginPath();
+  runtimeHistory.model.forEach((v, i) => {
+    const x = i * stepX;
+    const y = H - (v / maxRam) * (H - 8);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // App (azul)
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 1.5; ctx.beginPath();
+  runtimeHistory.app.forEach((v, i) => {
+    const x = i * stepX;
+    const y = H - (v / maxRam) * (H - 8);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // CPU SO (verde, eje derecho 0-100%)
+  ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1; ctx.beginPath();
+  runtimeHistory.cpu.forEach((v, i) => {
+    const x = i * stepX;
+    const y = H - (v / 100) * (H - 8);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Leyenda
+  ctx.font = '9px monospace';
+  ctx.fillStyle = '#ef4444'; ctx.fillText('— Total Maity', 8, 12);
+  ctx.fillStyle = '#f59e0b'; ctx.fillText('— Modelo', 95, 12);
+  ctx.fillStyle = '#3b82f6'; ctx.fillText('— App', 155, 12);
+  ctx.fillStyle = '#22c55e'; ctx.fillText('— CPU SO%', 200, 12);
+  ctx.fillStyle = '#94a3b8'; ctx.fillText(`max ${maxRam}MB`, W - 80, 12);
+}
+
 pollRuntime();
 restartTimer();
+
+// v26: poller para tips live monitor durante grabación
+async function pollTipsLive() {
+  try {
+    const data = await fetch('/api/tips_live?minutes=30').then(r => r.json());
+    const stats = data.stats || {};
+    const rows = data.rows || [];
+    const slowBadge = stats.slow_count > 0
+      ? `<span class="badge badge-warn">${stats.slow_count} tips >5s</span>`
+      : `<span class="badge badge-ok">todos <5s</span>`;
+    const dupBadge = stats.dup_count > 0
+      ? `<span class="badge badge-warn">${stats.dup_count} duplicados</span>`
+      : `<span class="badge badge-ok">0 dup</span>`;
+    document.getElementById('tips-live-stats').innerHTML =
+      `<b>${stats.count}</b> tips · avg <b>${stats.avg_latency_ms}ms</b> · max ${stats.max_latency_ms}ms · sim <b>${stats.avg_similarity_pct}%</b> · ${slowBadge} · ${dupBadge}`;
+
+    if (!rows.length) {
+      document.getElementById('tips-live-rows').innerHTML =
+        '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem;">Sin tips recientes</td></tr>';
+      return;
+    }
+    document.getElementById('tips-live-rows').innerHTML = rows.map(r => {
+      const lat = r.latency_ms || 0;
+      const latColor = lat > 5000 ? 'wer-bad' : (lat > 3000 ? 'wer-mid' : 'wer-good');
+      const sim = r.similarity_score != null ? Math.round(r.similarity_score*100) + '%' : '–';
+      const ago = (() => {
+        const d = (Date.now() - new Date(r.created_at).getTime())/1000;
+        if (d < 60) return Math.round(d) + 's';
+        if (d < 3600) return Math.round(d/60) + 'm';
+        return Math.round(d/3600) + 'h';
+      })();
+      return `<tr>
+        <td><b class="${latColor}">${lat}ms</b></td>
+        <td><span class="badge badge-untested">${r.generated_category || '–'}</span></td>
+        <td>${r.generated_confidence ? r.generated_confidence.toFixed(2) : '–'}</td>
+        <td style="font-size:0.78rem;max-width:380px;">${(r.generated_tip || '').slice(0, 120)}</td>
+        <td class="num">${sim}</td>
+        <td>${r.is_duplicate === 1 ? '<span class="wer-bad">DUP</span>' : '✓'}</td>
+        <td style="font-size:0.7rem;color:var(--muted);">${ago}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.warn('[tips-live] poll failed:', e);
+  }
+}
+pollTipsLive();
+setInterval(pollTipsLive, 5000);
 </script>
 </body>
 </html>

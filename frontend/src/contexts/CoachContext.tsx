@@ -278,7 +278,7 @@ const CoachContext = createContext<CoachContextType | undefined>(undefined);
 // Tips persistentes durante toda la sesión. Se limpian al iniciar nueva grabación.
 const MAX_SUGGESTIONS = 100;
 // v2.0: cooldown estricto entre tips (no más timer cada 20s).
-const TIP_COOLDOWN_MS = 35_000; // 35s entre tips (user feedback: 30-40s ideal)
+const TIP_COOLDOWN_MS = 30_000; // v26: 30s exacto (user request)
 const FIRST_MINUTES_COOLDOWN_MS = 30_000; // 30s: permite tips tempranos
 const POST_PRICE_SUPPRESS_MS = 8_000; // 8s sin tips después de precio
 const MIN_CONFIDENCE = 0.3; // era 0.5 — gemma4 es conservador, 0.3 captura más tips útiles
@@ -879,6 +879,31 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   }, [enabled, isRecording, triggerNow, pushSuggestion]);
 
   /**
+   * Effect 2.5 v26: heartbeat garantizado de tips cada 30s.
+   * Si no se disparó nada por trigger/nudge en 30s, fuerza un tip.
+   * Cumple promesa al usuario: "tips deben salir cada 30s".
+   */
+  useEffect(() => {
+    if (!enabled || !isRecording) return;
+    const HEARTBEAT_MS = 30_000;
+    const heartbeat = setInterval(async () => {
+      const now = Date.now();
+      const elapsedSinceLastTip = now - lastTipTimestampRef.current;
+      // Si pasaron >25s sin tip nuevo (un poco antes del cooldown 30s
+      // para garantizar que el tip salga al cruzar 30s reales)
+      if (elapsedSinceLastTip >= 25_000) {
+        const window = buildWindow();
+        if (window.length < 100) return; // Muy corto para tip útil
+        logger.info('[Coach] heartbeat 30s — forzando tip nuevo');
+        // Reseteamos cooldown para que triggerNow no rechace
+        lastTipTimestampRef.current = 0;
+        await triggerNow(undefined, 'heartbeat_30s');
+      }
+    }, HEARTBEAT_MS);
+    return () => clearInterval(heartbeat);
+  }, [enabled, isRecording, triggerNow, buildWindow]);
+
+  /**
    * Effect 3 v2.0: auto-detect meeting type a los 45s de grabación.
    * Usa backend coach_detect_meeting_type que llama gemma3:4b (rápido).
    * Cachea el resultado en memoria. Solo si user no hizo override manual.
@@ -1160,7 +1185,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   const lastNudgeRef = useRef<{ time: number; type: string | null }>({ time: 0, type: null });
   useEffect(() => {
     if (!enabled || !isRecording) return;
-    const NUDGE_COOLDOWN_MS = 120_000; // 2 minutos entre nudges
+    const NUDGE_COOLDOWN_MS = 30_000; // v26: 30s para garantizar tips frecuentes (was 120s)
 
     const timer = setInterval(async () => {
       const now = Date.now();

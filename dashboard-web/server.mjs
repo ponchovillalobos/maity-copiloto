@@ -179,6 +179,32 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  if (url.pathname === '/api/tips_live') {
+    // v26: tips recientes (últimos 30 minutos) para monitoreo live durante grabación.
+    // Lee de tip_tests (test mode) y también podríamos extender a tips reales en producción.
+    const minutesAgo = Math.min(120, Number(url.searchParams.get('minutes')) || 30);
+    const rows = safeRows(
+      `SELECT id, scenario, generated_tip, generated_category, generated_confidence,
+              latency_ms, similarity_score, is_duplicate, created_at, build_version
+       FROM tip_tests WHERE created_at >= datetime('now', '-' || ? || ' minutes')
+       ORDER BY id DESC LIMIT 50`,
+      [minutesAgo],
+    );
+    const stats = (() => {
+      const lats = rows.map(r => r.latency_ms).filter(Boolean);
+      const sims = rows.map(r => r.similarity_score).filter(s => s != null);
+      return {
+        count: rows.length,
+        avg_latency_ms: lats.length ? Math.round(lats.reduce((a,b)=>a+b,0)/lats.length) : 0,
+        max_latency_ms: lats.length ? Math.max(...lats) : 0,
+        slow_count: lats.filter(l => l > 5000).length,
+        avg_similarity_pct: sims.length ? +((sims.reduce((a,b)=>a+b,0)/sims.length)*100).toFixed(1) : 0,
+        dup_count: rows.filter(r => r.is_duplicate === 1).length,
+      };
+    })();
+    return jsonReply(res, { rows, stats });
+  }
+
   if (url.pathname === '/api/runtime') {
     // v23: lee snapshot escrito por Rust system_monitor cada 1s.
     // Incluye is_recording flag + CPU/RAM live + warnings de umbrales.

@@ -18,6 +18,13 @@ pub struct SystemMetrics {
     pub thread_count: usize,
     /// v23: flag is_recording leído del estado global.
     pub is_recording: bool,
+    /// v26: RAM consumida por el llama-helper sidecar (LLM coach + eval).
+    /// Separada del proceso Maity para diagnosticar costo del modelo.
+    pub model_ram_mb: u64,
+    /// v26: CPU del modelo (llama-helper)
+    pub model_cpu_pct: f32,
+    /// v26: total efectivo Maity (app + modelo) en MB.
+    pub maity_total_ram_mb: u64,
 }
 
 /// Loop infinito: cada 1s muestrea sysinfo y emite evento. Se cancela
@@ -39,9 +46,8 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
     loop {
         sys.refresh_cpu_all();
         sys.refresh_memory();
-        if let Some(p) = pid {
-            sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[p]), true);
-        }
+        // v26: refrescar TODOS los procesos para encontrar llama-helper
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
         let cpu_pct = sys.global_cpu_usage();
         let ram_used_mb = sys.used_memory() / (1024 * 1024);
@@ -61,6 +67,18 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
             (0.0, 0, 1)
         };
 
+        // v26: buscar llama-helper sidecar para medir RAM del modelo.
+        let mut model_ram_mb = 0u64;
+        let mut model_cpu_pct = 0.0f32;
+        for (_pid_, proc) in sys.processes() {
+            let name = proc.name().to_string_lossy().to_lowercase();
+            if name.contains("llama-helper") {
+                model_ram_mb += proc.memory() / (1024 * 1024);
+                model_cpu_pct += proc.cpu_usage();
+            }
+        }
+        let maity_total_ram_mb = process_ram_mb + model_ram_mb;
+
         let is_recording = crate::audio::recording_commands::is_recording().await;
 
         let metrics = SystemMetrics {
@@ -72,6 +90,9 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
             process_ram_mb,
             thread_count,
             is_recording,
+            model_ram_mb,
+            model_cpu_pct,
+            maity_total_ram_mb,
         };
 
         let _ = app.emit("system-metrics", metrics.clone());

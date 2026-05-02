@@ -4,12 +4,12 @@
 //! Los prompts V2 y V3 completo fueron eliminados (código muerto).
 
 /// Modelo DEFAULT para tips + chat live (CPU-only, sin GPU).
-/// FIX v16: qwen3:0.6b era demasiado pequeño — produjo solo 4 tips únicos en 30 calls
-/// (todos copiaban el ejemplo). qwen3:1.7b sí entiende contexto, latencia ~12s/tip aceptable.
-pub const DEFAULT_MODEL: &str = "qwen3:1.7b";
+/// v26: VOLVEMOS a qwen3:0.6b (latencia ~4s vs 14s con 1.7b). User pidió <5s.
+/// Anti-repetición ahora vía: prompt anti-copia v25 + 15 prev_tips + dedup 0.40 + rotation.
+pub const DEFAULT_MODEL: &str = "qwen3:0.6b";
 
 /// Modelo secundario para detección rápida de tipo de reunión (comparte cache con default).
-pub const SECONDARY_MODEL: &str = "qwen3:1.7b";
+pub const SECONDARY_MODEL: &str = "qwen3:0.6b";
 
 /// Tipos de reunión soportados por el copiloto.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
