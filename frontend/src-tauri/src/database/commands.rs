@@ -171,6 +171,7 @@ pub async fn import_and_initialize_database(
         db_manager,
         active_meeting_id: std::sync::Mutex::new(None),
         live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+        coach_tick_in_flight: std::sync::atomic::AtomicBool::new(false),
     });
 
     info!("Legacy database imported and initialized successfully");
@@ -199,6 +200,7 @@ pub async fn initialize_fresh_database(app: AppHandle) -> Result<(), String> {
         db_manager: db_manager.clone(),
         active_meeting_id: std::sync::Mutex::new(None),
         live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+        coach_tick_in_flight: std::sync::atomic::AtomicBool::new(false),
     });
 
     // Set default model configuration for fresh installs

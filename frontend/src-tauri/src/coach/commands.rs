@@ -557,7 +557,38 @@ pub async fn coach_simple_tick(
     window: String,
     meeting_id: Option<String>,
 ) -> Result<Option<CoachSuggestion>, String> {
-    use tauri::Emitter;
+    // v31.5: lock contra concurrencia con AtomicBool (sin lifetime issues).
+    // compare_exchange atómico: si false→true OK, sino otra invocación está
+    // en vuelo y skipeamos. Helper RAII reset que captura el AppHandle por
+    // clone para liberar al final del scope (incluyendo returns tempranos).
+    struct AtomicFlightGuard {
+        app: tauri::AppHandle,
+    }
+    impl Drop for AtomicFlightGuard {
+        fn drop(&mut self) {
+            if let Some(state) = self.app.try_state::<crate::state::AppState>() {
+                state
+                    .coach_tick_in_flight
+                    .store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+    }
+    let _flight_guard = if let Some(state) = app.try_state::<crate::state::AppState>() {
+        match state.coach_tick_in_flight.compare_exchange(
+            false,
+            true,
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+        ) {
+            Ok(_) => Some(AtomicFlightGuard { app: app.clone() }),
+            Err(_) => {
+                log::info!("[coach_simple_tick] otro tick en vuelo, skip");
+                return Ok(None);
+            }
+        }
+    } else {
+        None
+    };
 
     // v31.2: si window viene vacío (típicamente desde la burbuja flotante
     // que no tiene acceso a transcriptsRef), construir desde el buffer
@@ -627,44 +658,20 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.4 (2026-05-02): prompt enriquecido con marcos de empatía + ventas
-    // estratégicas + servicio al cliente. Tips previos (113-123) eran correctos
-    // estructuralmente pero "laxos, sin empatía". Ahora exigimos al modelo
-    // aplicar marcos consagrados (SPIN/Voss/Cialdini/active listening) y
-    // tratar al INTERLOCUTOR como persona con emociones, no como objeto.
-    let system_prompt = "Eres Maity, coach EXPERTO en comunicación, ventas consultivas y servicio al cliente. \
-                         Combinas marcos de Chris Voss (negociación táctica empática), SPIN selling \
-                         (Situation/Problem/Implication/Need-payoff), Cialdini (influencia ética), y escucha \
-                         activa de Carl Rogers. Tu rol es ayudar al USUARIO (vendedor/asesor) a comunicarse \
-                         con MÁXIMA EMPATÍA y EFECTIVIDAD con el INTERLOCUTOR (cliente). \
-                         REGLA DE ORO: el cliente es persona con emociones, miedos y necesidades — NUNCA un \
-                         obstáculo. Cada tip debe demostrar comprensión genuina del estado emocional del \
-                         interlocutor antes de proponer acción. PROHIBIDO inventar contenido que no está en el \
-                         transcript. Si el contexto no permite un tip útil, responde solo: SIN_TIP";
+    // v31.5: prompt CORTO y operativo. El v31.4 cargaba el modelo con 30
+    // líneas (Voss/SPIN/Cialdini/Rogers) lo que aumentaba latencia y a veces
+    // confundía al modelo pequeño. Recomendación auditoría externa: instruir
+    // intención simple y dejar que el modelo elija el marco.
+    let system_prompt = "Eres Maity, coach del vendedor. Da UN tip corto y EMPÁTICO basado SOLO en lo dicho.";
     let user_prompt = format!(
-        "TRANSCRIPT REAL (USUARIO = vendedor a quien coacheas; INTERLOCUTOR = cliente):\n\n---\n{}\n---\n\n\
-         Genera UN tip estratégico y EMPÁTICO para el USUARIO siguiendo estas reglas:\n\n\
-         ESTRUCTURA OBLIGATORIA:\n\
-         1. Empieza con verbo imperativo de coaching: Reconoce, Valida, Refleja, Pregunta, Reformula, \
-            Resume, Profundiza, Aclara, Confirma, Cierra, Propón, Escucha, Espera, Etiqueta, Mirror, \
-            Acompaña, Acepta, Agradece, Ofrece.\n\
-         2. Entre 10 y 22 palabras.\n\n\
-         CONTENIDO OBLIGATORIO (al menos UNO de estos):\n\
-         A) Reconoce explícitamente la emoción del interlocutor (frustración, duda, urgencia, miedo, \
-            satisfacción) usando palabras suyas. Ej: 'Reconoce que decir [X exacto] muestra preocupación, \
-            valida antes de proponer solución'.\n\
-         B) Marco Chris Voss: etiqueta emocional ('Parece que...', 'Suena como si...'), espejo \
-            (repetir últimas 3 palabras), pregunta calibrada ('¿Cómo...?', '¿Qué...?').\n\
-         C) Marco SPIN: convierte un dato del cliente en pregunta de implicación o de necesidad-pago.\n\
-         D) Servicio al cliente: ownership ('Yo me encargo', 'Déjame resolverlo'), opciones ('puedo \
-            ofrecerte A o B'), siguiente paso concreto.\n\n\
-         REGLAS ABSOLUTAS:\n\
-         - SOLO menciona palabras, nombres, datos QUE APARECEN LITERALMENTE arriba en el transcript.\n\
-         - JAMÁS uses jerga sin contexto ('crea urgencia', 'genera rapport') — sé concreto.\n\
-         - JAMÁS atribuyas insultos, juicios o emociones extremas al cliente si no están en el transcript.\n\
-         - Si el transcript es ruido o muy corto, responde EXACTAMENTE: SIN_TIP\n\
-         - Una línea. Sin JSON, sin prefijos.\n\n\
-         Tu tip empático y estratégico (o SIN_TIP):",
+        "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
+         Reglas:\n\
+         - Empatía primero: reconoce emoción del cliente con sus palabras.\n\
+         - Acción concreta: pregunta abierta o siguiente paso.\n\
+         - Verbo imperativo al inicio (Reconoce, Pregunta, Refleja, Valida, Propón, Aclara, Cierra…).\n\
+         - Máximo 18 palabras. Solo lo que aparece en el transcript.\n\
+         - Si no hay base útil, responde EXACTAMENTE: SIN_TIP\n\n\
+         Tip:",
         window_capped
     );
 
@@ -828,20 +835,26 @@ pub async fn coach_simple_tick(
 
     // INSERT a coach_tips_log — DB es la ÚNICA fuente de verdad para la
     // burbuja flotante (que pollea coach_get_recent_tips cada 3s).
-    // v31: eliminado app.emit("coach-tip-update") — la burbuja descubre el
-    // tip vía polling. Una sola ruta, sin race conditions.
-    if let Some(state) = app.try_state::<crate::state::AppState>() {
-        let pool = state.db_manager.pool();
-        let _ = sqlx::query(
-            "INSERT INTO coach_tips_log (meeting_id, tip, category, priority, tip_type, confidence, model, trigger_signal)
-             VALUES (?, ?, 'general', 'soft', 'observation', 0.7, ?, 'simple_tick')",
-        )
-        .bind(&resolved_meeting_id)
-        .bind(&tip_text)
-        .bind(&model)
-        .execute(pool)
-        .await;
-    }
+    // v31.5: si INSERT falla, retornamos Err para que el frontend SEPA que
+    // el tip no se persistió. Antes era `let _ = ...` silencioso → panel veía
+    // tip pero burbuja no lo encontraba en DB.
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible para INSERT".to_string())?;
+    let pool = state.db_manager.pool();
+    sqlx::query(
+        "INSERT INTO coach_tips_log (meeting_id, tip, category, priority, tip_type, confidence, model, trigger_signal)
+         VALUES (?, ?, 'general', 'soft', 'observation', 0.7, ?, 'simple_tick')",
+    )
+    .bind(&resolved_meeting_id)
+    .bind(&tip_text)
+    .bind(&model)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        log::error!("[coach_simple_tick] INSERT falló: {}", e);
+        format!("DB INSERT failed: {}", e)
+    })?;
 
     log::info!("[coach_simple_tick] tip OK ({} chars)", tip_text.len());
     Ok(Some(suggestion))
@@ -876,21 +889,21 @@ pub async fn coach_push_transcript_chunk(
         .lock()
         .map_err(|e| format!("Mutex envenenado: {}", e))?;
 
-    // Dedup vs último chunk (mismo speaker)
-    if let Some((last_spk, last_text)) = buf.back() {
-        if last_spk == &speaker {
-            let last_t = last_text.as_str();
-            // Mismo texto exacto → ignorar
-            if last_t == trimmed {
-                return Ok(());
-            }
-            // Nuevo es extensión del anterior (parcial creciente) → reemplazar
-            if trimmed.starts_with(last_t) || last_t.starts_with(trimmed) {
-                let len = buf.len();
-                buf[len - 1] = (speaker, trimmed.to_string());
-                return Ok(());
-            }
-        }
+    // v31.5: dedup en TODO el buffer (no solo último). Si parciales del
+    // mismo speaker llegan alternados con otro hablante, antes podían
+    // duplicarse. Ahora buscamos cualquier match exacto en el buffer y
+    // saltamos. Para parciales extendidos (prefijo/sufijo) reemplazamos
+    // la entrada existente in-place.
+    let dup_idx = buf.iter().position(|(s, t)| s == &speaker && t.as_str() == trimmed);
+    if dup_idx.is_some() {
+        return Ok(());
+    }
+    let extension_idx = buf.iter().position(|(s, t)| {
+        s == &speaker && (trimmed.starts_with(t.as_str()) || t.starts_with(trimmed))
+    });
+    if let Some(idx) = extension_idx {
+        buf[idx] = (speaker, trimmed.to_string());
+        return Ok(());
     }
 
     buf.push_back((speaker, trimmed.to_string()));

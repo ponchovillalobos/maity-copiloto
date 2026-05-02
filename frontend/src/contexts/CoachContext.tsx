@@ -431,7 +431,29 @@ export function CoachProvider({ children }: { children: ReactNode }) {
    *
    * @param suggestedCategory Pista opcional del trigger detector (categoría de señal detectada)
    */
-  const triggerNow = useCallback(async (suggestedCategory?: string, triggerSignalParam?: string) => {
+  // v31.5: triggerNow es LEGACY. La única ruta activa es coach_simple_tick
+  // (setInterval 30s + botón manual via coach_request_simple_tip). Mantenemos
+  // este wrapper SOLO para no romper la interfaz CoachContextType que algunos
+  // componentes pueden importar — pero ahora redirige al simple_tick.
+  // ELIMINADO: invoke('coach_suggest') que ya no está registrado en lib.rs.
+  const triggerNow = useCallback(async (_suggestedCategory?: string, _triggerSignalParam?: string) => {
+    void _suggestedCategory;
+    void _triggerSignalParam;
+    try {
+      const window = buildWindow();
+      const result = await invoke<CoachSuggestion | null>('coach_simple_tick', {
+        window,
+        meetingId: currentMeetingId ?? undefined,
+      });
+      if (result) {
+        pushSuggestionRef.current(result);
+      }
+    } catch (e) {
+      logger.warn(`[Coach] triggerNow (legacy → simple_tick) falló: ${e}`);
+    }
+  }, [buildWindow, currentMeetingId]);
+
+  const _triggerNowOld = useCallback(async (suggestedCategory?: string, triggerSignalParam?: string) => {
     // v28.2 FIX BUG MÚLTIPLES TIPS: lock SÍNCRONO global. setLoading es async,
     // dejaba pasar 3+ calls antes de que loadingRef se propagara.
     // tipInFlightRef es un ref directo (mutación síncrona) que bloquea de inmediato.
