@@ -65,11 +65,26 @@ fn emit<R: Runtime>(app: &AppHandle<R>, progress: AutoSetupProgress) {
 }
 
 /// Entrada principal: corre en background tras el startup.
+///
+/// v28: Maity es 100% LOCAL via llama-helper sidecar (GGUF). NO usa Ollama.
+/// Saltamos la verificación de Ollama y reportamos directo "Maity listo".
 pub async fn run<R: Runtime>(app: AppHandle<R>) {
-    info!("[auto-setup] Starting dependency check...");
-    emit(&app, AutoSetupProgress::new("checking", 1, "Verificando Ollama..."));
+    info!("[auto-setup] Maity is local-only (llama-helper sidecar). Skipping Ollama checks.");
+    emit(
+        &app,
+        AutoSetupProgress {
+            phase: "done".to_string(),
+            step: 3,
+            total_steps: 3,
+            message: "Maity listo (modelo local incluido)".to_string(),
+            percent: Some(100),
+            resource: None,
+        },
+    );
+    return;
 
-    // --- PASO 1: Verificar Ollama ---
+    #[allow(unreachable_code)]
+    {
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()
@@ -100,7 +115,6 @@ pub async fn run<R: Runtime>(app: AppHandle<R>) {
                 resource: Some("ollama".to_string()),
             },
         );
-        // No abortamos: seguimos con Parakeet (grabación funciona sin Ollama).
     } else {
         info!("[auto-setup] Ollama OK");
 
@@ -241,6 +255,7 @@ pub async fn run<R: Runtime>(app: AppHandle<R>) {
             resource: None,
         },
     );
+    } // end #[allow(unreachable_code)] block (v28)
 }
 
 /// Comando Tauri para re-ejecutar auto-setup desde el frontend (ej. botón "Reintentar").

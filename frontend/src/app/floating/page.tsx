@@ -116,11 +116,20 @@ export default function FloatingPage() {
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
 
-    // v28 F4: catch-up al abrir — cargar histórico desde DB ANTES de listen.
-    // Sin esto, si floating abre tarde pierde tips ya generados.
+    // v28.1 F4 fix: catch-up SOLO si hay grabación activa de la sesión actual.
+    // Bug v28: cargaba histórico global → 37 tips antiguos al iniciar.
+    // Ahora: solo carga si meetingId activo. Sin meeting = empieza vacío.
     (async () => {
       try {
-        const recent = await invoke<CoachTip[]>('coach_get_recent_tips', { meetingId: null, limit: 50 });
+        const activeMeetingId = sessionStorage.getItem('active_meeting_id');
+        if (!activeMeetingId) {
+          // Sin sesión activa = floating empieza limpio
+          return;
+        }
+        const recent = await invoke<CoachTip[]>('coach_get_recent_tips', {
+          meetingId: activeMeetingId,
+          limit: 20
+        });
         if (recent && recent.length > 0) {
           setTipsHistory(recent);
         }
@@ -376,13 +385,38 @@ export default function FloatingPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
-            {tipsHistory.length === 0 ? (
-              <div className="text-white/55 text-xs italic text-center py-6">
-                {requestingTip
-                  ? 'Generando primer tip… puede tardar 4-10 segundos.'
-                  : 'Sin tips aún. Empezá grabación o presioná "Pedir tip ahora".'}
+            {/* v28.1: animación shimmer cuando está generando — feedback visual constante. */}
+            {requestingTip && (
+              <div
+                className="rounded-md border p-3 mb-1 relative overflow-hidden"
+                style={{
+                  borderColor: 'rgba(168, 139, 250, 0.5)',
+                  background: 'linear-gradient(135deg, rgba(168,139,250,0.18) 0%, rgba(72,93,244,0.12) 100%)',
+                }}
+              >
+                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_ease-in-out_infinite]" style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%)',
+                }} />
+                <div className="relative flex items-center gap-2">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-[11px] font-bold tracking-wider text-purple-200">
+                    Coach analizando conversación…
+                  </span>
+                </div>
+                <div className="text-[10px] text-white/55 mt-1.5 relative">
+                  Tip personalizado en camino · ~4-10s
+                </div>
               </div>
-            ) : (
+            )}
+            {tipsHistory.length === 0 && !requestingTip ? (
+              <div className="text-white/55 text-xs italic text-center py-6">
+                Sin tips aún. Empezá grabación o presioná "Pedir tip ahora".
+              </div>
+            ) : tipsHistory.length === 0 ? null : (
               tipsHistory.map((t, idx) => {
                 const tprio = priorityMeta(t.priority);
                 const tcat = categoryMeta(t.category);
