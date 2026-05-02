@@ -337,6 +337,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
   // Refs para evitar stale closures en intervalos/listeners
   const enabledRef = useRef(enabled);
   const loadingRef = useRef(loading);
+  // v28.2: lock SÍNCRONO global para prevenir múltiples coach_suggest concurrentes.
+  // setLoading es async — entre el check y el set, otras 2-3 calls pasaban.
+  const tipInFlightRef = useRef<boolean>(false);
   const lastTipTimestampRef = useRef<number>(0);
   const suppressUntilRef = useRef<number>(0);
   const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -429,8 +432,17 @@ export function CoachProvider({ children }: { children: ReactNode }) {
    * @param suggestedCategory Pista opcional del trigger detector (categoría de señal detectada)
    */
   const triggerNow = useCallback(async (suggestedCategory?: string, triggerSignalParam?: string) => {
+    // v28.2 FIX BUG MÚLTIPLES TIPS: lock SÍNCRONO global. setLoading es async,
+    // dejaba pasar 3+ calls antes de que loadingRef se propagara.
+    // tipInFlightRef es un ref directo (mutación síncrona) que bloquea de inmediato.
+    if (tipInFlightRef.current) {
+      logger.warn('[Coach] BLOQUEO: tip en vuelo, skip duplicado');
+      return;
+    }
+    tipInFlightRef.current = true;
     if (loadingRef.current) {
-      logger.debug('[Coach] Skip: ya hay request en vuelo');
+      tipInFlightRef.current = false;
+      logger.debug('[Coach] Skip: ya hay request en vuelo (legacy)');
       return;
     }
     const isManual = triggerSignalParam === 'manual_request';
@@ -568,6 +580,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setLoading(false);
+      tipInFlightRef.current = false; // v28.2: liberar lock global SIEMPRE
     }
   }, [buildWindow, detectLanguage, currentMeetingId, pushSuggestion]);
 
