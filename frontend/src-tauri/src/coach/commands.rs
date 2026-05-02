@@ -819,6 +819,13 @@ pub async fn coach_simple_tick(
 /// TranscriptContext cada vez que llega un transcript-update. Permite que
 /// la burbuja flotante (que no tiene acceso al transcriptsRef del frontend
 /// principal) pida tips manuales sin construir su propio window.
+///
+/// v31.3.1 (2026-05-02): dedup interno. Como ahora aceptamos parciales
+/// (TranscriptContext.tsx:372 sin filtro is_partial), parciales sucesivos
+/// del mismo chunk pueden duplicarse en el buffer ("hola", "hola como",
+/// "hola como estás"). Sin dedup, el LLM ve contexto repetido y emite el
+/// mismo tip dos veces seguidas. Solución: si el nuevo text es prefijo o
+/// suffix del último, REEMPLAZAR el último; si es exacto, ignorar.
 #[tauri::command]
 pub async fn coach_push_transcript_chunk(
     app: tauri::AppHandle,
@@ -836,6 +843,24 @@ pub async fn coach_push_transcript_chunk(
         .live_transcript
         .lock()
         .map_err(|e| format!("Mutex envenenado: {}", e))?;
+
+    // Dedup vs último chunk (mismo speaker)
+    if let Some((last_spk, last_text)) = buf.back() {
+        if last_spk == &speaker {
+            let last_t = last_text.as_str();
+            // Mismo texto exacto → ignorar
+            if last_t == trimmed {
+                return Ok(());
+            }
+            // Nuevo es extensión del anterior (parcial creciente) → reemplazar
+            if trimmed.starts_with(last_t) || last_t.starts_with(trimmed) {
+                let len = buf.len();
+                buf[len - 1] = (speaker, trimmed.to_string());
+                return Ok(());
+            }
+        }
+    }
+
     buf.push_back((speaker, trimmed.to_string()));
     while buf.len() > 60 {
         buf.pop_front();
