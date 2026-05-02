@@ -180,26 +180,33 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/api/tips_live') {
-    // v26: tips recientes (últimos 30 minutos) para monitoreo live durante grabación.
-    // Lee de tip_tests (test mode) y también podríamos extender a tips reales en producción.
-    const minutesAgo = Math.min(120, Number(url.searchParams.get('minutes')) || 30);
+    // v26.1: histórico PERMANENTE de tips reales (coach_tips_log).
+    // Antes leía tip_tests (solo tests) — ahora lee tips de PRODUCCIÓN.
+    // Default: TODOS los tips (sin filtro de tiempo) — preserva histórico.
+    // Opcional ?minutes=N para filtrar.
+    const minutesAgo = url.searchParams.has('minutes') ? Number(url.searchParams.get('minutes')) : null;
+    const limit = Math.min(500, Number(url.searchParams.get('limit')) || 100);
+    const where = minutesAgo
+      ? `WHERE created_at >= datetime('now', '-' || ${minutesAgo} || ' minutes')`
+      : '';
     const rows = safeRows(
-      `SELECT id, scenario, generated_tip, generated_category, generated_confidence,
-              latency_ms, similarity_score, is_duplicate, created_at, build_version
-       FROM tip_tests WHERE created_at >= datetime('now', '-' || ? || ' minutes')
-       ORDER BY id DESC LIMIT 50`,
-      [minutesAgo],
+      `SELECT id, meeting_id, tip, category, subcategory, technique,
+              priority, tip_type, confidence, latency_ms, model, minute,
+              trigger_signal, suggested_category, is_duplicate, created_at
+       FROM coach_tips_log ${where} ORDER BY id DESC LIMIT ?`,
+      [limit],
     );
     const stats = (() => {
       const lats = rows.map(r => r.latency_ms).filter(Boolean);
-      const sims = rows.map(r => r.similarity_score).filter(s => s != null);
       return {
         count: rows.length,
         avg_latency_ms: lats.length ? Math.round(lats.reduce((a,b)=>a+b,0)/lats.length) : 0,
         max_latency_ms: lats.length ? Math.max(...lats) : 0,
+        min_latency_ms: lats.length ? Math.min(...lats) : 0,
         slow_count: lats.filter(l => l > 5000).length,
-        avg_similarity_pct: sims.length ? +((sims.reduce((a,b)=>a+b,0)/sims.length)*100).toFixed(1) : 0,
         dup_count: rows.filter(r => r.is_duplicate === 1).length,
+        models: [...new Set(rows.map(r => r.model).filter(Boolean))],
+        unique_tips: new Set(rows.map(r => r.tip)).size,
       };
     })();
     return jsonReply(res, { rows, stats });

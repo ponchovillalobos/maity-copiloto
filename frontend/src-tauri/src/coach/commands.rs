@@ -244,17 +244,45 @@ pub async fn coach_suggest(
         .unwrap_or(0);
 
     let suggestion = CoachSuggestion {
-        tip: parsed.tip,
-        category: parsed.category,
-        subcategory: parsed.subcategory,
-        technique: parsed.technique,
-        priority,
+        tip: parsed.tip.clone(),
+        category: parsed.category.clone(),
+        subcategory: parsed.subcategory.clone(),
+        technique: parsed.technique.clone(),
+        priority: priority.clone(),
         confidence: parsed.confidence,
-        tip_type,
+        tip_type: tip_type.clone(),
         timestamp,
-        model,
+        model: model.clone(),
         latency_ms,
     };
+
+    // v26: persistir tip a coach_tips_log para histórico permanente.
+    // Esto permite al dashboard mostrar tips reales (no solo tip_tests).
+    if let Some(state) = app.try_state::<crate::state::AppState>() {
+        let pool = state.db_manager.pool();
+        let _ = sqlx::query(
+            "INSERT INTO coach_tips_log (
+                meeting_id, tip, category, subcategory, technique, priority,
+                tip_type, confidence, latency_ms, model, minute, trigger_signal,
+                suggested_category
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&validated_meeting_id)
+        .bind(&parsed.tip)
+        .bind(&parsed.category)
+        .bind(&parsed.subcategory)
+        .bind(&parsed.technique)
+        .bind(&priority)
+        .bind(&tip_type)
+        .bind(parsed.confidence as f64)
+        .bind(latency_ms as i64)
+        .bind(&model)
+        .bind(minute.map(|m| m as i64).unwrap_or(0))
+        .bind(&validated_signal)
+        .bind(&validated_category)
+        .execute(pool)
+        .await;
+    }
 
     Ok(suggestion)
 }

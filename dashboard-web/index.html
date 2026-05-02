@@ -77,7 +77,8 @@
         <span style="color:var(--muted);">Maity app:</span> CPU <b id="runtime-app-cpu">—</b> · RAM <b id="runtime-app-ram">—</b>MB
       </div>
       <div>
-        <span style="color:var(--muted);">Modelo LLM:</span> CPU <b id="runtime-model-cpu">—</b> · RAM <b id="runtime-model-ram">—</b>MB
+        <span style="color:var(--muted);">Modelo <b id="runtime-model-name" style="color:#a78bfa;">—</b>:</span>
+        CPU <b id="runtime-model-cpu">—</b> · RAM <b id="runtime-model-ram">—</b>MB
       </div>
       <div style="margin-top:0.2rem;font-weight:600;">
         TOTAL Maity: <b id="runtime-total" class="wer-good">—</b>MB
@@ -88,16 +89,16 @@
   <canvas id="runtime-chart" height="60" style="width:100%;"></canvas>
 </section>
 
-<!-- v26: Tips live monitor durante grabación -->
+<!-- v26.1: Histórico permanente tips reales (coach_tips_log) -->
 <section id="tips-live-panel" class="card" style="margin-bottom:1rem;border-left:4px solid #8b5cf6;">
-  <h2 style="margin-bottom:0.4rem;">⚡ Tips live (últimos 30 min)</h2>
+  <h2 style="margin-bottom:0.4rem;">⚡ Tips coach — histórico permanente</h2>
   <div id="tips-live-stats" class="sub" style="margin-bottom:0.5rem;">cargando…</div>
-  <div style="overflow-x:auto;max-height:280px;overflow-y:auto;">
+  <div style="overflow-x:auto;max-height:380px;overflow-y:auto;">
     <table class="table">
       <thead><tr>
-        <th>⏱ Latency</th><th>Categoría</th><th>Conf</th><th>Tip</th><th>Sim</th><th>Dup</th><th>Hace</th>
+        <th>⏱ Latency</th><th>Modelo</th><th>Categoría</th><th>Conf</th><th>Tip</th><th>Min</th><th>Trigger</th><th>Hace</th>
       </tr></thead>
-      <tbody id="tips-live-rows"><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem;">Sin tips recientes. Grabá una reunión para ver tips en vivo.</td></tr></tbody>
+      <tbody id="tips-live-rows"><tr><td colspan="8" style="text-align:center;color:var(--muted);padding:1rem;">Sin tips reales aún. Empezá grabación para que el coach los genere.</td></tr></tbody>
     </table>
   </div>
 </section>
@@ -853,43 +854,51 @@ restartTimer();
 // v26: poller para tips live monitor durante grabación
 async function pollTipsLive() {
   try {
-    const data = await fetch('/api/tips_live?minutes=30').then(r => r.json());
+    // v26.1: SIN filtro de tiempo = histórico completo permanente
+    const data = await fetch('/api/tips_live?limit=200').then(r => r.json());
     const stats = data.stats || {};
     const rows = data.rows || [];
     const slowBadge = stats.slow_count > 0
       ? `<span class="badge badge-warn">${stats.slow_count} tips >5s</span>`
       : `<span class="badge badge-ok">todos <5s</span>`;
-    const dupBadge = stats.dup_count > 0
-      ? `<span class="badge badge-warn">${stats.dup_count} duplicados</span>`
-      : `<span class="badge badge-ok">0 dup</span>`;
+    const modelsBadge = (stats.models || []).map(m =>
+      `<span class="badge badge-untested" style="background:rgba(167,139,250,0.15);color:#a78bfa;">🤖 ${m}</span>`
+    ).join(' ');
     document.getElementById('tips-live-stats').innerHTML =
-      `<b>${stats.count}</b> tips · avg <b>${stats.avg_latency_ms}ms</b> · max ${stats.max_latency_ms}ms · sim <b>${stats.avg_similarity_pct}%</b> · ${slowBadge} · ${dupBadge}`;
+      `<b>${stats.count}</b> tips · <b>${stats.unique_tips}</b> únicos · avg <b>${stats.avg_latency_ms}ms</b> (min ${stats.min_latency_ms}ms / max ${stats.max_latency_ms}ms) · ${slowBadge} · ${modelsBadge}`;
 
     if (!rows.length) {
       document.getElementById('tips-live-rows').innerHTML =
-        '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:1rem;">Sin tips recientes</td></tr>';
+        '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:1rem;">Sin tips reales aún. Empezá grabación.</td></tr>';
       return;
     }
     document.getElementById('tips-live-rows').innerHTML = rows.map(r => {
       const lat = r.latency_ms || 0;
       const latColor = lat > 5000 ? 'wer-bad' : (lat > 3000 ? 'wer-mid' : 'wer-good');
-      const sim = r.similarity_score != null ? Math.round(r.similarity_score*100) + '%' : '–';
       const ago = (() => {
         const d = (Date.now() - new Date(r.created_at).getTime())/1000;
         if (d < 60) return Math.round(d) + 's';
         if (d < 3600) return Math.round(d/60) + 'm';
         return Math.round(d/3600) + 'h';
       })();
+      const tipType = r.tip_type ? `<span style="color:var(--muted);font-size:0.65rem;">[${r.tip_type}]</span> ` : '';
       return `<tr>
         <td><b class="${latColor}">${lat}ms</b></td>
-        <td><span class="badge badge-untested">${r.generated_category || '–'}</span></td>
-        <td>${r.generated_confidence ? r.generated_confidence.toFixed(2) : '–'}</td>
-        <td style="font-size:0.78rem;max-width:380px;">${(r.generated_tip || '').slice(0, 120)}</td>
-        <td class="num">${sim}</td>
-        <td>${r.is_duplicate === 1 ? '<span class="wer-bad">DUP</span>' : '✓'}</td>
+        <td style="font-size:0.7rem;color:#a78bfa;">${(r.model||'–').replace('qwen3:','')}</td>
+        <td><span class="badge badge-untested">${r.category || '–'}</span></td>
+        <td>${r.confidence ? r.confidence.toFixed(2) : '–'}</td>
+        <td style="font-size:0.78rem;max-width:380px;">${tipType}${(r.tip || '').slice(0, 130)}</td>
+        <td class="num" style="font-size:0.7rem;">${r.minute || 0}</td>
+        <td style="font-size:0.65rem;color:var(--muted);">${r.trigger_signal || '–'}</td>
         <td style="font-size:0.7rem;color:var(--muted);">${ago}</td>
       </tr>`;
     }).join('');
+
+    // Mostrar modelo activo en panel runtime header
+    const modelName = document.getElementById('runtime-model-name');
+    if (modelName && rows.length) {
+      modelName.textContent = rows[0].model || '?';
+    }
   } catch (e) {
     console.warn('[tips-live] poll failed:', e);
   }
