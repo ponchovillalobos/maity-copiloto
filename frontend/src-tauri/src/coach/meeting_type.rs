@@ -325,4 +325,37 @@ mod tests {
         assert_eq!(parse_llm_response("equipo"), MeetingType::TeamMeeting);
         assert_eq!(parse_llm_response("unknown"), MeetingType::Auto);
     }
+
+    /// BUG #11 regression: el cache no debe crecer indefinidamente. Inserta
+    /// `MAX + 5` entradas y verifica que el tamaño se mantiene en `MAX`.
+    #[test]
+    fn test_cache_insert_bounded_respeta_cap() {
+        let mut cache = HashMap::new();
+        for i in 0..(DETECTION_CACHE_MAX + 5) {
+            cache_insert_bounded(&mut cache, format!("meeting-{}", i), MeetingType::Sales);
+        }
+        assert_eq!(cache.len(), DETECTION_CACHE_MAX,
+            "cache excedió el cap: esperado {}, actual {}", DETECTION_CACHE_MAX, cache.len());
+    }
+
+    /// BUG #11: una sola entrada bajo el cap no debe ser desalojada.
+    #[test]
+    fn test_cache_insert_bounded_camino_feliz() {
+        let mut cache = HashMap::new();
+        cache_insert_bounded(&mut cache, "meeting-1".to_string(), MeetingType::Sales);
+        cache_insert_bounded(&mut cache, "meeting-2".to_string(), MeetingType::Service);
+        assert_eq!(cache.len(), 2);
+        assert_eq!(cache.get("meeting-1"), Some(&MeetingType::Sales));
+        assert_eq!(cache.get("meeting-2"), Some(&MeetingType::Service));
+    }
+
+    /// BUG #11: insertar la misma key dos veces NO desaloja, solo actualiza.
+    #[test]
+    fn test_cache_insert_bounded_overwrite_no_evict() {
+        let mut cache = HashMap::new();
+        cache_insert_bounded(&mut cache, "meeting-1".to_string(), MeetingType::Sales);
+        cache_insert_bounded(&mut cache, "meeting-1".to_string(), MeetingType::Service);
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.get("meeting-1"), Some(&MeetingType::Service));
+    }
 }
