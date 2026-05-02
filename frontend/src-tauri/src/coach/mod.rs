@@ -1,9 +1,7 @@
 //! Módulo Coach — Copiloto IA en tiempo real para reuniones.
 //!
-//! Recibe ventanas de transcripción acumulada y genera sugerencias cortas
-//! (1-2 oraciones) accionables para el usuario durante la conversación.
-//!
-//! 100% local: solo proveedor Ollama permitido. Reusa `summary::llm_client`.
+//! Genera tips empáticos cortos (5-18 palabras) cada 30s vía
+//! `coach_simple_tick`. 100% local con Ollama.
 
 pub mod bookmarks;
 pub mod chat;
@@ -17,7 +15,6 @@ pub mod floating;
 pub mod meeting_chat;
 pub mod meeting_type;
 pub mod model_state;
-pub mod nudge_engine;
 pub mod parse_helpers;
 pub mod parser;
 pub mod playbook;
@@ -25,29 +22,19 @@ pub mod prompt;
 pub mod prompts;
 pub mod prospecting;
 pub mod retry;
-pub mod tip_tester;
-pub mod trigger;
 pub mod types;
 pub mod wer;
-#[cfg(test)]
-mod stress_tests;
-#[cfg(test)]
-mod perf_tests;
 
 pub use bookmarks::{coach_add_bookmark, coach_delete_bookmark, coach_get_bookmarks, Bookmark};
 pub use chat::{coach_chat, ChatResponse};
 pub use commands::{
     coach_get_models, coach_get_status, coach_set_model, coach_set_model_for_purpose,
-    coach_suggest, CoachModelsConfig, CoachStatus, CoachSuggestion,
+    CoachModelsConfig, CoachStatus, CoachSuggestion,
 };
 pub use context::{build_context, CoachContext, ContextMode};
 pub use custom_prompts::{
     coach_delete_custom_prompt, coach_list_custom_prompts, coach_save_custom_prompt,
     coach_set_active_custom_prompt, CustomPrompt,
 };
-pub use evaluator::{
-    coach_evaluate_communication, CommunicationFeedback, CommunicationObservations,
-};
+pub use evaluator::{CommunicationFeedback, CommunicationObservations};
 pub use model_state::{CHAT_MODEL, CURRENT_MODEL, EVALUATION_MODEL, SHARED_CLIENT};
-pub use nudge_engine::coach_evaluate_nudge;
-pub use trigger::{analyze_turn, coach_analyze_trigger, TriggerCategory, TriggerSignal};

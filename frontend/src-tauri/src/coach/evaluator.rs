@@ -25,6 +25,21 @@ use sqlx::SqlitePool;
 use std::time::Duration;
 use tauri::Manager;
 
+/// Cuenta muletillas en el texto del USER. Inline desde trigger.rs (eliminado v31.6).
+fn count_filler_words(text: &str) -> usize {
+    let norm: String = text.to_lowercase().chars().map(|c| match c {
+        'á'|'à'|'ä'|'â' => 'a', 'é'|'è'|'ë'|'ê' => 'e',
+        'í'|'ì'|'ï'|'î' => 'i', 'ó'|'ò'|'ö'|'ô' => 'o',
+        'ú'|'ù'|'ü'|'û' => 'u', 'ñ' => 'n', _ => c,
+    }).filter(|c| c.is_alphabetic() || c.is_whitespace()).collect();
+    let padded = format!(" {} ", norm);
+    const FILLERS: &[&str] = &[
+        " eh ", " ehh ", " este ", " o sea ", " osea ", " pues ", " tipo ",
+        " basicamente ", " digamos ", " como que ", " verdad ", " nomas ",
+    ];
+    FILLERS.iter().map(|f| padded.matches(f).count()).sum()
+}
+
 /// Observaciones detalladas por categoría.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CommunicationObservations {
@@ -81,7 +96,7 @@ pub fn compute_metrics(user_text: &str, interlocutor_text: &str, user_turn_count
     let user_words = user_text.split_whitespace().count();
     let total_words = user_words + interlocutor_text.split_whitespace().count();
 
-    let filler_count = crate::coach::trigger::count_filler_words(user_text);
+    let filler_count = count_filler_words(user_text);
 
     // Estimación de minutos de habla del USER: ~130 palabras/min en español conversacional.
     let user_speech_minutes = (user_words as f32 / 130.0).max(0.01);
@@ -166,103 +181,6 @@ fn classify_questions(user_text: &str) -> (usize, usize) {
     (open, closed)
 }
 
-const EVALUATION_SYSTEM_PROMPT: &str = r#"Eres un coach de comunicación profesional. Analiza la transcripción de una reunión y evalúa las habilidades de comunicación del usuario (identificado como "USUARIO" o "user" — el hablante del micrófono).
-
-MÉTRICAS (escala 0-10, decimales permitidos):
-- clarity: qué tan claro y comprensible es el mensaje del usuario
-- engagement: qué tan participativo e involucrado está
-- structure: qué tan organizado es el discurso
-- overall_score: puntuación general
-
-REGLAS ESTRICTAS:
-1. Responde ÚNICAMENTE con JSON válido, sin markdown, sin texto antes ni después.
-2. Sé específico y constructivo. Cita comportamientos OBSERVABLES en la transcripción.
-3. NO inventes datos. Si no hay suficiente material para una métrica, déjala en null.
-4. strengths y areas_to_improve: 2-4 elementos cada uno, MAX 15 palabras cada uno.
-5. feedback: 1-2 oraciones de resumen accionable.
-
-Formato exacto:
-{
-  "overall_score": 7.5,
-  "clarity": 8.0,
-  "engagement": 7.0,
-  "structure": 7.5,
-  "feedback": "Resumen breve y accionable",
-  "strengths": ["Fortaleza 1", "Fortaleza 2"],
-  "areas_to_improve": ["Área 1", "Área 2"],
-  "observations": {
-    "clarity": "Observación específica",
-    "structure": "Observación específica",
-    "objections": "Cómo manejó objeciones",
-    "calls_to_action": "Análisis de cierres y propuestas"
-  }
-}"#;
-
-/// Evalúa la comunicación del usuario en una transcripción completa.
-///
-/// **Privacidad**: solo usa Ollama (igual que `coach_suggest`).
-#[tauri::command]
-pub async fn coach_evaluate_communication(
-    transcript: String,
-    model: Option<String>,
-) -> Result<CommunicationFeedback, String> {
-    if transcript.trim().len() < 50 {
-        return Err("Transcripción demasiado corta para evaluar (min 50 caracteres)".to_string());
-    }
-
-    let model_to_use = model.unwrap_or_else(|| {
-        crate::coach::prompt::DEFAULT_MODEL.to_string()
-    });
-
-    let user_prompt = format!(
-        "Analiza la siguiente transcripción de reunión y evalúa al USUARIO:\n\n<transcripcion>\n{}\n</transcripcion>\n\nResponde SOLO con el JSON.",
-        transcript
-    );
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(60))
-        .build()
-        .map_err(|e| format!("Error creando cliente HTTP: {}", e))?;
-
-    let start = std::time::Instant::now();
-
-    let app_data_dir = dirs::data_dir()
-        .map(|d| d.join("com.maity.ai"))
-        .ok_or_else(|| "No se pudo resolver app_data_dir".to_string())?;
-    let raw = generate_summary(
-        &client,
-        &LLMProvider::BuiltInAI,
-        &model_to_use,
-        "",
-        EVALUATION_SYSTEM_PROMPT,
-        &user_prompt,
-        None,
-        None,
-        Some(800),
-        Some(0.3),
-        Some(0.95),
-        Some(&app_data_dir),
-        None,
-    )
-    .await
-    .map_err(|e| format!("Error LLM: {}", e))?;
-
-    let latency_ms = start.elapsed().as_millis() as u64;
-
-    let mut feedback = parse_evaluation_response(&raw)?;
-    feedback.model = Some(model_to_use);
-    feedback.latency_ms = Some(latency_ms);
-
-    Ok(feedback)
-}
-
-/// Parsea la respuesta del LLM. Tolerante a markdown wrapping y ruido.
-fn parse_evaluation_response(response: &str) -> Result<CommunicationFeedback, String> {
-    let json_str = extract_json_from_response(response);
-
-    serde_json::from_str::<CommunicationFeedback>(&json_str)
-        .map_err(|e| format!("JSON inválido del evaluador: {} | raw: {}", e, json_str))
-}
 
 /// Extrae el primer bloque JSON entre `{` y `}`. Strippea `<think>` tags Qwen3
 /// y fences markdown antes. Si el LLM truncó la salida y dejó brackets/strings
@@ -406,36 +324,6 @@ mod tests {
         assert!(parsed["tip"].as_str().unwrap().contains("hola"));
     }
 
-    #[test]
-    fn test_parse_feedback_completo() {
-        let json = r#"{
-            "overall_score": 7.5,
-            "clarity": 8.0,
-            "engagement": 7.0,
-            "structure": 7.5,
-            "feedback": "Buen ritmo y claridad",
-            "strengths": ["Claro", "Empático"],
-            "areas_to_improve": ["Cerrar con call to action"]
-        }"#;
-        let result = parse_evaluation_response(json).unwrap();
-        assert_eq!(result.overall_score, Some(7.5));
-        assert_eq!(result.clarity, Some(8.0));
-        assert_eq!(result.strengths.unwrap().len(), 2);
-    }
-
-    #[test]
-    fn test_parse_feedback_minimo() {
-        // Todos los campos opcionales, solo overall_score
-        let json = r#"{"overall_score":6.0}"#;
-        let result = parse_evaluation_response(json).unwrap();
-        assert_eq!(result.overall_score, Some(6.0));
-        assert!(result.clarity.is_none());
-    }
-
-    #[test]
-    fn test_parse_invalido() {
-        assert!(parse_evaluation_response("texto sin json").is_err());
-    }
 
     #[test]
     fn test_compute_metrics_fillers() {

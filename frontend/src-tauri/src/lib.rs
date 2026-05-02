@@ -863,11 +863,22 @@ pub fn run() {
                                         provider
                                     );
                                     if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
-                                        pool, "ollama", "gemma4:latest", "small", None
+                                        pool, "ollama", "qwen3:1.7b", "small", None
                                     ).await {
                                         log::error!("Failed to migrate summary provider: {}", e);
                                     } else {
-                                        log::info!("✅ Migrated summary provider to ollama+gemma4:latest");
+                                        log::info!("✅ Migrated summary provider to ollama+qwen3:1.7b (v31.6)");
+                                    }
+                                }
+                                // v31.6: migración legacy gemma → qwen3:1.7b (modelo unificado)
+                                let model = config.model.as_str();
+                                let is_legacy_gemma = model.starts_with("gemma3:") || model.starts_with("gemma4");
+                                if is_legacy_gemma {
+                                    log::info!("🧹 v31.6: migrando modelo legacy '{}' → qwen3:1.7b", model);
+                                    if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
+                                        pool, "ollama", "qwen3:1.7b", "small", None
+                                    ).await {
+                                        log::error!("Failed to migrate legacy model: {}", e);
                                     }
                                 }
                             }
@@ -1343,7 +1354,6 @@ pub fn run() {
             audio::import_audio::dev_import_two_audios,
             audio::import_audio::dev_list_batch_scenarios,
             audio::import_audio::check_autorun_batch_flag,
-            coach::tip_tester::dev_run_tip_tests,
             observability::iteration_log::dashboard_list_iterations,
             observability::iteration_log::dashboard_get_iteration_detail,
             observability::iteration_log::dashboard_get_summary,

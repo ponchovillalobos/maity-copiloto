@@ -19,10 +19,9 @@ use serde::Serialize;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Runtime};
 
-/// Modelo LLM default para el coach (descarga automática si falta).
-/// Modelo pequeño y rápido (4B params, 3.3GB, 39 tok/s warm, 1.7-2.7s por respuesta).
-/// Benchmark 2026-04-15: 3x más rápido que gemma4:latest.
-const DEFAULT_LLM_MODEL: &str = "gemma3:4b";
+/// Modelo LLM default unificado v31.6: qwen3:1.7b (1.79GB RAM, 8-12s tip CPU).
+/// Validado para coach empático en 8GB laptops. Reemplaza gemma3:4b/gemma4:latest.
+const DEFAULT_LLM_MODEL: &str = "qwen3:1.7b";
 /// Modelo Parakeet default.
 const DEFAULT_PARAKEET_MODEL: &str = "parakeet-tdt-0.6b-v3-int8";
 

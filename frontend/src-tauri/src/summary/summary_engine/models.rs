@@ -241,11 +241,9 @@ pub fn format_prompt(
 pub const DEFAULT_MAX_TOKENS: i32 = 4096;
 
 /// Idle timeout for sidecar (seconds) - can be overridden via LLAMA_IDLE_TIMEOUT env var.
-/// v31.3 (2026-05-02): bajado de 300s → 180s. Coach genera tips cada 30s, así
-/// que 3 minutos sin actividad indica grabación detenida o sesión inactiva.
-/// Liberar 1.79 GB del sidecar (qwen3:1.7b) es crítico en laptops 8GB.
-/// Reinicio overhead ~2-3s al próximo request — aceptable.
-pub const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 180;
+/// v31.6 (2026-05-02): 180s → 120s. Coach genera tips cada 30s; 2min sin
+/// actividad = grabación parada. Liberar 1.79GB sidecar antes en laptops 8GB.
+pub const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 120;
 
 /// Generation timeout (how long to wait for a response)
 pub const GENERATION_TIMEOUT_SECS: u64 = 900; // 15 minutes

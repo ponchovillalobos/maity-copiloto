@@ -176,20 +176,19 @@ pub async fn complete_onboarding<R: Runtime>(
     // Step 1: Save model configuration to SQLite database FIRST
     let pool = state.db_manager.pool();
 
-    // Use Ollama local (gemma4) para summaries — privacidad first, sin cloud,
-    // sin API keys. Cambiado de OpenAI gpt-4o-2024-11-20 (2026-04-11) por
-    // requisito explícito del usuario: la app NO debe llamar a APIs externas.
+    // v31.6: modelo unificado qwen3:1.7b (coach + summary). Privacidad first,
+    // 1.79GB RAM apto laptops 8GB. Reemplaza gemma4:latest.
     if let Err(e) = SettingsRepository::save_model_config(
         pool,
         "ollama",
-        "gemma4:latest",
+        "qwen3:1.7b",
         "small",  // Whisper model for summary model config (not actively used)
         None,
     ).await {
         error!("Failed to save Ollama model config: {}", e);
         return Err(format!("Failed to save Ollama model config: {}", e));
     }
-    info!("Saved summary model config: provider=ollama, model=gemma4:latest");
+    info!("Saved summary model config: provider=ollama, model=qwen3:1.7b");
 
     // Save transcription config - use Parakeet (privacy-first, optimized for CPU)
     if let Err(e) = SettingsRepository::save_transcript_config(

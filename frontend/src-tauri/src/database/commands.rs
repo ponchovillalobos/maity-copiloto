@@ -170,7 +170,7 @@ pub async fn import_and_initialize_database(
     app.manage(AppState {
         db_manager,
         active_meeting_id: std::sync::Mutex::new(None),
-        live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+        live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(40)),
         coach_tick_in_flight: std::sync::atomic::AtomicBool::new(false),
     });
 
@@ -199,20 +199,20 @@ pub async fn initialize_fresh_database(app: AppHandle) -> Result<(), String> {
     app.manage(AppState {
         db_manager: db_manager.clone(),
         active_meeting_id: std::sync::Mutex::new(None),
-        live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(60)),
+        live_transcript: std::sync::Mutex::new(std::collections::VecDeque::with_capacity(40)),
         coach_tick_in_flight: std::sync::atomic::AtomicBool::new(false),
     });
 
     // Set default model configuration for fresh installs
     let pool = db_manager.pool();
     
-    // Default Summary Model: Ollama local (gemma4:latest) — privacidad first,
-    // sin cloud, sin API keys. Cambiado de custom-openai/gpt-4o-mini (2026-04-11)
-    // por requisito explícito del usuario: la app NO debe llamar a APIs externas.
+    // v31.6: modelo default unificado qwen3:1.7b (1.79GB RAM, 8GB laptops).
+    // Reemplaza gemma4:latest/gemma3:4b — un solo modelo para coach + summary
+    // simplifica memoria, descarga, y limpia DB residual.
     if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
         pool,
         "ollama",
-        "gemma4:latest",
+        "qwen3:1.7b",
         "large-v3",       // Default whisper model (unused for Ollama but required)
         None,
     ).await {

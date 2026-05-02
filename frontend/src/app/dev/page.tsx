@@ -297,12 +297,7 @@ export default function DevImportPage() {
       }
       setRunning(false);
       setBatchCurrentIdx(list.length);
-      try {
-        const tt = await quietInvoke<{ run_id: string; tips_generated: number; avg_similarity: number }>('dev_run_tip_tests', {});
-        if (tt) console.log('[dev/batch] tip_tests:', tt);
-      } catch (e) {
-        console.warn('[dev/batch] dev_run_tip_tests failed:', e);
-      }
+      // tip_tester removed v31.6 (deleted, dev-only feature)
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);

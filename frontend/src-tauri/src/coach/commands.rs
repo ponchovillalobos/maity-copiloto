@@ -1,411 +1,16 @@
-//! Comandos Tauri del copiloto IA.
+//! Comandos Tauri del copiloto IA — única ruta v31.6.
 //!
-//! Contiene todos los comandos Tauri. Reusa tipos y helpers de:
-//! - types: CoachSuggestion, CoachStatus, CoachModelsConfig
-//! - parser: parse_llm_output, infer_tip_type
-//! - model_state: gestión de modelos Ollama
+//! coach_simple_tick (cada 30s) → sidecar local → INSERT DB → polling burbuja.
 
-use crate::coach::context::{build_context, ContextMode};
-
-// Re-exportar para mantener compatibilidad con módulos que importan desde aquí
 pub use crate::coach::model_state::{
     CHAT_MODEL, CURRENT_MODEL, EVALUATION_MODEL, SHARED_CLIENT,
 };
 pub use crate::coach::types::{CoachModelsConfig, CoachStatus, CoachSuggestion};
 
-use crate::coach::model_state::{LAST_LATENCY_MS, check_ollama_running};
-use crate::coach::parser::{infer_tip_type, parse_llm_output};
-use crate::coach::prompt::{
-    build_user_prompt_v3, MAITY_COPILOTO_V3_LITE_PROMPT, MeetingType,
-};
-use crate::coach::retry::{with_backoff, RetryConfig};
+use crate::coach::model_state::{check_ollama_running, LAST_LATENCY_MS};
 use crate::summary::llm_client::{generate_summary, LLMProvider};
-use crate::validation_helpers;
-use reqwest::Client;
-use std::sync::atomic::Ordering;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::Manager;
-use tokio_util::sync::CancellationToken;
-
-/// BUG #9: timeout duro para tips del coach. Por encima de este umbral,
-/// se cancela el sidecar para liberar `tipInFlightRef` en el frontend y
-/// permitir que el siguiente heartbeat o request manual proceda.
-const COACH_TIP_TIMEOUT_MS: u64 = 10_000;
-
-/// Genera una sugerencia de coaching v3.0 con 31 frameworks + routing explícito.
-///
-/// # Argumentos
-/// * `window` - Transcripción en vivo (frontend `buildWindow()`)
-/// * `role` - Rol del usuario (compat, no usado en v3)
-/// * `language` - Idioma (compat, el prompt v3 responde en el idioma del contexto)
-/// * `meeting_id` - Opcional: ID de la reunión activa (lee de DB si existe)
-/// * `meeting_type` - Opcional: "sales" | "service" | "webinar" | "team_meeting" | "auto"
-/// * `minute` - Minuto actual de la sesión (para timing awareness del prompt)
-/// * `previous_tips` - Lista de tips ya dados (para evitar repetición)
-/// * `suggested_category` - Pista del trigger detector (opcional)
-#[tauri::command]
-pub async fn coach_suggest(
-    app: tauri::AppHandle,
-    window: String,
-    role: String,
-    language: String,
-    meeting_id: Option<String>,
-    meeting_type: Option<String>,
-    minute: Option<u32>,
-    previous_tips: Option<Vec<String>>,
-    suggested_category: Option<String>,
-    trigger_signal: Option<String>,
-) -> Result<CoachSuggestion, String> {
-    // Validate input parameters
-    let _ = validation_helpers::validate_language(&role)?;
-    let _ = validation_helpers::validate_language(&language)?;
-
-    let validated_meeting_id = if let Some(mid) = meeting_id {
-        Some(validation_helpers::validate_meeting_id(&mid)?)
-    } else {
-        None
-    };
-
-    let validated_meeting_type = if let Some(mt) = meeting_type {
-        Some(validation_helpers::validate_string_length(&mt, "meeting_type", 50)?)
-    } else {
-        None
-    };
-
-    let validated_category = if let Some(cat) = suggested_category {
-        Some(validation_helpers::validate_string_length(&cat, "suggested_category", 100)?)
-    } else {
-        None
-    };
-
-    let model = CURRENT_MODEL
-        .lock()
-        .map_err(|e| format!("Mutex envenenado: {}", e))?
-        .clone();
-
-    // Window de contexto: tamaño máximo 600 chars para latencia <2s en CPU
-    // v20: 600→1200 chars. qwen3:1.7b ctx 16384 maneja sin problema, duplica
-    // contextualización de tips (ya validado: tips citan productos reales del audio).
-    const WINDOW_CHAR_CAP: usize = 1200;
-    let trimmed_window = if window.chars().count() > WINDOW_CHAR_CAP {
-        let total: Vec<char> = window.chars().collect();
-        let start = total.len().saturating_sub(WINDOW_CHAR_CAP);
-        total[start..].iter().collect::<String>()
-    } else {
-        window.clone()
-    };
-
-    let effective_window = if !trimmed_window.trim().is_empty() {
-        trimmed_window
-    } else if let Some(mid) = validated_meeting_id.as_ref() {
-        let state = app.try_state::<crate::state::AppState>();
-        if let Some(app_state) = state {
-            let pool = app_state.db_manager.pool();
-            build_context(pool, mid, ContextMode::Full)
-                .await
-                .map(|c| c.formatted)
-                .unwrap_or_default()
-        } else {
-            String::new()
-        }
-    } else {
-        String::new()
-    };
-
-    let mt = MeetingType::from_str_loose(validated_meeting_type.as_deref().unwrap_or("auto"));
-    let prev = previous_tips.unwrap_or_default();
-    let validated_signal = trigger_signal
-        .map(|s| validation_helpers::validate_string_length(&s, "trigger_signal", 100))
-        .transpose()?;
-
-    let user_prompt = build_user_prompt_v3(
-        &effective_window,
-        mt,
-        minute.unwrap_or(0),
-        &prev,
-        validated_category.as_deref(),
-        validated_signal.as_deref(),
-    );
-
-    log::info!(
-        "[coach_suggest v3] meeting_type={:?}, minute={}, window_chars={}, prev_tips={}, hint={:?}",
-        mt,
-        minute.unwrap_or(0),
-        effective_window.len(),
-        prev.len(),
-        validated_category
-    );
-
-    let start = Instant::now();
-
-    crate::progress_events::emit_coach_thinking(
-        &app,
-        crate::progress_events::CoachStage::Analyzing,
-        0,
-        &model,
-    );
-
-    let retry_config = RetryConfig {
-        max_attempts: 2,
-        initial_backoff_ms: 800,
-        max_total_ms: 12_000,
-        backoff_multiplier: 2.0,
-    };
-
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
-
-    // BUG #9 fix: timeout duro de 10s con CancellationToken. Antes el sidecar
-    // podía tardar hasta `GENERATION_TIMEOUT_SECS=900` (15 min) y dejaba el
-    // `tipInFlightRef` del frontend bloqueado todo ese tiempo, congelando el
-    // heartbeat y los disparos manuales. Ahora cualquier request que exceda
-    // 10s se aborta vía CancellationToken (el sidecar lo respeta en client.rs:215).
-    let cancel_token = CancellationToken::new();
-    let cancel_token_for_timeout = cancel_token.clone();
-    let timeout_handle = tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_millis(COACH_TIP_TIMEOUT_MS)).await;
-        cancel_token_for_timeout.cancel();
-        log::warn!(
-            "[coach_suggest] timeout {}ms — cancelando sidecar para liberar lock",
-            COACH_TIP_TIMEOUT_MS
-        );
-    });
-
-    let raw_result = with_backoff(&retry_config, "coach_suggest", |_attempt| {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(60))
-            .pool_max_idle_per_host(2)
-            .build();
-
-        let user_prompt_clone = user_prompt.clone();
-        let model_clone = model.clone();
-        let data_dir_clone = app_data_dir.clone();
-        let cancel_token_clone = cancel_token.clone();
-
-        async move {
-            let client = client.map_err(|e| format!("Failed to create HTTP client: {}", e))?;
-            generate_summary(
-                &client,
-                &LLMProvider::BuiltInAI,
-                &model_clone,
-                "",
-                MAITY_COPILOTO_V3_LITE_PROMPT,
-                &user_prompt_clone,
-                None,
-                None,
-                Some(80), // BUG #1 fix: 80 tokens (≈12 palabras + JSON wrapper). Antes pasaba 35 pero el sidecar usaba 4096.
-                Some(0.3),
-                Some(0.7),
-                Some(&data_dir_clone),
-                Some(&cancel_token_clone),
-            )
-            .await
-        }
-    })
-    .await;
-
-    // Cancelar el timer si la generación terminó antes — evita un cancel() tardío
-    // que afectaría requests futuros del shared sidecar.
-    timeout_handle.abort();
-
-    let raw = match raw_result {
-        Ok(r) => r,
-        Err(e) => {
-            crate::progress_events::emit_coach_thinking(
-                &app,
-                crate::progress_events::CoachStage::Error,
-                start.elapsed().as_millis() as u64,
-                &model,
-            );
-            return Err(format!(
-                "Coach IA no responde — sidecar local llama-helper saturado o el modelo no se descargó: {}",
-                e
-            ));
-        }
-    };
-
-    let latency_ms = start.elapsed().as_millis() as u64;
-    LAST_LATENCY_MS.store(latency_ms, Ordering::Relaxed);
-
-    crate::progress_events::emit_coach_thinking(
-        &app,
-        crate::progress_events::CoachStage::Done,
-        latency_ms,
-        &model,
-    );
-
-    log::info!("[coach_suggest] raw LLM output ({} chars): {}", raw.len(), raw.chars().take(400).collect::<String>());
-    let parsed = match parse_llm_output(&raw) {
-        Ok(p) => {
-            log::info!("[coach_suggest] parsed OK — tip='{}', confidence={}", p.tip, p.confidence);
-            p
-        }
-        Err(e) => {
-            log::warn!("[coach_suggest] parse FAILED: {}", e);
-            return Err(e);
-        }
-    };
-
-    // Derivar priority si el LLM no la provee, basado en confidence.
-    let priority = parsed.priority.unwrap_or_else(|| {
-        if parsed.confidence >= 0.85 {
-            "critical".to_string()
-        } else if parsed.confidence >= 0.6 {
-            "important".to_string()
-        } else {
-            "soft".to_string()
-        }
-    });
-
-    // V3.1: tip_type del LLM o inferido.
-    let tip_type = parsed
-        .tip_type
-        .filter(|t| matches!(t.as_str(), "recognition" | "observation" | "corrective" | "introspective"))
-        .unwrap_or_else(|| infer_tip_type(&parsed.tip, &priority));
-
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-
-    let suggestion = CoachSuggestion {
-        tip: parsed.tip.clone(),
-        category: parsed.category.clone(),
-        subcategory: parsed.subcategory.clone(),
-        technique: parsed.technique.clone(),
-        priority: priority.clone(),
-        confidence: parsed.confidence,
-        tip_type: tip_type.clone(),
-        timestamp,
-        model: model.clone(),
-        latency_ms,
-        id: None, // se llena en coach_get_recent_tips desde la columna id de la tabla
-    };
-
-    // v28 F5: aplicar filtros ANTES de INSERT. Antes Rust persistía TODO,
-    // pero frontend filtraba después → dashboard veía tips que floating no.
-    // Ahora: si Rust descarta, no INSERT, no devuelve tip. Sync total.
-    let tip_lower = parsed.tip.to_lowercase();
-    let vague_words = [
-        "empatiza", "empatía", "rapport", "escucha activa", "sé empático",
-        "muestra interés", "conecta con", "establece confianza",
-    ];
-    let is_vague = vague_words.iter().any(|w| tip_lower.contains(w))
-        && !parsed.tip.contains('\'') && !parsed.tip.contains(':');
-    let has_quoted_phrase = parsed.tip.contains('\'') || parsed.tip.contains(':');
-    let needs_phrase = matches!(tip_type.as_str(), "corrective" | "observation");
-
-    // BUG #2 fix: alineado con MIN_CONFIDENCE=0.30 del frontend (CoachContext.tsx:284).
-    // Antes 0.55 silenciaba tips útiles que el frontend hubiera aceptado.
-    if parsed.confidence < 0.30 {
-        log::info!("[coach_suggest] descartado: confidence {} < 0.30", parsed.confidence);
-        return Err(format!("Tip descartado por baja confianza ({})", parsed.confidence));
-    }
-    if is_vague {
-        log::info!("[coach_suggest] descartado: tip vago/genérico: {}", parsed.tip);
-        return Err("Tip descartado por vaguedad".to_string());
-    }
-    if needs_phrase && !has_quoted_phrase {
-        log::info!("[coach_suggest] descartado: {} sin frase concreta: {}", tip_type, parsed.tip);
-        return Err(format!("Tip {} requiere frase concreta entre comillas", tip_type));
-    }
-
-    // v26+v28: persistir tip a coach_tips_log SOLO si pasó filtros.
-    // Garantiza que dashboard y floating vean los MISMOS tips.
-    if let Some(state) = app.try_state::<crate::state::AppState>() {
-        let pool = state.db_manager.pool();
-        let _ = sqlx::query(
-            "INSERT INTO coach_tips_log (
-                meeting_id, tip, category, subcategory, technique, priority,
-                tip_type, confidence, latency_ms, model, minute, trigger_signal,
-                suggested_category
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&validated_meeting_id)
-        .bind(&parsed.tip)
-        .bind(&parsed.category)
-        .bind(&parsed.subcategory)
-        .bind(&parsed.technique)
-        .bind(&priority)
-        .bind(&tip_type)
-        .bind(parsed.confidence as f64)
-        .bind(latency_ms as i64)
-        .bind(&model)
-        .bind(minute.map(|m| m as i64).unwrap_or(0))
-        .bind(&validated_signal)
-        .bind(&validated_category)
-        .execute(pool)
-        .await;
-    }
-
-    // BUG #12 fix (2026-05-02 runtime detection): emit `coach-tip-update`
-    // DIRECTAMENTE desde el backend a TODAS las webviews + emit_to específico
-    // a "coach-floating". El frontend también emite vía `pushSuggestion()`,
-    // pero en Windows con webviews transparent+decorations:false el `emit()`
-    // global del frontend a veces NO se propaga a la flotante (problema de
-    // routing IPC observado en runtime: tips se generaban e insertaban en DB,
-    // pero la burbuja flotante nunca los recibía).
-    //
-    // Doble estrategia para garantizar entrega:
-    //   1. `app.emit(...)` — broadcast global a todas las webviews
-    //   2. `app.emit_to("coach-floating", ...)` — directo al label de la
-    //      burbuja, bypass del routing global
-    //
-    // BUG #12.1 (2026-05-02 análisis externo): el emit backend bypassa la
-    // dedup del frontend → riesgo de mostrar tips repetidos. Mitigación:
-    // dedup pre-emit verificando si el mismo tip exacto se emitió en los
-    // últimos 60s del mismo meeting. Filtros más complejos (audience mode,
-    // Jaccard >0.40) siguen en el frontend; el backend cubre solo el caso
-    // común de "modelo genera el mismo string varias veces seguidas".
-    use tauri::{Emitter, EventTarget};
-
-    let mut should_emit = true;
-    if let Some(state) = app.try_state::<crate::state::AppState>() {
-        if let Some(mid) = &validated_meeting_id {
-            let pool = state.db_manager.pool();
-            // Última fila INSERTada para este meeting (la actual). Comparamos
-            // contra las anteriores recientes para detectar repetición exacta.
-            let recent: Result<Vec<(String,)>, _> = sqlx::query_as(
-                "SELECT tip FROM coach_tips_log
-                 WHERE meeting_id = ? AND created_at > datetime('now','-60 seconds')
-                 ORDER BY id DESC LIMIT 6 OFFSET 1",
-            )
-            .bind(mid)
-            .fetch_all(pool)
-            .await;
-            if let Ok(rows) = recent {
-                if rows.iter().any(|(t,)| t.trim() == suggestion.tip.trim()) {
-                    log::info!("[coach_suggest] dedup backend: tip exacto repetido en últimos 60s, skip emit");
-                    should_emit = false;
-                }
-            }
-        }
-    }
-
-    if should_emit {
-        let payload_json = match serde_json::to_value(&suggestion) {
-            Ok(v) => v,
-            Err(e) => {
-                log::error!("[coach_suggest] serde JSON falló: {}", e);
-                serde_json::json!({})
-            }
-        };
-        if let Err(e) = app.emit("coach-tip-update", &payload_json) {
-            log::warn!("[coach_suggest] fallo emit global coach-tip-update: {}", e);
-        } else {
-            log::info!("[coach_suggest] emit global coach-tip-update OK ({})", suggestion.tip.chars().take(50).collect::<String>());
-        }
-        if let Err(e) = app.emit_to(EventTarget::webview_window("coach-floating"), "coach-tip-update", &payload_json) {
-            log::warn!("[coach_suggest] fallo emit_to coach-floating: {}", e);
-        } else {
-            log::info!("[coach_suggest] emit_to coach-floating OK");
-        }
-    }
-
-    Ok(suggestion)
-}
 
 /// v28 F4: comando para que floating window cargue tips ya generados al abrir.
 /// Sin este catch-up, si la ventana flotante abre tarde pierde el histórico.
@@ -512,27 +117,6 @@ pub async fn coach_remap_meeting_id(
         final_meeting_id
     );
     Ok(affected)
-}
-
-/// BUG #13 fix (2026-05-02): puente cross-webview para "pedir tip" desde la
-/// burbuja flotante. En Tauri 2 `emit()` desde frontend SOLO entrega listeners
-/// en la misma webview. La burbuja "coach-floating" emitía `coach-request-tip`
-/// pero CoachContext (en webview "main") nunca lo recibía → triggerNow NUNCA
-/// se invocaba → 0 tips manuales por sesión. Este comando hace el puente:
-/// burbuja invoca este Tauri command, Rust emite `coach-request-tip` con
-/// `app.emit()` global que SÍ entrega a TODAS las webviews registradas
-/// (verificado en Tauri 2.6.2 + capability `core:event:default`).
-#[tauri::command]
-pub async fn coach_request_tip_bridge(
-    app: tauri::AppHandle,
-    source: Option<String>,
-) -> Result<(), String> {
-    use tauri::Emitter;
-    let payload = serde_json::json!({ "source": source.unwrap_or_else(|| "unknown".to_string()) });
-    app.emit("coach-request-tip", &payload)
-        .map_err(|e| format!("Fallo emit coach-request-tip: {}", e))?;
-    log::info!("[coach_request_tip_bridge] emit coach-request-tip OK");
-    Ok(())
 }
 
 /// SIMPLE LOOP v30 (2026-05-02): pipeline mínimo end-to-end.
@@ -658,19 +242,22 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.5: prompt CORTO y operativo. El v31.4 cargaba el modelo con 30
-    // líneas (Voss/SPIN/Cialdini/Rogers) lo que aumentaba latencia y a veces
-    // confundía al modelo pequeño. Recomendación auditoría externa: instruir
-    // intención simple y dejar que el modelo elija el marco.
-    let system_prompt = "Eres Maity, coach del vendedor. Da UN tip corto y EMPÁTICO basado SOLO en lo dicho.";
+    // v31.6: prompt empático puro. Foco: ESCUCHAR sin juzgar, ENTENDER al
+    // otro, CONECTAR con su emoción. NUNCA presionar/cerrar. El tip siempre
+    // es para conectar, validar, profundizar comprensión, o desactivar
+    // objeción con curiosidad genuina.
+    let system_prompt = "Eres Maity. Coach del vendedor. Tu único objetivo: ayudarlo a ESCUCHAR, ENTENDER y CONECTAR con el cliente. Nunca presionar.";
     let user_prompt = format!(
         "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
-         Reglas:\n\
-         - Empatía primero: reconoce emoción del cliente con sus palabras.\n\
-         - Acción concreta: pregunta abierta o siguiente paso.\n\
-         - Verbo imperativo al inicio (Reconoce, Pregunta, Refleja, Valida, Propón, Aclara, Cierra…).\n\
-         - Máximo 18 palabras. Solo lo que aparece en el transcript.\n\
-         - Si no hay base útil, responde EXACTAMENTE: SIN_TIP\n\n\
+         Da UN tip corto (5-15 palabras) que ayude al vendedor a:\n\
+         - CONECTAR con la emoción del cliente sin juzgar.\n\
+         - ENTENDER más profundo lo que el cliente dice o calla.\n\
+         - VALIDAR su preocupación con sus propias palabras.\n\
+         - Si hay OBJECIÓN: convertirla en pregunta de poder ('¿qué te haría sentir tranquilo?').\n\
+         - Si hay duda: REFLEJAR y dejar silencio.\n\
+         Verbo imperativo al inicio: Refleja, Reconoce, Valida, Pregunta, Aclara, Conecta, Profundiza, Escucha.\n\
+         PROHIBIDO: cerrar, presionar, vender, proponer producto, dar consejo unilateral.\n\
+         Solo usa palabras del transcript. Si no hay base, responde EXACTAMENTE: SIN_TIP\n\n\
          Tip:",
         window_capped
     );
@@ -767,21 +354,21 @@ pub async fn coach_simple_tick(
         .unwrap_or("")
         .trim_end_matches(|c: char| !c.is_alphabetic())
         .to_lowercase();
-    // v31.4: lista ampliada con verbos del prompt empático.
+    // v31.6: solo verbos empáticos. Quitados "cierra", "propón", "vende" que
+    // sugieren presión. El coach SIEMPRE invita a escuchar/conectar/entender.
     let verbos_validos = [
-        // Coaching/comunicación
-        "pregunta", "preguntá", "reformula", "resume", "profundiza",
-        "cita", "aclara", "confirma", "cierra", "propón", "propon",
-        "valida", "reconoce", "espera", "explora", "cuestiona", "verifica",
-        "agradece", "muestra", "comparte", "destaca", "menciona", "sugiere",
-        "ofrece", "haz", "di", "responde", "escucha", "explica", "describe",
-        "anota", "señala", "pide", "pídele", "pidele", "indaga",
-        // v31.4 empatía + Voss + SPIN + servicio
-        "refleja", "etiqueta", "mirror", "acompaña", "acompana", "acepta",
-        "abraza", "respira", "calma", "tranquiliza", "asiente", "concede",
-        "empatiza", "comprende", "humaniza", "personaliza", "asume",
-        "encárgate", "encargate", "soluciona", "resuelve", "actúa", "actua",
-        "reformúlale", "reformulale", "devuelve", "espeja", "anticipa",
+        // Conectar
+        "refleja", "espeja", "mirror", "etiqueta", "valida", "reconoce",
+        "acompaña", "acompana", "acepta", "abraza", "asiente", "concede",
+        "empatiza", "comprende", "humaniza", "personaliza", "conecta",
+        // Entender
+        "pregunta", "preguntá", "indaga", "explora", "aclara", "profundiza",
+        "cuestiona", "verifica", "confirma", "escucha", "anota",
+        // Calmar / desactivar
+        "respira", "calma", "tranquiliza", "espera", "silencio",
+        // Reformular sin presionar
+        "reformula", "reformúlale", "reformulale", "devuelve", "resume",
+        "cita", "menciona", "señala",
     ];
     if !verbos_validos.contains(&primera_palabra.as_str()) {
         log::info!("[coach_simple_tick] tip rechazado: no empieza con verbo imperativo (\"{}\")", primera_palabra);
@@ -907,7 +494,7 @@ pub async fn coach_push_transcript_chunk(
     }
 
     buf.push_back((speaker, trimmed.to_string()));
-    while buf.len() > 60 {
+    while buf.len() > 40 {
         buf.pop_front();
     }
     Ok(())
