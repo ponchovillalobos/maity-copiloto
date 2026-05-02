@@ -340,74 +340,71 @@ export default function FloatingPage() {
         </button>
       </div>
 
-      {/* SECCIÓN: TIP ACTUAL — tip actual GRANDE arriba + botones para nav historial. */}
+      {/* v26.2: SECCIÓN TIPS — vista scroll con TODOS los tips visibles. */}
       {section === 'tip' && (
-        <div
-          className="flex-1 rounded-lg border p-3 flex flex-col min-h-0 overflow-hidden"
-          style={{
-            background: tip ? `linear-gradient(135deg, ${tipColor}1a 0%, rgba(255,255,255,0.04) 100%)` : 'rgba(255,255,255,0.04)',
-            borderColor: tip ? `${tipColor}55` : 'rgba(255,255,255,0.08)',
-          }}
-        >
-          <div className="flex items-center justify-between mb-2 flex-shrink-0">
-            <div className="flex items-center gap-1.5">
-              {tip ? (
-                <>
-                  {prio.label === 'Crítico'
-                    ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: tipColor }} />
-                    : <Sparkles className="w-3.5 h-3.5" style={{ color: tipColor }} />}
-                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: tipColor }}>
-                    {prio.label}
-                  </span>
-                  {tip.category && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 font-semibold">
-                      {cat.label}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <>
-                  <MessageCircle className="w-3.5 h-3.5 text-white/50" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-                    {requestingTip ? 'Generando tip…' : 'Esperando'}
-                  </span>
-                </>
-              )}
-            </div>
-            {totalTips > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={goPrev}
-                  disabled={!canPrev}
-                  className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed text-white transition"
-                  title="Tip anterior"
-                  aria-label="Tip anterior"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-[10px] tabular-nums text-white/80 px-1.5 font-semibold">
-                  {tipIndex + 1}/{totalTips}
-                </span>
-                <button
-                  onClick={goNext}
-                  disabled={!canNext}
-                  className="w-7 h-7 flex items-center justify-center rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-25 disabled:cursor-not-allowed text-white transition"
-                  title="Tip siguiente"
-                  aria-label="Tip siguiente"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+        <div className="flex-1 rounded-lg border p-2 flex flex-col min-h-0 overflow-hidden bg-white/4 border-white/10">
+          <div className="flex items-center justify-between mb-2 flex-shrink-0 px-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/70">
+              Tips coach ({totalTips})
+            </span>
+            {requestingTip && (
+              <span className="text-[10px] text-white/60 italic flex items-center gap-1">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                generando…
+              </span>
             )}
           </div>
 
-          <div className="text-[14px] text-white/95 leading-relaxed overflow-y-auto custom-scrollbar flex-1 font-medium">
-            {tip?.tip || (
-              <div className="text-white/55 text-xs italic">
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+            {tipsHistory.length === 0 ? (
+              <div className="text-white/55 text-xs italic text-center py-6">
                 {requestingTip
-                  ? 'Generando tu tip… puede tardar 10-30 segundos en CPU.'
-                  : 'Habla con tu interlocutor o haz clic en "Pedir tip ahora" para recibir consejo del coach.'}
+                  ? 'Generando primer tip… puede tardar 4-10 segundos.'
+                  : 'Sin tips aún. Empezá grabación o presioná "Pedir tip ahora".'}
               </div>
+            ) : (
+              tipsHistory.map((t, idx) => {
+                const tprio = priorityMeta(t.priority);
+                const tcat = categoryMeta(t.category);
+                const tcolor = tprio.hex;
+                const isLatest = idx === 0;
+                return (
+                  <div
+                    key={`${t.tip}-${idx}`}
+                    className="rounded-md border p-2"
+                    style={{
+                      background: `linear-gradient(135deg, ${tcolor}1a 0%, rgba(255,255,255,0.04) 100%)`,
+                      borderColor: `${tcolor}55`,
+                      borderWidth: isLatest ? '2px' : '1px',
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {tprio.label === 'Crítico'
+                        ? <AlertTriangle className="w-3 h-3" style={{ color: tcolor }} />
+                        : <Sparkles className="w-3 h-3" style={{ color: tcolor }} />}
+                      <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: tcolor }}>
+                        {tprio.label}
+                      </span>
+                      {t.category && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/10 text-white/60 font-semibold">
+                          {tcat.label}
+                        </span>
+                      )}
+                      {isLatest && (
+                        <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold ml-auto">
+                          NUEVO
+                        </span>
+                      )}
+                      <span className={`text-[8px] text-white/40 ${isLatest ? '' : 'ml-auto'}`}>
+                        #{tipsHistory.length - idx}
+                      </span>
+                    </div>
+                    <div className="text-[12px] text-white/95 leading-snug font-medium">
+                      {t.tip}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
           {/* Botón "Pedir tip ahora" — con estado generando. */}
