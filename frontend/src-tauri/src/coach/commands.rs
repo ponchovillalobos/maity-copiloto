@@ -25,6 +25,12 @@ use reqwest::Client;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::Manager;
+use tokio_util::sync::CancellationToken;
+
+/// BUG #9: timeout duro para tips del coach. Por encima de este umbral,
+/// se cancela el sidecar para liberar `tipInFlightRef` en el frontend y
+/// permitir que el siguiente heartbeat o request manual proceda.
+const COACH_TIP_TIMEOUT_MS: u64 = 10_000;
 
 /// Genera una sugerencia de coaching v3.0 con 31 frameworks + routing explícito.
 ///
@@ -151,6 +157,22 @@ pub async fn coach_suggest(
         .app_data_dir()
         .map_err(|e| format!("No se pudo obtener app_data_dir: {}", e))?;
 
+    // BUG #9 fix: timeout duro de 10s con CancellationToken. Antes el sidecar
+    // podía tardar hasta `GENERATION_TIMEOUT_SECS=900` (15 min) y dejaba el
+    // `tipInFlightRef` del frontend bloqueado todo ese tiempo, congelando el
+    // heartbeat y los disparos manuales. Ahora cualquier request que exceda
+    // 10s se aborta vía CancellationToken (el sidecar lo respeta en client.rs:215).
+    let cancel_token = CancellationToken::new();
+    let cancel_token_for_timeout = cancel_token.clone();
+    let timeout_handle = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(COACH_TIP_TIMEOUT_MS)).await;
+        cancel_token_for_timeout.cancel();
+        log::warn!(
+            "[coach_suggest] timeout {}ms — cancelando sidecar para liberar lock",
+            COACH_TIP_TIMEOUT_MS
+        );
+    });
+
     let raw_result = with_backoff(&retry_config, "coach_suggest", |_attempt| {
         let client = Client::builder()
             .timeout(Duration::from_secs(60))
@@ -160,6 +182,7 @@ pub async fn coach_suggest(
         let user_prompt_clone = user_prompt.clone();
         let model_clone = model.clone();
         let data_dir_clone = app_data_dir.clone();
+        let cancel_token_clone = cancel_token.clone();
 
         async move {
             let client = client.map_err(|e| format!("Failed to create HTTP client: {}", e))?;
@@ -172,16 +195,20 @@ pub async fn coach_suggest(
                 &user_prompt_clone,
                 None,
                 None,
-                Some(35), // v27: máx 35 tokens output (~12 palabras tip + JSON wrapper). Antes 50.
+                Some(80), // BUG #1 fix: 80 tokens (≈12 palabras + JSON wrapper). Antes pasaba 35 pero el sidecar usaba 4096.
                 Some(0.3),
                 Some(0.7),
                 Some(&data_dir_clone),
-                None,
+                Some(&cancel_token_clone),
             )
             .await
         }
     })
     .await;
+
+    // Cancelar el timer si la generación terminó antes — evita un cancel() tardío
+    // que afectaría requests futuros del shared sidecar.
+    timeout_handle.abort();
 
     let raw = match raw_result {
         Ok(r) => r,
@@ -193,7 +220,7 @@ pub async fn coach_suggest(
                 &model,
             );
             return Err(format!(
-                "Coach IA no responde — Ollama puede estar saturado o el modelo no disponible: {}",
+                "Coach IA no responde — sidecar local llama-helper saturado o el modelo no se descargó: {}",
                 e
             ));
         }
@@ -269,8 +296,10 @@ pub async fn coach_suggest(
     let has_quoted_phrase = parsed.tip.contains('\'') || parsed.tip.contains(':');
     let needs_phrase = matches!(tip_type.as_str(), "corrective" | "observation");
 
-    if parsed.confidence < 0.55 {
-        log::info!("[coach_suggest] descartado: confidence {} < 0.55", parsed.confidence);
+    // BUG #2 fix: alineado con MIN_CONFIDENCE=0.30 del frontend (CoachContext.tsx:284).
+    // Antes 0.55 silenciaba tips útiles que el frontend hubiera aceptado.
+    if parsed.confidence < 0.30 {
+        log::info!("[coach_suggest] descartado: confidence {} < 0.30", parsed.confidence);
         return Err(format!("Tip descartado por baja confianza ({})", parsed.confidence));
     }
     if is_vague {
@@ -369,6 +398,45 @@ pub async fn coach_get_recent_tips(
     Ok(tips)
 }
 
+/// BUG #7 fix: durante la grabación los tips se guardan con `meeting-${Date.now()}`
+/// (TranscriptContext.tsx:100), pero al cerrar la reunión SQLite recibe un UUID
+/// distinto. Sin remap los tips quedan huérfanos — la vista de detalle muestra
+/// "0 tips" aunque sí se generaron varios.
+///
+/// Este comando se invoca desde `useRecordingStop.ts` justo después de `saveMeeting`
+/// con (temp_meeting_id, final_meeting_id) y reasigna los tips al ID definitivo.
+#[tauri::command]
+pub async fn coach_remap_meeting_id(
+    app: tauri::AppHandle,
+    temp_meeting_id: String,
+    final_meeting_id: String,
+) -> Result<u64, String> {
+    if temp_meeting_id.trim().is_empty() || final_meeting_id.trim().is_empty() {
+        return Err("temp_meeting_id y final_meeting_id no pueden estar vacíos".to_string());
+    }
+    if temp_meeting_id == final_meeting_id {
+        return Ok(0);
+    }
+    let state = app
+        .try_state::<crate::state::AppState>()
+        .ok_or_else(|| "AppState no disponible".to_string())?;
+    let pool = state.db_manager.pool();
+    let result = sqlx::query("UPDATE coach_tips_log SET meeting_id = ? WHERE meeting_id = ?")
+        .bind(&final_meeting_id)
+        .bind(&temp_meeting_id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("DB error remapeando tips: {}", e))?;
+    let affected = result.rows_affected();
+    log::info!(
+        "[coach_remap_meeting_id] {} tips reasignados de {} a {}",
+        affected,
+        temp_meeting_id,
+        final_meeting_id
+    );
+    Ok(affected)
+}
+
 /// Cambia el modelo activo del coach.
 ///
 /// Acepta cualquier modelo Ollama instalado (validación delegada al runtime).
@@ -436,12 +504,17 @@ pub async fn coach_get_status() -> Result<CoachStatus, String> {
         .map_err(|e| format!("Mutex envenenado: {}", e))?
         .clone();
 
-    let ollama_running = check_ollama_running().await;
+    // BUG #3 fix: el sistema usa sidecar BuiltInAI (`llama-helper.exe`), no Ollama.
+    // `check_ollama_running` es código residual de la arquitectura previa. Reportamos
+    // "IA disponible" si el sidecar local responde sano; si el usuario aún tiene
+    // Ollama instalado lo aceptamos como segundo backend (OR).
+    let sidecar_ready =
+        crate::summary::summary_engine::is_sidecar_healthy().await || check_ollama_running().await;
     let last_latency_ms = LAST_LATENCY_MS.load(std::sync::atomic::Ordering::Relaxed);
 
     Ok(CoachStatus {
         model,
-        ollama_running,
+        ollama_running: sidecar_ready,
         last_latency_ms,
     })
 }

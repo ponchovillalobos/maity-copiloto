@@ -119,9 +119,14 @@ export default function FloatingPage() {
     // v28.1 F4 fix: catch-up SOLO si hay grabación activa de la sesión actual.
     // Bug v28: cargaba histórico global → 37 tips antiguos al iniciar.
     // Ahora: solo carga si meetingId activo. Sin meeting = empieza vacío.
+    // BUG #4 fix (2026-05-01): la clave era `active_meeting_id`, que nunca se
+    // escribía en ningún lado. La clave real que setea TranscriptContext.tsx:104
+    // (al iniciar grabación) y limpia useRecordingStop.ts:275 es
+    // `indexeddb_current_meeting_id`. Sin este fix, abrir la burbuja después de
+    // iniciar grabación nunca cargaba los tips ya generados.
     (async () => {
       try {
-        const activeMeetingId = sessionStorage.getItem('active_meeting_id');
+        const activeMeetingId = sessionStorage.getItem('indexeddb_current_meeting_id');
         if (!activeMeetingId) {
           // Sin sesión activa = floating empieza limpio
           return;

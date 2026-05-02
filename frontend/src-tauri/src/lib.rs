@@ -309,12 +309,11 @@ struct RecordingArgs {
     save_path: String,
 }
 
-#[derive(Debug, Serialize, Clone)]
-struct TranscriptionStatus {
-    chunks_in_queue: usize,
-    is_processing: bool,
-    last_activity_ms: u64,
-}
+// BUG #5 fix: TranscriptionStatus se importa desde audio::recording_commands.
+// Antes había una struct local duplicada aquí + un stub que devolvía siempre
+// (0, false, 0); ahora se reusa la pub real para que la versión registrada en
+// `invoke_handler!` refleje el estado verdadero del worker de transcripción.
+use audio::recording_commands::TranscriptionStatus;
 
 #[tauri::command]
 async fn start_recording<R: Runtime>(
@@ -465,13 +464,14 @@ async fn is_recording() -> bool {
     audio::recording_commands::is_recording().await
 }
 
+/// BUG #5 fix: antes era stub literal `(0, false, 0)`. `useRecordingStop` esperaba
+/// `is_processing=false` para concluir, pero el stub siempre devolvía false → la app
+/// avanzaba mientras la transcripción todavía estaba procesando los últimos chunks.
+/// Ahora delega a la implementación real en `audio::recording_commands` (mismo patrón
+/// que `is_recording` arriba).
 #[tauri::command]
-fn get_transcription_status() -> TranscriptionStatus {
-    TranscriptionStatus {
-        chunks_in_queue: 0,
-        is_processing: false,
-        last_activity_ms: 0,
-    }
+async fn get_transcription_status() -> TranscriptionStatus {
+    audio::recording_commands::get_transcription_status().await
 }
 
 /// Health check endpoint for frontend connectivity monitoring
@@ -1329,6 +1329,7 @@ pub fn run() {
             coach::commands::coach_get_models,
             coach::commands::coach_get_status,
             coach::commands::coach_get_recent_tips,
+            coach::commands::coach_remap_meeting_id,
             coach::evaluator::coach_evaluate_communication,
             coach::evaluator::coach_evaluate_post_meeting,
             coach::evaluator::coach_get_post_meeting_evaluation,

@@ -22,6 +22,22 @@ use std::time::Duration;
 static DETECTION_CACHE: LazyLock<Mutex<HashMap<String, MeetingType>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// BUG #11: tope del cache para evitar memory leak en sesiones largas.
+/// 128 reuniones distintas en una sesión es suficiente — al exceder se elimina
+/// una entrada arbitraria (HashMap no garantiza orden, pero el coste por miss
+/// es solo re-clasificar con LLM ~2s una sola vez).
+const DETECTION_CACHE_MAX: usize = 128;
+
+/// Inserta en el cache aplicando eviction si excede `DETECTION_CACHE_MAX`.
+fn cache_insert_bounded(cache: &mut HashMap<String, MeetingType>, key: String, value: MeetingType) {
+    if cache.len() >= DETECTION_CACHE_MAX {
+        if let Some(victim) = cache.keys().next().cloned() {
+            cache.remove(&victim);
+        }
+    }
+    cache.insert(key, value);
+}
+
 /// Heurística rápida: cuenta keywords y devuelve la categoría con más matches.
 /// Devuelve `None` si no hay señal clara (2+ keywords en una categoría).
 pub fn heuristic_detect(text: &str) -> Option<MeetingType> {
@@ -167,7 +183,7 @@ pub async fn detect_meeting_type(
         log::info!("[meeting_type] heurística detectó: {:?}", mt);
         if let Some(mid) = meeting_id {
             if let Ok(mut cache) = DETECTION_CACHE.lock() {
-                cache.insert(mid.to_string(), mt);
+                cache_insert_bounded(&mut cache, mid.to_string(), mt);
             }
         }
         return mt;
@@ -226,7 +242,7 @@ pub async fn detect_meeting_type(
             );
             if let Some(mid) = meeting_id {
                 if let Ok(mut cache) = DETECTION_CACHE.lock() {
-                    cache.insert(mid.to_string(), mt);
+                    cache_insert_bounded(&mut cache, mid.to_string(), mt);
                 }
             }
             mt

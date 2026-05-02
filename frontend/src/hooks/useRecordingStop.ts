@@ -249,6 +249,11 @@ export function useRecordingStop(
         });
 
         try {
+          // BUG #7 fix: capturar el ID temporal con el que el coach insertó tips
+          // ANTES de llamar a saveMeeting (que recibe UUID final distinto). Sin
+          // este remap los tips quedan huérfanos en coach_tips_log.
+          const tempMeetingIdForRemap = sessionStorage.getItem('indexeddb_current_meeting_id');
+
           const responseData = await storageService.saveMeeting(
             savedMeetingName || meetingTitle || 'New Meeting',  // PREFER savedMeetingName (backend source)
             freshTranscripts,
@@ -264,6 +269,21 @@ export function useRecordingStop(
           logger.debug('✅ Successfully saved COMPLETE meeting with ID:', meetingId);
           logger.debug('   Transcripts:', freshTranscripts.length);
           logger.debug('   folder_path:', folderPath);
+
+          // BUG #7 fix: reasignar tips del coach del ID temporal al UUID final.
+          // Fire-and-forget — no bloquear el flujo si falla.
+          if (tempMeetingIdForRemap && tempMeetingIdForRemap !== meetingId) {
+            try {
+              const { invoke } = await import('@tauri-apps/api/core');
+              const remapped = await invoke<number>('coach_remap_meeting_id', {
+                tempMeetingId: tempMeetingIdForRemap,
+                finalMeetingId: meetingId,
+              });
+              logger.debug(`🔁 Coach tips remapped: ${remapped} rows (${tempMeetingIdForRemap} → ${meetingId})`);
+            } catch (err) {
+              logger.warn('Coach tips remap failed (non-blocking):', err);
+            }
+          }
 
           // Mark meeting as saved in IndexedDB (for recovery system)
           await markMeetingAsSaved();

@@ -40,7 +40,7 @@ impl LLMProvider {
 /// # Returns
 /// The generated summary text or an error message
 pub async fn generate_summary(
-    client: &Client,
+    _client: &Client,
     provider: &LLMProvider,
     model_name: &str,
     api_key: &str,
@@ -72,6 +72,7 @@ pub async fn generate_summary(
             system_prompt,
             user_prompt,
             cancellation_token,
+            max_tokens.map(|n| n as i32),
         )
         .await
         .map_err(|e| e.to_string());

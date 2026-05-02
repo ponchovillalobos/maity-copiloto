@@ -601,15 +601,11 @@ pub async fn stop_recording<R: Runtime>(
         }
     }
 
-    // Step 1.5: Clean up transcript listener to release microphone
-    // Unlisten transcript-update event to prevent lingering references
-    {
-        use tauri::Listener;
-        if let Some(listener_id) = TRANSCRIPT_LISTENER_ID.lock().map_err(|e| format!("Lock poisoned: {}", e))?.take() {
-            app.unlisten(listener_id);
-            info!("✅ Transcript-update listener removed");
-        }
-    }
+    // BUG #6 fix: el listener `transcript-update` se eliminaba aquí (Step 1.5)
+    // ANTES de esperar a `task_handle` en Step 2. Los últimos chunks que la tarea
+    // emitía durante el shutdown llegaban sin listener → se perdían silenciosamente.
+    // Movido a Step 2.5 (después del await de la tarea) para garantizar que toda
+    // emisión del worker tenga listener activo hasta que la tarea termine.
 
     // Step 2: Signal transcription workers to finish processing ALL queued chunks
     let _ = app.emit(
@@ -675,6 +671,17 @@ pub async fn stop_recording<R: Runtime>(
         progress_task.abort();
     } else {
         info!("ℹ️ No transcription task found to wait for");
+    }
+
+    // Step 2.5 (BUG #6 fix): clean up transcript listener AFTER the worker task
+    // finished. Movido aquí desde antes de Step 2 para que cualquier chunk emitido
+    // durante el flush final del worker llegue al frontend con el listener vivo.
+    {
+        use tauri::Listener;
+        if let Some(listener_id) = TRANSCRIPT_LISTENER_ID.lock().map_err(|e| format!("Lock poisoned: {}", e))?.take() {
+            app.unlisten(listener_id);
+            info!("✅ Transcript-update listener removed (post-task)");
+        }
     }
 
     // Step 3: Now safely unload transcription model after ALL chunks are processed

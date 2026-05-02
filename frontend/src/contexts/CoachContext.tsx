@@ -446,6 +446,15 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       return;
     }
     const isManual = triggerSignalParam === 'manual_request';
+    // BUG #8 fix: el heartbeat de 30s también necesita bypass del cooldown,
+    // pero ANTES lo hacía pre-resetando `lastTipTimestampRef` (línea 924). Eso
+    // causaba que si triggerNow fallaba por filtros/error, el ref quedaba en 0
+    // y el siguiente `transcript-update` bypass de cooldown injustificado.
+    // Ahora ambos casos (manual + heartbeat) se reconocen aquí y saltan los
+    // cooldowns sin tocar el ref. El reset del ref ocurre solo en éxito vía
+    // `pushSuggestion()` línea 385.
+    const isHeartbeat = triggerSignalParam === 'heartbeat_30s';
+    const bypassCooldown = isManual || isHeartbeat;
     let window = buildWindow();
     // Para botón manual: bypass del check "ventana muy corta" — usuario quiere tip
     // aunque casi no haya hablado nadie todavía.
@@ -470,9 +479,9 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       window = `[Nota: Calidad de servicio por debajo del promedio (${currentScore}/100). Sugerir mejoras de comunicacion.]\n${window}`;
     }
 
-    // Cooldowns estrictos v2.0 — bypass total para manual_request.
+    // Cooldowns estrictos v2.0 — bypass total para manual_request y heartbeat_30s.
     const now = Date.now();
-    if (!isManual) {
+    if (!bypassCooldown) {
       if (now < suppressUntilRef.current) {
         tipInFlightRef.current = false; // v28.3
         logger.debug(`[Coach] Skip: suppress activo hasta ${new Date(suppressUntilRef.current).toISOString()}`);
@@ -587,6 +596,20 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       tipInFlightRef.current = false; // v28.2: liberar lock global SIEMPRE
     }
   }, [buildWindow, detectLanguage, currentMeetingId, pushSuggestion]);
+
+  // BUG #10 fix: refs estables para que los useEffects de listeners no se
+  // re-attachen en cada render por dependencias de callback que cambian de
+  // identidad. Antes el effect `transcript-update` (línea ~906) y el heartbeat
+  // (línea ~945) tenían [triggerNow, buildWindow, pushSuggestion] en deps,
+  // que se redefinen cuando currentMeetingId o transcripts cambian. Cada
+  // re-render causaba detach/attach del listener y reset del setTimeout del
+  // heartbeat — el primer tick de 30s podía no llegar nunca.
+  const triggerNowRef = useRef(triggerNow);
+  const pushSuggestionRef = useRef(pushSuggestion);
+  const buildWindowRef = useRef(buildWindow);
+  useEffect(() => { triggerNowRef.current = triggerNow; }, [triggerNow]);
+  useEffect(() => { pushSuggestionRef.current = pushSuggestion; }, [pushSuggestion]);
+  useEffect(() => { buildWindowRef.current = buildWindow; }, [buildWindow]);
 
   /**
    * Cambia el modelo del backend y actualiza el estado local.
@@ -790,14 +813,14 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         // Reset cooldown para que NO bloquee disparo manual.
         lastTipTimestampRef.current = 0;
         suppressUntilRef.current = 0;
-        await triggerNow(undefined, 'manual_request');
+        await triggerNowRef.current(undefined, 'manual_request');
       });
     })();
     return () => {
       cancelled = true;
       if (unlistenManual) unlistenManual();
     };
-  }, [enabled, triggerNow]);
+  }, [enabled]); // BUG #10 fix: triggerNow ahora vía ref, deps solo estables
 
   useEffect(() => {
     if (!enabled || !isRecording) return;
@@ -824,13 +847,13 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         // usuario no está interactuando (puede ser conferencia, podcast, etc).
         if (PROFANITY_REGEX.test(u.text) && conversationModeRef.current !== 'audience') {
           if (isInterlocutor) {
-            pushSuggestion(makeHeuristicTip(
+            pushSuggestionRef.current(makeHeuristicTip(
               "Cliente molesto. Dile: 'Entiendo tu frustración, tienes razón. ¿Cómo puedo solucionarlo?'",
               "service",
               "critical",
             ));
           } else {
-            pushSuggestion(makeHeuristicTip(
+            pushSuggestionRef.current(makeHeuristicTip(
               "Cuidado con tu tono. Di: 'Disculpa si sonó brusco, quiero ayudarte. Vamos a resolverlo juntos.'",
               "self_control",
               "critical",
@@ -864,11 +887,11 @@ export function CoachProvider({ children }: { children: ReactNode }) {
 
           // Disparar tip con pista de categoría + signal (speaker attribution)
           if (top.priority === 'critical' || top.priority === 'important') {
-            await triggerNow(top.category, top.signal);
+            await triggerNowRef.current(top.category, top.signal);
           } else if (top.priority === 'soft') {
             const age = Date.now() - lastTipTimestampRef.current;
             if (age > 35_000) {
-              await triggerNow(top.category, top.signal);
+              await triggerNowRef.current(top.category, top.signal);
             }
           }
         } catch (e) {
@@ -876,7 +899,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
           const age = Date.now() - lastTipTimestampRef.current;
           if (age > 35_000) {
             logger.info('[Coach] Fallback: trigger fallo, intentando tip generico');
-            await triggerNow(undefined);
+            await triggerNowRef.current(undefined);
           }
         }
       });
@@ -894,7 +917,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       if (unlisten) unlisten();
     };
-  }, [enabled, isRecording, triggerNow, pushSuggestion]);
+  }, [enabled, isRecording]); // BUG #10 fix: callbacks vía ref, deps estables solo
 
   /**
    * Effect 2.5 v28: heartbeat garantizado de tips cada 30s.
@@ -914,15 +937,18 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       const now = Date.now();
       const elapsedSinceLastTip = now - lastTipTimestampRef.current;
       if (elapsedSinceLastTip < 25_000) return;
-      const window = buildWindow();
+      const window = buildWindowRef.current();
       if (window.length < 100) {
         logger.debug('[Coach] heartbeat skip — ventana < 100 chars');
         return;
       }
       logger.info('[Coach] heartbeat 30s — forzando tip nuevo');
-      // Solo reseteamos cooldown si vamos a generar de verdad
-      lastTipTimestampRef.current = 0;
-      await triggerNow(undefined, 'heartbeat_30s');
+      // BUG #8 fix: ya NO reseteamos lastTipTimestampRef aquí. El bypass de
+      // cooldown se maneja dentro de triggerNow vía `bypassCooldown` que
+      // reconoce 'heartbeat_30s'. Si el tip se emite con éxito, pushSuggestion
+      // (línea 385) actualiza el ref a Date.now(); si falla, el ref no se toca
+      // y el cooldown sigue intacto para los triggers de transcripción.
+      await triggerNowRef.current(undefined, 'heartbeat_30s');
     };
     // v28: PRIMER tick a 30s exactos (no inmediato)
     const firstTimer = setTimeout(() => {
@@ -933,7 +959,7 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       clearTimeout(firstTimer);
       if (intervalHandle) clearInterval(intervalHandle);
     };
-  }, [enabled, isRecording, triggerNow, buildWindow]);
+  }, [enabled, isRecording]); // BUG #10 fix: callbacks vía ref, deps estables solo
 
   /**
    * Effect 3 v2.0: auto-detect meeting type a los 45s de grabación.

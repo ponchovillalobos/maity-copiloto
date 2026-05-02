@@ -136,6 +136,9 @@ fn get_cached_model_path(app_data_dir: &PathBuf, model_name: &str) -> Result<Pat
 /// * `system_prompt` - System instructions for the model
 /// * `user_prompt` - User message/task
 /// * `cancellation_token` - Optional token for cancellation
+/// * `max_tokens_override` - Optional cap for output tokens. If `None`, uses
+///   `models::DEFAULT_MAX_TOKENS` (4096). For coach tips pass `Some(80)` to
+///   keep latency low and respect the 12-word target.
 ///
 /// # Returns
 /// Generated text
@@ -145,6 +148,7 @@ pub async fn generate_with_builtin(
     system_prompt: &str,
     user_prompt: &str,
     cancellation_token: Option<&CancellationToken>,
+    max_tokens_override: Option<i32>,
 ) -> Result<String> {
     // Check cancellation at start
     if let Some(token) = cancellation_token {
@@ -187,10 +191,16 @@ pub async fn generate_with_builtin(
         }
     }
 
-    // Prepare generation request with model-specific sampling parameters
+    let max_tokens = max_tokens_override.unwrap_or(models::DEFAULT_MAX_TOKENS);
+    log::info!(
+        "Built-in AI request — model={} max_tokens={}",
+        model_name,
+        max_tokens
+    );
+
     let request = Request::Generate {
         prompt: formatted_prompt,
-        max_tokens: Some(models::DEFAULT_MAX_TOKENS),
+        max_tokens: Some(max_tokens),
         context_size: Some(model_def.context_size),
         model_path: Some(model_path.to_string_lossy().to_string()),
         temperature: Some(model_def.sampling.temperature),
