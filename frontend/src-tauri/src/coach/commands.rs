@@ -598,6 +598,8 @@ pub async fn coach_simple_tick(
     };
 
     // Resolver meeting_id: param explícito > AppState > "live" fallback.
+    // v31.3: warning visible si cae al fallback "live" — la burbuja consulta
+    // por meeting_id activo y NO encontrará tips si quedan bajo "live".
     let resolved_meeting_id: String = if let Some(mid) = meeting_id.filter(|s| !s.is_empty()) {
         mid
     } else if let Some(state) = app.try_state::<crate::state::AppState>() {
@@ -606,8 +608,12 @@ pub async fn coach_simple_tick(
             .lock()
             .ok()
             .and_then(|g| g.clone())
-            .unwrap_or_else(|| "live".to_string())
+            .unwrap_or_else(|| {
+                log::warn!("[coach_simple_tick] active_meeting_id es None — fallback meeting_id='live' (la burbuja podría no encontrar este tip si su meeting actual es distinto)");
+                "live".to_string()
+            })
     } else {
+        log::warn!("[coach_simple_tick] AppState NO disponible — fallback meeting_id='live'");
         "live".to_string()
     };
 
@@ -638,15 +644,19 @@ pub async fn coach_simple_tick(
         window_capped
     );
 
+    // v31.3: timeout 15→20s. qwen3:1.7b en CPU (sin GPU) puede tardar 12-15s
+    // por tip. El timeout previo cancelaba justo cuando el modelo estaba
+    // retornando, perdiendo tips. 20s da margen mientras sigue siendo aceptable
+    // para coaching cada 30s.
     let cancel = tokio_util::sync::CancellationToken::new();
     let cancel_for_timeout = cancel.clone();
     let timeout_handle = tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(15)).await;
+        tokio::time::sleep(Duration::from_secs(20)).await;
         cancel_for_timeout.cancel();
     });
 
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(20))
+        .timeout(Duration::from_secs(25))
         .build()
         .map_err(|e| format!("HTTP client: {}", e))?;
 

@@ -369,7 +369,13 @@ export function TranscriptProvider({ children }: { children: ReactNode }) {
           // potenciales paneles aparte) pueda invocar coach_simple_tick sin
           // tener acceso al transcriptsRef en memoria del frontend principal.
           // Fire-and-forget — no bloquear el procesamiento de transcripts si falla.
-          if (!update.is_partial && update.text && update.text.trim().length > 0) {
+          //
+          // v31.3: ACEPTA TAMBIÉN parciales (is_partial=true). Antes solo se
+          // alimentaba con finales, lo que dejaba el buffer vacío en audience
+          // mode (el cliente habla largo sin pausas con finalización de chunks)
+          // → tips dejaban de generarse 15+ min seguidos. El backend trunca a
+          // últimos 60 chunks naturalmente, sin riesgo de overflow.
+          if (update.text && update.text.trim().length > 0) {
             void invoke('coach_push_transcript_chunk', {
               speaker: update.source_type ?? 'voz',
               text: update.text,
