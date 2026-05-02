@@ -627,20 +627,44 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.1: prompt anti-alucinación. Tips 93-95 mostraron que el modelo
-    // inventa contenido absurdo ("caca", "pipí", "usuario inútil"). Forzamos
-    // que el tip se base EXCLUSIVAMENTE en lo que está en el contexto.
-    let system_prompt = "Eres Maity, coach de comunicación. SOLO puedes referirte a palabras y temas QUE APARECEN LITERALMENTE en el contexto que recibes. PROHIBIDO inventar, exagerar o usar palabras que no estén en el transcript. Si el contexto es ambiguo o no permite un consejo útil, responde solo: SIN_TIP";
+    // v31.4 (2026-05-02): prompt enriquecido con marcos de empatía + ventas
+    // estratégicas + servicio al cliente. Tips previos (113-123) eran correctos
+    // estructuralmente pero "laxos, sin empatía". Ahora exigimos al modelo
+    // aplicar marcos consagrados (SPIN/Voss/Cialdini/active listening) y
+    // tratar al INTERLOCUTOR como persona con emociones, no como objeto.
+    let system_prompt = "Eres Maity, coach EXPERTO en comunicación, ventas consultivas y servicio al cliente. \
+                         Combinas marcos de Chris Voss (negociación táctica empática), SPIN selling \
+                         (Situation/Problem/Implication/Need-payoff), Cialdini (influencia ética), y escucha \
+                         activa de Carl Rogers. Tu rol es ayudar al USUARIO (vendedor/asesor) a comunicarse \
+                         con MÁXIMA EMPATÍA y EFECTIVIDAD con el INTERLOCUTOR (cliente). \
+                         REGLA DE ORO: el cliente es persona con emociones, miedos y necesidades — NUNCA un \
+                         obstáculo. Cada tip debe demostrar comprensión genuina del estado emocional del \
+                         interlocutor antes de proponer acción. PROHIBIDO inventar contenido que no está en el \
+                         transcript. Si el contexto no permite un tip útil, responde solo: SIN_TIP";
     let user_prompt = format!(
-        "TRANSCRIPT REAL DE LA CONVERSACIÓN (USUARIO = micrófono del vendedor que coacheas; INTERLOCUTOR = otro hablante):\n\n---\n{}\n---\n\n\
-         Da UN consejo al USUARIO siguiendo ESTAS REGLAS ESTRICTAS:\n\
-         1. Empieza con verbo imperativo: Pregunta, Reformula, Resume, Profundiza, Aclara, Confirma, Cierra, Propón, Valida, Reconoce, Escucha, Verifica, Comparte.\n\
-         2. Entre 8 y 18 palabras.\n\
-         3. SOLO menciona temas, palabras o nombres QUE APARECEN LITERALMENTE arriba en el TRANSCRIPT REAL. Si no aparecen, NO los uses.\n\
-         4. Si el transcript no permite un tip útil (es muy corto, sin contenido claro, ruido), responde EXACTAMENTE: SIN_TIP\n\
-         5. JAMÁS inventes citas, hechos, ni atribuyas insultos o juicios al INTERLOCUTOR si no están textualmente arriba.\n\
-         6. Una sola línea. Sin JSON, sin prefijos, sin explicaciones.\n\n\
-         Tu consejo (o SIN_TIP):",
+        "TRANSCRIPT REAL (USUARIO = vendedor a quien coacheas; INTERLOCUTOR = cliente):\n\n---\n{}\n---\n\n\
+         Genera UN tip estratégico y EMPÁTICO para el USUARIO siguiendo estas reglas:\n\n\
+         ESTRUCTURA OBLIGATORIA:\n\
+         1. Empieza con verbo imperativo de coaching: Reconoce, Valida, Refleja, Pregunta, Reformula, \
+            Resume, Profundiza, Aclara, Confirma, Cierra, Propón, Escucha, Espera, Etiqueta, Mirror, \
+            Acompaña, Acepta, Agradece, Ofrece.\n\
+         2. Entre 10 y 22 palabras.\n\n\
+         CONTENIDO OBLIGATORIO (al menos UNO de estos):\n\
+         A) Reconoce explícitamente la emoción del interlocutor (frustración, duda, urgencia, miedo, \
+            satisfacción) usando palabras suyas. Ej: 'Reconoce que decir [X exacto] muestra preocupación, \
+            valida antes de proponer solución'.\n\
+         B) Marco Chris Voss: etiqueta emocional ('Parece que...', 'Suena como si...'), espejo \
+            (repetir últimas 3 palabras), pregunta calibrada ('¿Cómo...?', '¿Qué...?').\n\
+         C) Marco SPIN: convierte un dato del cliente en pregunta de implicación o de necesidad-pago.\n\
+         D) Servicio al cliente: ownership ('Yo me encargo', 'Déjame resolverlo'), opciones ('puedo \
+            ofrecerte A o B'), siguiente paso concreto.\n\n\
+         REGLAS ABSOLUTAS:\n\
+         - SOLO menciona palabras, nombres, datos QUE APARECEN LITERALMENTE arriba en el transcript.\n\
+         - JAMÁS uses jerga sin contexto ('crea urgencia', 'genera rapport') — sé concreto.\n\
+         - JAMÁS atribuyas insultos, juicios o emociones extremas al cliente si no están en el transcript.\n\
+         - Si el transcript es ruido o muy corto, responde EXACTAMENTE: SIN_TIP\n\
+         - Una línea. Sin JSON, sin prefijos.\n\n\
+         Tu tip empático y estratégico (o SIN_TIP):",
         window_capped
     );
 
@@ -736,13 +760,21 @@ pub async fn coach_simple_tick(
         .unwrap_or("")
         .trim_end_matches(|c: char| !c.is_alphabetic())
         .to_lowercase();
+    // v31.4: lista ampliada con verbos del prompt empático.
     let verbos_validos = [
+        // Coaching/comunicación
         "pregunta", "preguntá", "reformula", "resume", "profundiza",
         "cita", "aclara", "confirma", "cierra", "propón", "propon",
         "valida", "reconoce", "espera", "explora", "cuestiona", "verifica",
         "agradece", "muestra", "comparte", "destaca", "menciona", "sugiere",
         "ofrece", "haz", "di", "responde", "escucha", "explica", "describe",
-        "anota", "señala", "señala", "pide", "pídele", "pidele", "indaga",
+        "anota", "señala", "pide", "pídele", "pidele", "indaga",
+        // v31.4 empatía + Voss + SPIN + servicio
+        "refleja", "etiqueta", "mirror", "acompaña", "acompana", "acepta",
+        "abraza", "respira", "calma", "tranquiliza", "asiente", "concede",
+        "empatiza", "comprende", "humaniza", "personaliza", "asume",
+        "encárgate", "encargate", "soluciona", "resuelve", "actúa", "actua",
+        "reformúlale", "reformulale", "devuelve", "espeja", "anticipa",
     ];
     if !verbos_validos.contains(&primera_palabra.as_str()) {
         log::info!("[coach_simple_tick] tip rechazado: no empieza con verbo imperativo (\"{}\")", primera_palabra);
