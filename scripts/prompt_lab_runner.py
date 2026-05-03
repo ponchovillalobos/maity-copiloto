@@ -28,7 +28,7 @@ MODEL = Path(os.path.expandvars(r"%APPDATA%\com.maity.ai\models\summary\Qwen3-1.
 DB_PATH = Path(os.path.expandvars(r"%APPDATA%\com.maity.ai\meeting_minutes.sqlite"))
 FIXTURES_DIR = Path(r"D:\Maity_Desktop\scripts\prompt_lab\fixtures")
 
-PROMPT_VERSION = "v32.0"
+PROMPT_VERSION = "v32.1"
 
 # Prompt v32.0 — debe ser equivalente al de commands.rs:247-... (categorías)
 SYSTEM_PROMPT = """/no_think
@@ -41,17 +41,14 @@ Mira señales OBVIAS, no infieras de más:
 - ¿El INTERLOCUTOR usó palabras de molestia, duda, miedo o interés? Reconócelo.
 - ¿Falta info importante para avanzar? Toca preguntar.
 
-CATEGORÍAS (elige UNA):
+Tu respuesta debe empezar con UNA de estas 6 categorías y un tip cortito después de los dos puntos:
 
-RESPIRA — el USUARIO se aceleró, sonó defensivo o tenso.
-PAUSA — el USUARIO lleva varios turnos seguidos sin que hable el INTERLOCUTOR.
-PREGUNTA — falta información o el INTERLOCUTOR no ha participado lo suficiente.
-ESCUCHA — el INTERLOCUTOR está hablando largo, desahogándose o explicando algo.
-VALIDA — el INTERLOCUTOR mostró molestia, duda, miedo o desacuerdo.
-AVANZA — el INTERLOCUTOR mostró interés claro o pidió siguientes pasos.
-
-FORMATO:
-CATEGORIA: tip
+VALIDA — usar cuando el INTERLOCUTOR mostró molestia, duda, miedo o desacuerdo.
+ESCUCHA — usar cuando el INTERLOCUTOR está hablando largo, desahogándose o explicando algo.
+PREGUNTA — usar cuando falta información o el INTERLOCUTOR no ha participado lo suficiente.
+AVANZA — usar cuando el INTERLOCUTOR mostró interés claro o pidió siguientes pasos.
+PAUSA — usar cuando el USUARIO lleva varios turnos seguidos sin que hable el INTERLOCUTOR.
+RESPIRA — usar cuando el USUARIO se aceleró, sonó defensivo o tenso.
 
 REGLAS:
 - Máximo 8 palabras en el tip.

@@ -249,15 +249,13 @@ Mira señales OBVIAS, no infieras de más:\n\
 - ¿Quién habla más? Si el USUARIO domina, hay que cederle turno al otro.\n\
 - ¿El INTERLOCUTOR usó palabras de molestia, duda, miedo o interés? Reconócelo.\n\
 - ¿Falta info importante para avanzar? Toca preguntar.\n\n\
-CATEGORÍAS (elige UNA):\n\n\
-RESPIRA — el USUARIO se aceleró, sonó defensivo o tenso.\n\
-PAUSA — el USUARIO lleva varios turnos seguidos sin que hable el INTERLOCUTOR.\n\
-PREGUNTA — falta información o el INTERLOCUTOR no ha participado lo suficiente.\n\
-ESCUCHA — el INTERLOCUTOR está hablando largo, desahogándose o explicando algo.\n\
-VALIDA — el INTERLOCUTOR mostró molestia, duda, miedo o desacuerdo.\n\
-AVANZA — el INTERLOCUTOR mostró interés claro o pidió siguientes pasos.\n\n\
-FORMATO:\n\
-CATEGORIA: tip\n\n\
+Tu respuesta debe empezar con UNA de estas 6 categorías y un tip cortito después de los dos puntos:\n\n\
+VALIDA — usar cuando el INTERLOCUTOR mostró molestia, duda, miedo o desacuerdo.\n\
+ESCUCHA — usar cuando el INTERLOCUTOR está hablando largo, desahogándose o explicando algo.\n\
+PREGUNTA — usar cuando falta información o el INTERLOCUTOR no ha participado lo suficiente.\n\
+AVANZA — usar cuando el INTERLOCUTOR mostró interés claro o pidió siguientes pasos.\n\
+PAUSA — usar cuando el USUARIO lleva varios turnos seguidos sin que hable el INTERLOCUTOR.\n\
+RESPIRA — usar cuando el USUARIO se aceleró, sonó defensivo o tenso.\n\n\
 REGLAS:\n\
 - Máximo 8 palabras en el tip.\n\
 - Trato directo (tú), humano, cero corporativo.\n\
