@@ -1,0 +1,13 @@
+{
+  "name": "venta_software_senior_facil",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Excelente. Entonces lo incluyo en la propuesta. Y mira, esos champions hacen toda la diferencia. En las empresas donde hay champions internos, la adopción sube al noventa y cinco por ciento en los primeros tres meses. Versus las que no tienen, que andan como en sesenta por ciento.\nINTERLOCUTOR: No, pues sí. Es lógico. Oye, y ya último, ¿tienen integración con WhatsApp Business? Porque muchos de mis vendedores se comunican con clientes por WhatsApp.\nUSUARIO: Sí, tenemos integración nativa con WhatsApp Business. Lo que hace es que cada conversación de WhatsApp queda registrada en la oportunidad correspondiente en Salesforce. Entonces si un vendedor le manda un mensaje al cliente por WhatsApp, eso queda en el historial del deal.\nINTERLOCUTOR: Eso es oro. Porque ahorita todo lo de WhatsApp se pierde, no queda registro de nada.\nUSUARIO: Exacto, y eso es un problema no solo de visibilidad sino de continuidad. Si un vendedor se va de la empresa, se lleva todas las conversaciones de WhatsApp con él. Con Salesforce todo queda en la empresa.\nINTERLOCUTOR: Tienes toda la razón. Bueno, ahora sí, me voy muy contento con esta reunión. Nos vemos el jueves.\nUSUARIO: Nos vemos el jueves, Roberto. Un abrazo.\nINTERLOCUTOR: Igualmente, bye."
+}

@@ -1,0 +1,13 @@
+{
+  "name": "venta_software_junior_dificil",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Sí, licenciado, así va a ser. Le prometo que va a ser una reunión completamente diferente a esta.\nINTERLOCUTOR: Eso espero, Daniel. Porque la primera impresión no fue buena, te lo digo con todo respeto.\nUSUARIO: No, tiene razón, y le ofrezco una disculpa. Debí haber venido mejor preparado.\nINTERLOCUTOR: Bueno, pues ya. Ahí nos vemos el miércoles. Mándame confirmación por correo hoy.\nUSUARIO: Sí, hoy antes de las ocho le confirmo todo por correo.\nINTERLOCUTOR: Ok. Ahora sí, bye.\nUSUARIO: Hasta luego, licenciado. Que tenga buena tarde.\nINTERLOCUTOR: Igualmente."
+}

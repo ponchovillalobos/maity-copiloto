@@ -1,0 +1,13 @@
+{
+  "name": "atencion_telefonia_cancelacion",
+  "category": "real_atencion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Ok, la app más reciente para iOS salió hace dos semanas y corrigió muchos de esos problemas. ¿La tienes actualizada?\nINTERLOCUTOR: No sé, déjame ver. Dice versión cinco punto dos.\nUSUARIO: La más reciente es la cinco punto cuatro. Actualízala desde la App Store y debería funcionar mucho mejor. Si después de actualizar sigue fallando, me escribes por WhatsApp y te paso con el equipo de soporte de la app directamente.\nINTERLOCUTOR: Ok, la actualizo. Oye, Ricardo, gracias. La verdad estaba decidido a irme pero me convenciste. Espero no arrepentirme.\nUSUARIO: No te vas a arrepentir. Y si hay cualquier problema, ya sabes dónde encontrarme. Extensión tres, cinco, siete, dos. Que tengas buena noche.\nINTERLOCUTOR: Igualmente. Gracias.\nUSUARIO: Gracias a ti por tu paciencia. Hasta luego.\nINTERLOCUTOR: Bye."
+}

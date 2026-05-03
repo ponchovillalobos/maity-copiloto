@@ -1,0 +1,13 @@
+{
+  "name": "venta_ibm_cto_junior",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Lo entiendo. Déjame compensar. Le ofrezco una prueba gratuita de 30 días. Sin compromiso.\nINTERLOCUTOR: Con hardware?\nUSUARIO: No. Con software. O con nube. Pero podemos prestarle un equipo pequeño si paga el envío.\nINTERLOCUTOR: Eso no es gratuito entonces.\nUSUARIO: Bueno, casi gratuito. Es un programa que tenemos.\nINTERLOCUTOR: Mande el correo con la propuesta formal y ya vemos. Por ahora terminamos.\nUSUARIO: Gracias por su tiempo. Y perdón si fui muy desordenado. Aprendo rápido.\nINTERLOCUTOR: Eso espero. Buenos días."
+}

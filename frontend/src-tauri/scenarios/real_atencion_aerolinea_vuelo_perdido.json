@@ -1,0 +1,13 @@
+{
+  "name": "atencion_aerolinea_vuelo_perdido",
+  "category": "real_atencion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: La conexión en Ciudad de México tiene dos horas y media de margen. Su vuelo llega de Cancún a las ocho y media y el vuelo a Monterrey sale a las once. Tiempo más que suficiente.\nINTERLOCUTOR: Bueno, al menos eso. No, pues creo que ya. Nos vamos al salón.\nUSUARIO: Perfecto. Pasen por el pase impreso de su esposa en la puerta diecisiete y suban al salón. Recuerden, embarque a las once quince, puerta diecisiete. Si necesitan cualquier cosa, llamen a este número y pidan la extensión cuatro, dos, uno. Es la extensión de atención prioritaria.\nINTERLOCUTOR: Ok, cuatro, dos, uno. Anotado. Gracias, Valentina.\nUSUARIO: Gracias a usted por su paciencia. Que disfruten la boda de su hermana. Seguro va a estar hermosa.\nINTERLOCUTOR: Eso espero. Si es que llego.\nUSUARIO: Va a llegar, se lo prometo. Buen vuelo.\nINTERLOCUTOR: Gracias. Buenas noches."
+}

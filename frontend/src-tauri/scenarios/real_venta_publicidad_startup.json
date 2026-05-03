@@ -1,0 +1,13 @@
+{
+  "name": "venta_publicidad_startup",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Sí, hacemos branding completo: logo, paleta de colores, tipografía, guía de estilo. Pero eso es un proyecto aparte del marketing digital. Mi recomendación honesta: no lo hagas ahorita. Primero enfócate en generar pedidos. Cuando tengas tracción, inviertes en marca. Mucha startup se gasta su presupuesto en un logo bonito y luego no tiene para pauta.\nINTERLOCUTOR: Tienes razón. El logo puede esperar.\nUSUARIO: Exacto. Lo que sí hacemos en el primer mes es limpiar tu presencia visual con lo que tienes. Le damos consistencia a tus redes con una paleta de colores coherente y unas plantillas de diseño que se vean profesionales. Eso no es un rebrand, es darle orden a lo que ya tienes.\nINTERLOCUTOR: Ok, eso sí me late. Que se vea más profesional sin gastar en un rebrand completo.\nUSUARIO: Justo. Y cuando crezcas y quieras hacer un rebrand completo, ahí platicamos. Pero por ahora, la prioridad es mover la caja registradora.\nINTERLOCUTOR: Jaja, sí. La caja registradora primero. Oye, gracias, Daniela. Me gustó que no me quisiste vender el paquete más caro desde el principio.\nUSUARIO: Así trabajo. Primero demostramos valor, luego crecemos juntos. Nos vemos el lunes, Sebastián.\nINTERLOCUTOR: Nos vemos. Bye."
+}

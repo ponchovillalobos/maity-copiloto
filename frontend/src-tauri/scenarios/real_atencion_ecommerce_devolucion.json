@@ -1,0 +1,13 @@
+{
+  "name": "atencion_ecommerce_devolucion",
+  "category": "real_atencion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Espero no tener que llegar a eso. Yo voy a hacer todo lo posible por resolver tu caso de forma favorable. Mañana te llamo después de las dos.\nINTERLOCUTOR: Sale. ¿Y si no me llamas?\nUSUARIO: Te llamo, te lo prometo. Pero si por alguna razón no recibes mi llamada antes de las cuatro, llámame tú a este mismo número y pide hablar con Karla, extensión dos, siete, ocho.\nINTERLOCUTOR: Dos, siete, ocho. Ok, anotado. Gracias, Karla.\nUSUARIO: Gracias a ti por tu paciencia. Mándame ese video y las fotos esta noche para que mañana temprano los presente con mi supervisor.\nINTERLOCUTOR: Sí, hoy en la noche te los mando.\nUSUARIO: Perfecto. Que tengas buena noche.\nINTERLOCUTOR: Igualmente. Bye."
+}

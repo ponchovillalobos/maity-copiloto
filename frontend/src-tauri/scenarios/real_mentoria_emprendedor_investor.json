@@ -1,0 +1,13 @@
+{
+  "name": "mentoria_emprendedor_investor",
+  "category": "real_mentoria",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Y una cosa más. Cuida tu salud mental. El fundraising es brutal emocionalmente. Quince rechazos consecutivos te destruyen el ánimo. Tómate este mes no solo para trabajar en el producto sino para recargar energía. Cuando vuelvas a pitchear, necesitas proyectar confianza, no desesperación.\nINTERLOCUTOR: Sí, la verdad últimamente no duermo bien. Estoy muy ansioso.\nUSUARIO: Eso se nota en un pitch, ¿sabes? Los inversionistas huelen el miedo. Necesitas llegar a la reunión con la actitud de mira, esto es lo que tengo, funciona, y si no inviertes tú, alguien más va a hacerlo. No con la actitud de por favor denme dinero porque me estoy quedando sin.\nINTERLOCUTOR: Tienes razón. Gracias, maestro. De verdad.\nUSUARIO: Para eso estamos. Nos vemos en un mes con números. Y Emiliano, la oportunidad es real. Facturación integrada en project management para PyMEs mexicanas es un producto que debería existir. Solo necesitas demostrar que puedes ejecutar.\nINTERLOCUTOR: Lo voy a demostrar. Gracias.\nUSUARIO: Éxito. Te espero en un mes.\nINTERLOCUTOR: En un mes. Bye."
+}

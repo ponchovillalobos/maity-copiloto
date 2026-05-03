@@ -1,0 +1,13 @@
+{
+  "name": "reunion_venta_ibm",
+  "category": "real_reunion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Bueno, pero a cambio… a cambio tiene algo que se llama Storage Insights, que es una nube que monitorea sus discos y predice fallas antes de que pasen. Es inteligencia artificial.\nINTERLOCUTOR: ¿Y usted cree que mi comité de seguridad va a permitir que los datos de mis clientes salgan a una nube de IBM?\nUSUARIO: Pero es solo metadata, no los datos reales. O sea… no sé si metadata son los nombres o los montos… pero es anónimo, juran.\nINTERLOCUTOR: ¡No me sirve que \"juren\"! ¡Necesito contratos firmados!\nUSUARIO: Señor Díaz, me quedan 5 minutos. Propongo que agendemos una segunda reunión con un ingeniero de IBM que sí sepa. Yo solo soy el de cuentas, pero le puedo conseguir un experto en storage.\nINTERLOCUTOR: No. Usted tuvo 50 minutos y no supo explicarme nada. Ni el precio, ni el beneficio, ni el ROI, ni los plazos, ni siquiera su propia propuesta de valor. Me hizo perder el tiempo con cuentos de cajas, magia, caballos y parpadeos. IBM debería darle una certificación en cómo NO vender. Conmigo no hay segunda reunión. Hable con mi asistente para que le mande la carta de rechazo. Buen día.\nUSUARIO: Pero… ¿y si al menos le dejo la cotización?\nINTERLOCUTOR: Para lo único que sirve su cotización es para que mi equipo de compras sepa a qué proveedor no contratar. Salga de mi oficina."
+}

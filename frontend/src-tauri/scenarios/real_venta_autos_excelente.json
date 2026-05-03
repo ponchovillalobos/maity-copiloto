@@ -1,0 +1,13 @@
+{
+  "name": "venta_autos_excelente",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Gracias a usted. Y cualquier duda de aquí al viernes, aquí está mi tarjeta con mi celular directo y mi WhatsApp. A la hora que sea.\nINTERLOCUTOR: Oye, una última cosa. ¿Tienen opciones de financiamiento? Porque no quiero pagar todo de contado.\nUSUARIO: Claro. Tenemos financiamiento directo con BMW Financial Services. Le ofrecemos tasa preferencial para clientes nuevos: nueve punto nueve por ciento anual a treinta y seis o cuarenta y ocho meses. Con el Audi como enganche de cuatrocientos cincuenta mil, su mensualidad en cuarenta y ocho meses quedaría aproximadamente en dieciocho mil pesos.\nINTERLOCUTOR: Dieciocho mil al mes. Eso está dentro de mi presupuesto. ¿Y si quiero pagar más de enganche para bajar la mensualidad?\nUSUARIO: Por supuesto, mientras más enganche, menor mensualidad y menos intereses. Si pone seiscientos mil de enganche, la mensualidad baja a como trece mil quinientos. Le preparo las dos simulaciones y se las mando por correo hoy para que las revise con calma.\nINTERLOCUTOR: Perfecto, mándamelas. Mi correo es javier punto ruiz arroba outlook punto com.\nUSUARIO: Anotado. Las tiene hoy antes de las seis.\nINTERLOCUTOR: Sale. Nos vemos el viernes."
+}

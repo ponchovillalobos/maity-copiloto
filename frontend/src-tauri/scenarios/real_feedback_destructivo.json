@@ -1,0 +1,13 @@
+{
+  "name": "feedback_destructivo",
+  "category": "real_feedback",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Mira, ya no quiero seguir discutiendo. Lo que te digo es: mejora tu actitud, mejora tus tiempos de respuesta, y empieza a dar más del mínimo indispensable. Si en un mes no veo cambios, hablamos de nuevo. Y te recomiendo que bajes un poco el tono conmigo porque soy tu jefe, no tu compañero.\nINTERLOCUTOR: Héctor, voy a documentar esta conversación y voy a pedir una reunión con recursos humanos presente para que quede registro formal de lo que se habló hoy. No como amenaza, sino porque creo que es lo correcto para ambos tener un tercero que facilite esta conversación y nos ayude a llegar a acuerdos claros y medibles.\nUSUARIO: Haz lo que quieras Andrea. Pero te advierto que si vas a RH a victimizarte, va a quedar peor para ti. A la gente que se queja de sus jefes no le va bien en ninguna empresa. Te lo digo por experiencia.\nINTERLOCUTOR: Ir a recursos humanos no es victimizarme, es usar el canal correcto. Y me preocupa que lo interpretes así. Yo quiero resolver esto profesionalmente, con objetivos claros y métricas definidas. Si hay algo que debo mejorar, con mucho gusto lo trabajo, pero necesito que esté documentado y que sea justo.\nUSUARIO: Ya, ya. Ve a RH si quieres. Yo voy a mandar mi reporte de tu desempeño de todas formas. Y piénsale bien Andrea, porque en este mercado no hay muchos trabajos donde te paguen lo que te pagamos aquí por hacer lo que haces. Puedes cerrar la puerta al salir.\nINTERLOCUTOR: Voy a agendar la reunión con RH para esta semana. Y Héctor, te pido un favor: cuando nos reunamos con RH presente, trae los datos específicos que mencionas. Las quejas, los incidentes, las métricas. Para que podamos tener una conversación productiva basada en hechos. Eso nos conviene a los dos.\nUSUARIO: Ya te dije que la hagas como quieras. La reunión con RH, las métricas, lo que sea. Al final los resultados hablan, Andrea. Y los resultados de tu área no están donde yo necesito que estén. Eso es todo lo que necesitas saber.\nINTERLOCUTOR: Entonces pon esos resultados por escrito con los indicadores específicos y las metas esperadas. Eso es lo único que te pido."
+}

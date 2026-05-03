@@ -1,0 +1,13 @@
+{
+  "name": "venta_seguros_senior_indeciso",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Se puede bajar el deducible, pero la prima sube. Es un balance. En el análisis le presento dos escenarios: uno con deducible estándar y otro con deducible reducido, para que usted decida cuánto riesgo quiere absorber.\nINTERLOCUTOR: Ok, así me queda más claro. Oiga, y en el tema de las camionetas, ¿también manejan seguro contra robo total? Porque una de las camionetas me la robaron el año pasado y la aseguradora anterior me pagó pero con muchos peros.\nUSUARIO: Sí, seguro de flotilla incluye robo total. Y le cuento algo: nuestro índice de pago en reclamos por robo es del noventa y tres por ciento. Es decir, de cada cien reclamos por robo que recibimos, pagamos noventa y tres. El siete por ciento que no se paga es porque el asegurado no cumplió con las condiciones, como no tener la alarma activada o usar la camioneta para fines no declarados.\nINTERLOCUTOR: Noventa y tres por ciento, eso está bien. La otra aseguradora me tardó cuatro meses en pagar.\nUSUARIO: Nosotros tenemos un compromiso de respuesta de treinta días para robo total. Si no le pagamos en treinta días, le bonificamos el diez por ciento adicional sobre la indemnización.\nINTERLOCUTOR: Eso sí me gusta. Bueno, pues ahora sí, muchas gracias por su tiempo. Nos vemos el veintiocho.\nUSUARIO: Gracias a usted, don Carlos. Va a ver que cuando tenga todo claro, la decisión se toma sola. Nos vemos el veintiocho.\nINTERLOCUTOR: Sale, que esté bien."
+}

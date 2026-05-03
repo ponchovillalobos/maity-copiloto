@@ -1,0 +1,13 @@
+{
+  "name": "coaching_comunicacion_ejecutiva",
+  "category": "real_coaching",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Esa es la idea. Todo lo que practicamos hoy lo puedes aplicar mañana en tu primera junta. No necesitas leer un libro ni tomar un diplomado. Solo necesitas pausar, escuchar y preguntar.\nINTERLOCUTOR: Pausar, escuchar y preguntar. Lo apunto.\nUSUARIO: Perfecto. Nos vemos en dos semanas. Y Carolina, una cosa. Vas a tener días donde te salga perfecto y días donde vuelvas a hablar a mil por hora. No te frustres. Es un músculo que se entrena.\nINTERLOCUTOR: Sí, como el gimnasio.\nUSUARIO: Exactamente como el gimnasio. Ok, cerramos. Buen día.\nINTERLOCUTOR: Gracias. De verdad, muchas gracias. Nos vemos en dos semanas.\nUSUARIO: Nos vemos. Éxito con las juntas.\nINTERLOCUTOR: Gracias. Bye."
+}

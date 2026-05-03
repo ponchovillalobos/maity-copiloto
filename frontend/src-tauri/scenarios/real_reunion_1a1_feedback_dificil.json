@@ -1,0 +1,13 @@
+{
+  "name": "reunion_1a1_feedback_dificil",
+  "category": "real_reunion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Exacto. Y eso es un riesgo para la empresa y una carga innecesaria para ti. Parte del plan de noventa días es que identifiques a dos personas de tu equipo que tengan potencial para cerrar deals grandes y empieces a desarrollarlas.\nINTERLOCUTOR: Ok, ya tengo en mente a Fernanda y a Luis. Los dos son buenos pero les falta confianza.\nUSUARIO: Perfecto, la confianza se construye con práctica y con un gerente que les dé espacio para equivocarse. Eso es lo que necesitas ser para ellos.\nINTERLOCUTOR: Sí, entiendo. Mira, sé que esta conversación fue difícil pero creo que la necesitaba.\nUSUARIO: A veces las conversaciones más difíciles son las más necesarias. ¿Necesitas algo más de mi parte?\nINTERLOCUTOR: No, estoy bien. Bueno, no estoy bien, pero voy a estarlo.\nUSUARIO: Vas a estarlo. Ve a agendar esos uno a unos. Y búscame si necesitas algo.\nINTERLOCUTOR: Sale. Gracias."
+}

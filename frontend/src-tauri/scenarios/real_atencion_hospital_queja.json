@@ -1,0 +1,13 @@
+{
+  "name": "atencion_hospital_queja",
+  "category": "real_atencion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Eso es inaceptable. Agrego eso como sexto punto en la queja. Y ahorita mismo llamo al piso para que le cambien la ropa de cama de inmediato.\nINTERLOCUTOR: Gracias. Es que son cosas básicas, señorita. Cosas de dignidad humana.\nUSUARIO: Tiene toda la razón. El trato digno al paciente no es opcional, es la base de todo lo que hacemos aquí. Y si falló, hay que corregirlo.\nINTERLOCUTOR: Ok. Gracias, Mónica. De verdad espero que esto sirva de algo.\nUSUARIO: Va a servir. Me encargo personalmente. Le llamo mañana para darle seguimiento y confirmarle que todas las acciones se ejecutaron. ¿A qué número la contacto?\nINTERLOCUTOR: Al cinco, cinco, cuatro, tres, ocho, siete, seis, cinco, cuatro, tres.\nUSUARIO: Anotado. La llamo mañana antes del mediodía. Que le vaya bien.\nINTERLOCUTOR: Gracias. Con permiso."
+}

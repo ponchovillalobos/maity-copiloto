@@ -1,0 +1,13 @@
+{
+  "name": "atencion_gobierno_tramite",
+  "category": "real_atencion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Para servirle. Espéreme aquí y en un rato tiene su licencia nueva.\nINTERLOCUTOR: Sale. Gracias.\nUSUARIO: De nada.\nINTERLOCUTOR: Oiga, una última pregunta. ¿La licencia nueva es la digital, la que vale como identificación oficial? ¿O es la de antes?\nUSUARIO: Es la nueva credencial tipo tarjeta con chip NFC. Sirve como identificación oficial. Tiene su foto, su CURP, domicilio y es válida por tres años desde hoy.\nINTERLOCUTOR: Ah, qué bueno. Ya era hora de que modernizaran eso. Bueno, lo espero afuera entonces.\nUSUARIO: Sí, ahí lo llamo. Buen día.\nINTERLOCUTOR: Buen día. Gracias."
+}

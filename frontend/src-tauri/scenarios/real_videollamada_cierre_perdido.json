@@ -1,0 +1,13 @@
+{
+  "name": "videollamada_cierre_perdido",
+  "category": "real_videollamada",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: No, sí, tienes razón, hace rato te dije eso. Lo que pasa es que reflexioné y creo que en tu caso sí podría funcionar. Porque tu operación de inventarios es donde más dolor tienes y el módulo de inventarios es el que más rápido muestra resultados. Entonces sí tendría sentido como piloto.\nINTERLOCUTOR: Miguel, te lo voy a decir por tercera y última vez: lo voy a pensar y te aviso. Si me sigues presionando, honestamente me voy a ir con otro proveedor porque no me da confianza que alguien que no respeta mi decisión de esperar luego sí respete mis necesidades como cliente.\nUSUARIO: No Fernando, por supuesto que respeto tu decisión. Mira, sabes qué, déjame mandarte por correo un resumen actualizado de la propuesta con los diferentes escenarios de precios que platicamos hoy para que los tengas a la mano cuando estés listo. ¿Te parece?\nINTERLOCUTOR: Sí, mándamelo por correo y ya yo te busco cuando tenga claridad. Pero por favor no me llames cada semana para darme seguimiento porque eso me molesta.\nUSUARIO: Entendido. ¿Pero al menos puedo mandarte un correo en dos semanas para saber cómo van las cosas?\nINTERLOCUTOR: Miguel, ya te dije que yo te busco. Cuando tenga algo te marco. Hasta luego.\nUSUARIO: Ok Fernando, quedo al pendiente. Cualquier cosa que necesites estoy a una llamada de distancia. Que te vaya bien y...\nINTERLOCUTOR: Sí, gracias. Bye."
+}

@@ -1,0 +1,13 @@
+{
+  "name": "reunion_standup_equipo",
+  "category": "real_reunion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Otra cosa. El viernes, además del ensayo del demo a las dos, necesito que todos documenten sus módulos en la wiki. No tiene que ser extenso. Solo qué hace el módulo, cómo se usa y dónde está el código. Es por si alguien se enferma el lunes, otro puede cubrir su parte.\nINTERLOCUTOR: Eso es buena idea. ¿Hay un template en la wiki?\nUSUARIO: Sí, Laura lo hizo el mes pasado. Se llama template-documentación-módulo. Úsenlo para que quede consistente.\nINTERLOCUTOR: Ok, lo busco.\nUSUARIO: Bien. Y último punto. Reconocimiento. Quiero reconocer a Diego por la migración de base de datos. Es un trabajo que nadie ve pero que es fundamental. Sin la migración, nada de lo que estamos haciendo funciona. Gracias, Diego.\nINTERLOCUTOR: Gracias, jefe.\nUSUARIO: Ok, cerramos. Recuerden: el objetivo de la semana es que el demo del lunes sea impecable. Todo lo demás puede esperar. Si tienen dudas, me escriben al Slack. Buen día, equipo. A darle.\nINTERLOCUTOR: Gracias. Vamos."
+}

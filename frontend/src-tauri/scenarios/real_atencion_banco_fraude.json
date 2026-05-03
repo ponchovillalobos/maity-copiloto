@@ -1,0 +1,13 @@
+{
+  "name": "atencion_banco_fraude",
+  "category": "real_atencion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: En la misma sección de seguridad, hay una opción que dice autenticación de dos factores. La activa y le pide su número de celular. Le va a llegar un código para confirmar.\nINTERLOCUTOR: Ok, ya la activé. Muchas gracias, señorita Gabriela. De verdad, muchas gracias por su paciencia.\nUSUARIO: No tiene nada que agradecer, señora María Elena. Para eso estamos. Le mando la confirmación a su correo en los próximos treinta minutos. Y recuerde, mañana a la sucursal con su INE y su tarjeta.\nINTERLOCUTOR: Sí, mañana primera hora voy. Que Dios la bendiga.\nUSUARIO: Igualmente. Y señora, una cosa más. Si recibe cualquier otra llamada o mensaje sospechoso, no conteste. Cuelgue y llámenos directamente a este número. ¿Ok?\nINTERLOCUTOR: Sí, sí. Ya aprendí la lección. Gracias.\nUSUARIO: Que descanse. Buenas noches.\nINTERLOCUTOR: Buenas noches."
+}

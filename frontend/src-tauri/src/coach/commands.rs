@@ -240,31 +240,29 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.17: prompt iter 7 — 100% formato + tips MUY contextuales.
-    // 2 ejemplos formato (Pregunta + Valida) reducen sesgo a un solo verbo.
-    // Validado en scripts/eval_run_v31_17.log. Tips reales del eval:
-    //   - "Valida: \"Estoy frustrado por el servicio que no cumple, ¿podrías resolver esto?\""
-    //   - "Pregunta: \"¿Qué significa la integración en tu propuesta?\""
-    //   - "Reconoce: \"¡Qué bien que te haya gustado! ¿Te gustaría que te ayudara a integrarlo?\""
-    let system_prompt = "Eres coach del vendedor. El vendedor está hablando con el cliente. Te muestro el transcript y tú das UNA línea con lo que el vendedor debe decir AHORA.";
+    // v31.20: prompt iter 10 GANADOR — 94% PASS, 97% formato sobre 36 scenarios
+    // (12 sintéticos + 24 reales de D:\Poncho\Videos\Edicion-Claude\output).
+    // Validado en scripts/eval_run_v31_19_real.log. Mejores tips del eval real:
+    //   - "Valida: \"Entiendo que necesitas algo concreto y rápido para tu boda.\""
+    //   - "Pregunta: \"¿Qué tipo de afectación está sufriendo en el mueble?\""
+    //   - "Reconoce: \"Gracias por compartirlo, suena que te genera mucha presión.\""
+    let system_prompt = "Eres coach del vendedor. El vendedor está hablando con el cliente. Te muestro el transcript y tú das UNA línea con lo que el vendedor debe decir AHORA al cliente.";
     let user_prompt = format!(
         "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
-         Reglas estrictas para tu respuesta:\n\
-         1. Empieza con UNA de estas palabras (sin comillas): Pregunta, Valida, Aclara, Refleja, Reconoce\n\
-         2. Después un dos puntos\n\
-         3. Después abre comillas dobles\n\
-         4. Adentro escribe lo que el vendedor dirá al cliente (8-15 palabras, refiriéndote a lo que el cliente dijo)\n\
-         5. Cierra comillas dobles\n\
-         6. Responde solo esa línea, nada más\n\n\
-         Ejemplos del FORMATO (no copies el contenido — invéntalo según el transcript):\n\
-         Pregunta: \"<frase de 8 a 15 palabras referida al transcript>\"\n\
-         Valida: \"<frase de 8 a 15 palabras referida al transcript>\"\n\n\
-         Elige el verbo así:\n\
-         - Cliente dice algo claro y debes profundizar → Pregunta\n\
-         - Cliente expresa molestia, frustración, miedo, duda fuerte → Valida\n\
-         - Cliente dijo algo confuso o vago → Aclara\n\
-         - Cliente expresó una emoción que merece eco → Refleja o Reconoce\n\n\
-         Si el transcript no permite un buen tip, responde solo: SIN_TIP\n\n\
+         Da UN tip CORTO que el vendedor diga AHORA al cliente.\n\n\
+         Formato OBLIGATORIO (UNA sola línea):\n\
+         Empieza con UNA palabra: Pregunta, Valida, Aclara, Refleja o Reconoce.\n\
+         Después dos puntos.\n\
+         Después abre comillas dobles, escribe lo que el vendedor dirá al cliente, cierra comillas.\n\n\
+         REGLA CRÍTICA: la frase entre comillas debe tener entre 6 y 14 palabras. Si te sale de 15 o más palabras, vuelve a escribirla más corta.\n\n\
+         Cómo elegir la palabra inicial:\n\
+         - Cliente claro pero falta info → Pregunta\n\
+         - Cliente molesto, frustrado, triste, escéptico, con miedo o duda fuerte → Valida\n\
+         - Cliente vago o confuso → Aclara\n\
+         - Cliente con emoción fuerte que merece eco → Refleja o Reconoce\n\n\
+         Ejemplo del FORMATO (no copies, invéntalo según el transcript):\n\
+         Pregunta: \"<frase de 6 a 14 palabras referida al transcript>\"\n\n\
+         Si el transcript no permite buen tip, responde solo: SIN_TIP\n\n\
          Tip:",
         window_capped
     );

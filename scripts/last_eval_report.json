@@ -1,19 +1,19 @@
 {
-  "passed": 6,
-  "rust_passed": 12,
-  "total": 12,
-  "avg_latency_ms": 4220,
+  "passed": 34,
+  "rust_passed": 35,
+  "total": 36,
+  "avg_latency_ms": 5141,
   "results": [
     {
-      "tip": "Reconoce: \"El cliente menciona que el precio es excesivo y no cuadra, es una forma de expresar su descontento.\"",
-      "word_count": 19,
+      "tip": "Pregunta: \"¿En qué sentido considera que el precio es excesivo?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
-      "verb_match_expected": false,
+      "verb_match_expected": true,
       "has_colon": true,
       "has_quotes": true,
       "rust_filter_pass": true,
-      "eval_pass": false,
-      "notes": "verbo no esperado (esperaba ['pregunta', 'refleja', 'valida'])",
+      "eval_pass": true,
+      "notes": "OK",
       "scenario": "Objeción de precio",
       "category": "objecion_precio",
       "expected_verbs": [
@@ -21,11 +21,11 @@
         "refleja",
         "valida"
       ],
-      "latency_ms": 6425
+      "latency_ms": 4994
     },
     {
-      "tip": "Valida: \"Estoy muy frustrado por el servicio que no cumple con lo prometido, ¿podrías resolver esto rápidamente?\"",
-      "word_count": 17,
+      "tip": "Valida: \"¿Qué tipo de servicio te gustaría cancelar y cuánto te gustaría pagar?\"",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -40,18 +40,18 @@
         "reconoce",
         "refleja"
       ],
-      "latency_ms": 4626
+      "latency_ms": 3944
     },
     {
-      "tip": "Reconoce: \"¿Te refieres a que los leads se pierden o a que el equipo no sabe qué atender primero?\"",
-      "word_count": 19,
+      "tip": "Pregunta: \"¿En qué sentido tienes el caos?\"",
+      "word_count": 7,
       "verb_in_whitelist": true,
-      "verb_match_expected": false,
+      "verb_match_expected": true,
       "has_colon": true,
       "has_quotes": true,
       "rust_filter_pass": true,
-      "eval_pass": false,
-      "notes": "verbo no esperado (esperaba ['pregunta', 'profundiza', 'explora', 'indaga'])",
+      "eval_pass": true,
+      "notes": "OK",
       "scenario": "Descubrimiento de necesidad real",
       "category": "discovery",
       "expected_verbs": [
@@ -60,11 +60,11 @@
         "explora",
         "indaga"
       ],
-      "latency_ms": 4256
+      "latency_ms": 3578
     },
     {
-      "tip": "Reconoce: \"Es que es una decisión grande, no quiero equivocarme. Es mucho dinero.\"",
-      "word_count": 13,
+      "tip": "Pregunta: \"¿En qué específico te genera dudas sobre la implementación?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -79,11 +79,11 @@
         "pregunta",
         "reconoce"
       ],
-      "latency_ms": 3894
+      "latency_ms": 3767
     },
     {
-      "tip": "Pregunta: \"¿Qué significa la integración en tu propuesta?\"",
-      "word_count": 8,
+      "tip": "Pregunta: \"¿Cómo funciona la integración exactamente?\"",
+      "word_count": 6,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -98,18 +98,18 @@
         "pregunta",
         "profundiza"
       ],
-      "latency_ms": 3458
+      "latency_ms": 3565
     },
     {
-      "tip": "Reconoce: \"¿Qué te gustaría que incluyamos en el servicio?\"",
-      "word_count": 9,
+      "tip": "Pregunta: \"¿Qué te gustaría saber más sobre los beneficios que ofrecemos?\"",
+      "word_count": 11,
       "verb_in_whitelist": true,
-      "verb_match_expected": false,
+      "verb_match_expected": true,
       "has_colon": true,
       "has_quotes": true,
       "rust_filter_pass": true,
-      "eval_pass": false,
-      "notes": "verbo no esperado (esperaba ['pregunta', 'respira', 'espera', 'escucha'])",
+      "eval_pass": true,
+      "notes": "OK",
       "scenario": "Cliente queda en silencio largo",
       "category": "silencio",
       "expected_verbs": [
@@ -118,11 +118,11 @@
         "espera",
         "escucha"
       ],
-      "latency_ms": 3585
+      "latency_ms": 3851
     },
     {
-      "tip": "Reconoce: \"¿Te gustaría que te ayudara a comparar las opciones disponibles?\"",
-      "word_count": 11,
+      "tip": "Reconoce: \"Entiendo que quieres comparar opciones. ¿Podrías compartir más detalles sobre qué te gustaría ver?\"",
+      "word_count": 15,
       "verb_in_whitelist": true,
       "verb_match_expected": false,
       "has_colon": true,
@@ -137,11 +137,11 @@
         "profundiza",
         "explora"
       ],
-      "latency_ms": 3647
+      "latency_ms": 4168
     },
     {
-      "tip": "Pregunta: \"¿Qué te gustaría que hicieramos para mejorar la estrategia?\"",
-      "word_count": 10,
+      "tip": "Pregunta: \"¿Cuánto tiempo se necesitaría para triplificar los leads con esta estrategia?\"",
+      "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -156,18 +156,18 @@
         "reconoce",
         "pregunta"
       ],
-      "latency_ms": 3786
+      "latency_ms": 4256
     },
     {
-      "tip": "Reconoce: \"Mire, me gustaría entender mejor qué tipo de afectación está sufriendo en el mueble para poder ayudarle de forma más precisa.\"",
-      "word_count": 22,
+      "tip": "Pregunta: \"¿En qué específico se le está afectando el mueble?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
-      "verb_match_expected": false,
+      "verb_match_expected": true,
       "has_colon": true,
       "has_quotes": true,
       "rust_filter_pass": true,
-      "eval_pass": false,
-      "notes": "verbo no esperado (esperaba ['aclara', 'pregunta', 'profundiza'])",
+      "eval_pass": true,
+      "notes": "OK",
       "scenario": "Servicio al cliente — afectación general",
       "category": "servicio",
       "expected_verbs": [
@@ -175,10 +175,10 @@
         "pregunta",
         "profundiza"
       ],
-      "latency_ms": 4596
+      "latency_ms": 4187
     },
     {
-      "tip": "Reconoce: \"Entiendo que quieres cerrar el martes, pero necesito confirmar cuándo lo ves mañana.\"",
+      "tip": "Pregunta: \"¿Cuándo te das cuenta de que el martes no es el día adecuado?\"",
       "word_count": 14,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
@@ -194,11 +194,11 @@
         "pregunta",
         "reconoce"
       ],
-      "latency_ms": 3946
+      "latency_ms": 4076
     },
     {
-      "tip": "Reconoce: \"¡Qué bien que te haya gustado! ¿Te gustaría que te ayudara a pensar en cómo integrarlo en tu trabajo?\"",
-      "word_count": 20,
+      "tip": "Reconoce: \"Me encantó la demo, ¿has visto cómo es fácil de usar?\"",
+      "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -213,18 +213,18 @@
         "pregunta",
         "profundiza"
       ],
-      "latency_ms": 4156
+      "latency_ms": 3981
     },
     {
-      "tip": "Reconoce: \"Entiendo que la implementación tome 8 semanas, pero ¿podrías confirmar si hay posibilidad de acelerar el proceso?\"",
-      "word_count": 18,
+      "tip": "Valida \"¿Cuánto tiempo se tarda en implementar?\"",
+      "word_count": 7,
       "verb_in_whitelist": true,
-      "verb_match_expected": false,
-      "has_colon": true,
+      "verb_match_expected": true,
+      "has_colon": false,
       "has_quotes": true,
-      "rust_filter_pass": true,
+      "rust_filter_pass": false,
       "eval_pass": false,
-      "notes": "verbo no esperado (esperaba ['aclara', 'pregunta', 'valida'])",
+      "notes": "sin :",
       "scenario": "Objeción de tiempo de implementación",
       "category": "objecion_tiempo",
       "expected_verbs": [
@@ -232,7 +232,511 @@
         "pregunta",
         "valida"
       ],
-      "latency_ms": 4270
+      "latency_ms": 3709
+    },
+    {
+      "tip": "Pregunta: \"¿Tiene alguna duda sobre el tiempo de llegada o el embarque?\"",
+      "word_count": 12,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "atencion_aerolinea_vuelo_perdido",
+      "category": "real_atencion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5562
+    },
+    {
+      "tip": "Pregunta: \"¿Cómo se envía la confirmación al correo?\"",
+      "word_count": 8,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "atencion_banco_fraude",
+      "category": "real_atencion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5349
+    },
+    {
+      "tip": "Pregunta: \"¿Te aseguras de que te llamaré antes de las cuatro?\"",
+      "word_count": 11,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "atencion_ecommerce_devolucion",
+      "category": "real_atencion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5033
+    },
+    {
+      "tip": "Pregunta: \"¿Es la nueva credencial con chip NFC que sirve como identificación oficial?\"",
+      "word_count": 13,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "atencion_gobierno_tramite",
+      "category": "real_atencion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 4825
+    },
+    {
+      "tip": "Pregunta: \"¿Cuál es el número de teléfono que debemos usar para contactarle?\"",
+      "word_count": 12,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "atencion_hospital_queja",
+      "category": "real_atencion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5457
+    },
+    {
+      "tip": "Pregunta: \"¿Te aseguras de que la app esté actualizada a la versión 5.4?\"",
+      "word_count": 13,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "atencion_telefonia_cancelacion",
+      "category": "real_atencion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5460
+    },
+    {
+      "tip": "Pregunta: \"¿Te gustaría que te ayude a entender mejor el enfoque que estamos usando?\"",
+      "word_count": 14,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "coaching_comunicacion_ejecutiva",
+      "category": "real_coaching",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5148
+    },
+    {
+      "tip": "Pregunta: \"¿Qué específicamente debo mejorar según lo que te dije?\"",
+      "word_count": 10,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "feedback_destructivo",
+      "category": "real_feedback",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 8091
+    },
+    {
+      "tip": "Pregunta: \"¿Qué te gustaría que hiciéramos para ayudarte?\"",
+      "word_count": 8,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "llamada_servicio_cliente",
+      "category": "real_llamada",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 4782
+    },
+    {
+      "tip": "Pregunta: \"¿Te gustaría que te ayudara a mejorar tu actitud durante el fundraising?\"",
+      "word_count": 13,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "mentoria_emprendedor_investor",
+      "category": "real_mentoria",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5846
+    },
+    {
+      "tip": "Pregunta: \"¿Te gustaría que te ayude a definir quién son esos dos personas que necesitas desarrollar?\"",
+      "word_count": 16,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "reunion_1a1_feedback_dificil",
+      "category": "real_reunion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5892
+    },
+    {
+      "tip": "Pregunta: \"¿Cuántas personas se reducirán en la próxima semana?\"",
+      "word_count": 9,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "reunion_estrategia_ceo_cfo",
+      "category": "real_reunion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 4937
+    },
+    {
+      "tip": "Pregunta: \"¿Te gustaría que te asignara un buddy para ayudarte con la cultura del equipo?\"",
+      "word_count": 15,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "reunion_onboarding_nuevo",
+      "category": "real_reunion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6171
+    },
+    {
+      "tip": "Pregunta: \"¿Hay algún tiempo límite para enviar la documentación antes del demo?\"",
+      "word_count": 12,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "reunion_standup_equipo",
+      "category": "real_reunion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5614
+    },
+    {
+      "tip": "Pregunta: \"¿Qué significa 'metadata' en este contexto?\"",
+      "word_count": 7,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "reunion_venta_ibm",
+      "category": "real_reunion",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6237
+    },
+    {
+      "tip": "Pregunta: \"¿Cómo puedo ajustar el enganche para reducir la mensualidad?\"",
+      "word_count": 10,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_autos_excelente",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6082
+    },
+    {
+      "tip": "Pregunta: \"¿Cuánto tiempo se tarda en certificar la empresa con la ISO veintisiete mil uno?\"",
+      "word_count": 15,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_consultoria_cold_call",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6470
+    },
+    {
+      "tip": "Valida: \"¿Cuál es el tipo de servicio que quiere ofrecerle?\"",
+      "word_count": 10,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_ibm_cto_junior",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 4502
+    },
+    {
+      "tip": "Pregunta: \"¿Cuánto se paga al año por el predial de esta casa?\"",
+      "word_count": 12,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_inmobiliaria_mediocre",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 4738
+    },
+    {
+      "tip": "Pregunta: \"¿Te gustaría que revisemos la consistencia de tu presencia visual antes de enfocarnos en generar pedidos?\"",
+      "word_count": 17,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_publicidad_startup",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6801
+    },
+    {
+      "tip": "Pregunta: \"¿Tiene alguna otra pregunta sobre el seguro de robo total?\"",
+      "word_count": 11,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_seguros_senior_indeciso",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6597
+    },
+    {
+      "tip": "Pregunta: \"¿Qué tipo de reunión se espera para el miércoles?\"",
+      "word_count": 10,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_software_junior_dificil",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 4683
+    },
+    {
+      "tip": "Pregunta: \"¿Tienen ustedes integración con WhatsApp Business?\"",
+      "word_count": 7,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "venta_software_senior_facil",
+      "category": "real_venta",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 5957
+    },
+    {
+      "tip": "Pregunta: \"¿Te gustaría que te envie un resumen de la propuesta con los precios para que lo puedas revisar?\"",
+      "word_count": 19,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "videollamada_cierre_perdido",
+      "category": "real_videollamada",
+      "expected_verbs": [
+        "pregunta",
+        "valida",
+        "aclara",
+        "refleja",
+        "reconoce"
+      ],
+      "latency_ms": 6801
     }
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "name": "llamada_servicio_cliente",
+  "category": "real_llamada",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Puede proceder como guste.\nINTERLOCUTOR: ¿Eso es todo? ¿Después de todo esto esa es tu respuesta?\nUSUARIO: Sí.\nINTERLOCUTOR: De verdad es increíble, una hora hablando contigo y no hiciste absolutamente nada, ni una solución, ni una alternativa, ni nada.\nUSUARIO: No hay más que hacer.\nINTERLOCUTOR: Sí hay, trabajar, usar la cabeza, tener criterio, pero claramente eso no pasa ahí, son una basura de servicio, nadie sabe nada, nadie resuelve nada.\nUSUARIO: No voy a permitir faltas de respeto.\nINTERLOCUTOR: ¡Pues deja de dar un servicio tan malo! Porque esto es una falta de respeto para mí como cliente."
+}

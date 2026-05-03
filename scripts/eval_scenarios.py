@@ -26,25 +26,25 @@ USER_PROMPT_TEMPLATE = """Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente
 
 {transcript}
 
-Reglas estrictas para tu respuesta:
-1. Empieza con UNA de estas palabras (sin comillas): Pregunta, Valida, Aclara, Refleja, Reconoce
-2. Despues un dos puntos
-3. Despues abre comillas dobles
-4. Adentro escribe lo que el vendedor dira al cliente (8-15 palabras, refiriendote a lo que el cliente dijo)
-5. Cierra comillas dobles
-6. Responde solo esa linea, nada mas
+Da UN tip CORTO que el vendedor diga AHORA al cliente.
 
-Ejemplos del FORMATO (no copies el contenido - inventalo segun el transcript):
-Pregunta: "<frase de 8 a 15 palabras referida al transcript>"
-Valida: "<frase de 8 a 15 palabras referida al transcript>"
+Formato OBLIGATORIO (UNA sola linea):
+Empieza con UNA palabra: Pregunta, Valida, Aclara, Refleja o Reconoce.
+Despues dos puntos.
+Despues abre comillas dobles, escribe lo que el vendedor dira al cliente, cierra comillas.
 
-Elige el verbo asi:
-- Cliente dice algo claro y debes profundizar -> Pregunta
-- Cliente expresa molestia, frustracion, miedo, duda fuerte -> Valida
-- Cliente dijo algo confuso o vago -> Aclara
-- Cliente expreso una emocion que merece eco -> Refleja o Reconoce
+REGLA CRITICA: la frase entre comillas debe tener entre 6 y 14 palabras. Si te sale de 15 o mas palabras, vuelve a escribirla mas corta.
 
-Si el transcript no permite un buen tip, responde solo: SIN_TIP
+Como elegir la palabra inicial:
+- Cliente claro pero falta info -> Pregunta
+- Cliente molesto, frustrado, triste, esceptico, con miedo o duda fuerte -> Valida
+- Cliente vago o confuso -> Aclara
+- Cliente con emocion fuerte que merece eco -> Refleja o Reconoce
+
+Ejemplo del FORMATO (no copies, inventalo segun el transcript):
+Pregunta: "<frase de 6 a 14 palabras referida al transcript>"
+
+Si el transcript no permite buen tip, responde solo: SIN_TIP
 
 Tip:"""
 

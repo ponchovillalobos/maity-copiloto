@@ -1,0 +1,13 @@
+{
+  "name": "reunion_onboarding_nuevo",
+  "category": "real_reunion",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Sí, te lo agendo para el miércoles. Una hora, en línea, a tu ritmo. Al final hay un quiz. Si lo pasas, se activa el nivel dos automáticamente.\nINTERLOCUTOR: Suena bien. Oye, otra cosa. ¿Tienen algún buddy program? Porque en mi empresa anterior el primer mes me asignaron un compañero que me ayudaba con todo lo informal, como dónde comer, cómo pedir vacaciones, cosas así.\nUSUARIO: Sí, de hecho te iba a asignar a Marco como tu buddy. Él lleva dos años en el equipo, conoce todo y es muy buena onda. Te presenta a la gente de otros equipos, te dice dónde están las cosas y te ayuda a navegar la cultura. No es un rol formal, es más de acompañamiento.\nINTERLOCUTOR: Genial, eso me ayuda mucho. Sobre todo para lo social, porque soy un poco tímida al principio.\nUSUARIO: Totalmente normal. Marco es exactamente la persona indicada para eso. Es el más social del equipo. Te va a integrar rápido. Ahora sí, ¿alguna otra cosa?\nINTERLOCUTOR: No, creo que ya tengo suficiente para arrancar. Estoy emocionada.\nUSUARIO: Perfecto. Te acompaño con IT para que te configuren la laptop y los accesos. Vamos.\nINTERLOCUTOR: Vamos. Gracias."
+}

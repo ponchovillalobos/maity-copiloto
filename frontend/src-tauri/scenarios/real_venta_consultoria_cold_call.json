@@ -1,0 +1,13 @@
+{
+  "name": "venta_consultoria_cold_call",
+  "category": "real_venta",
+  "expected_intent": "tip empatico que ayude al vendedor a responder al cliente",
+  "expected_verbs": [
+    "pregunta",
+    "valida",
+    "aclara",
+    "refleja",
+    "reconoce"
+  ],
+  "transcript": "USUARIO: Nos vemos el jueves. Que tenga excelente día, ingeniero.\nINTERLOCUTOR: Oiga, espere. Antes de colgar, una cosa. ¿Ustedes también trabajan con normas de cumplimiento? Porque con todo lo del ransomware, mi director general me está presionando con que cumplamos la ISO veintisiete mil uno.\nUSUARIO: Sí, ingeniero. De hecho, la certificación ISO veintisiete mil uno es uno de nuestros servicios principales. Tenemos un programa acelerado donde llevamos a la empresa desde cero hasta lista para auditoría en seis meses. Incluye la evaluación de riesgos, la implementación de controles y la preparación de la documentación.\nINTERLOCUTOR: ¿Seis meses? Otras empresas me han dicho que tarda un año.\nUSUARIO: Un año es lo que tarda si no tienes un equipo dedicado y no tienes metodología. Nosotros tenemos una metodología probada con más de treinta certificaciones exitosas. Aceleramos el proceso porque ya sabemos exactamente qué piden los auditores y qué controles son los críticos.\nINTERLOCUTOR: Bueno, eso también lo platicamos el jueves. Agréguenlo a la agenda.\nUSUARIO: Perfecto, queda en la agenda: diagnóstico de ciberseguridad, automatización de planeación y programa de certificación ISO veintisiete mil uno. Va a ser un día productivo.\nINTERLOCUTOR: Así espero. Ahora sí, nos vemos el jueves. Igualmente, bye."
+}
