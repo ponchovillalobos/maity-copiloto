@@ -1,0 +1,238 @@
+{
+  "passed": 6,
+  "rust_passed": 12,
+  "total": 12,
+  "avg_latency_ms": 4220,
+  "results": [
+    {
+      "tip": "Reconoce: \"El cliente menciona que el precio es excesivo y no cuadra, es una forma de expresar su descontento.\"",
+      "word_count": 19,
+      "verb_in_whitelist": true,
+      "verb_match_expected": false,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": false,
+      "notes": "verbo no esperado (esperaba ['pregunta', 'refleja', 'valida'])",
+      "scenario": "Objeción de precio",
+      "category": "objecion_precio",
+      "expected_verbs": [
+        "pregunta",
+        "refleja",
+        "valida"
+      ],
+      "latency_ms": 6425
+    },
+    {
+      "tip": "Valida: \"Estoy muy frustrado por el servicio que no cumple con lo prometido, ¿podrías resolver esto rápidamente?\"",
+      "word_count": 17,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "Cliente frustrado por mal servicio anterior",
+      "category": "frustracion",
+      "expected_verbs": [
+        "valida",
+        "reconoce",
+        "refleja"
+      ],
+      "latency_ms": 4626
+    },
+    {
+      "tip": "Reconoce: \"¿Te refieres a que los leads se pierden o a que el equipo no sabe qué atender primero?\"",
+      "word_count": 19,
+      "verb_in_whitelist": true,
+      "verb_match_expected": false,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": false,
+      "notes": "verbo no esperado (esperaba ['pregunta', 'profundiza', 'explora', 'indaga'])",
+      "scenario": "Descubrimiento de necesidad real",
+      "category": "discovery",
+      "expected_verbs": [
+        "pregunta",
+        "profundiza",
+        "explora",
+        "indaga"
+      ],
+      "latency_ms": 4256
+    },
+    {
+      "tip": "Reconoce: \"Es que es una decisión grande, no quiero equivocarme. Es mucho dinero.\"",
+      "word_count": 13,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "Cliente indeciso al cerrar",
+      "category": "indecision",
+      "expected_verbs": [
+        "valida",
+        "pregunta",
+        "reconoce"
+      ],
+      "latency_ms": 3894
+    },
+    {
+      "tip": "Pregunta: \"¿Qué significa la integración en tu propuesta?\"",
+      "word_count": 8,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "Cliente hace pregunta técnica vaga",
+      "category": "aclaracion",
+      "expected_verbs": [
+        "aclara",
+        "pregunta",
+        "profundiza"
+      ],
+      "latency_ms": 3458
+    },
+    {
+      "tip": "Reconoce: \"¿Qué te gustaría que incluyamos en el servicio?\"",
+      "word_count": 9,
+      "verb_in_whitelist": true,
+      "verb_match_expected": false,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": false,
+      "notes": "verbo no esperado (esperaba ['pregunta', 'respira', 'espera', 'escucha'])",
+      "scenario": "Cliente queda en silencio largo",
+      "category": "silencio",
+      "expected_verbs": [
+        "pregunta",
+        "respira",
+        "espera",
+        "escucha"
+      ],
+      "latency_ms": 3585
+    },
+    {
+      "tip": "Reconoce: \"¿Te gustaría que te ayudara a comparar las opciones disponibles?\"",
+      "word_count": 11,
+      "verb_in_whitelist": true,
+      "verb_match_expected": false,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": false,
+      "notes": "verbo no esperado (esperaba ['pregunta', 'profundiza', 'explora'])",
+      "scenario": "Cliente menciona competencia directa",
+      "category": "competencia",
+      "expected_verbs": [
+        "pregunta",
+        "profundiza",
+        "explora"
+      ],
+      "latency_ms": 3647
+    },
+    {
+      "tip": "Pregunta: \"¿Qué te gustaría que hicieramos para mejorar la estrategia?\"",
+      "word_count": 10,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "Cliente pesimista sobre resultados",
+      "category": "escepticismo",
+      "expected_verbs": [
+        "valida",
+        "reconoce",
+        "pregunta"
+      ],
+      "latency_ms": 3786
+    },
+    {
+      "tip": "Reconoce: \"Mire, me gustaría entender mejor qué tipo de afectación está sufriendo en el mueble para poder ayudarle de forma más precisa.\"",
+      "word_count": 22,
+      "verb_in_whitelist": true,
+      "verb_match_expected": false,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": false,
+      "notes": "verbo no esperado (esperaba ['aclara', 'pregunta', 'profundiza'])",
+      "scenario": "Servicio al cliente — afectación general",
+      "category": "servicio",
+      "expected_verbs": [
+        "aclara",
+        "pregunta",
+        "profundiza"
+      ],
+      "latency_ms": 4596
+    },
+    {
+      "tip": "Reconoce: \"Entiendo que quieres cerrar el martes, pero necesito confirmar cuándo lo ves mañana.\"",
+      "word_count": 14,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "Cliente necesita consultar con socio",
+      "category": "consulta_externa",
+      "expected_verbs": [
+        "valida",
+        "pregunta",
+        "reconoce"
+      ],
+      "latency_ms": 3946
+    },
+    {
+      "tip": "Reconoce: \"¡Qué bien que te haya gustado! ¿Te gustaría que te ayudara a pensar en cómo integrarlo en tu trabajo?\"",
+      "word_count": 20,
+      "verb_in_whitelist": true,
+      "verb_match_expected": true,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": true,
+      "notes": "OK",
+      "scenario": "Cliente expresa entusiasmo",
+      "category": "entusiasmo",
+      "expected_verbs": [
+        "reconoce",
+        "pregunta",
+        "profundiza"
+      ],
+      "latency_ms": 4156
+    },
+    {
+      "tip": "Reconoce: \"Entiendo que la implementación tome 8 semanas, pero ¿podrías confirmar si hay posibilidad de acelerar el proceso?\"",
+      "word_count": 18,
+      "verb_in_whitelist": true,
+      "verb_match_expected": false,
+      "has_colon": true,
+      "has_quotes": true,
+      "rust_filter_pass": true,
+      "eval_pass": false,
+      "notes": "verbo no esperado (esperaba ['aclara', 'pregunta', 'valida'])",
+      "scenario": "Objeción de tiempo de implementación",
+      "category": "objecion_tiempo",
+      "expected_verbs": [
+        "aclara",
+        "pregunta",
+        "valida"
+      ],
+      "latency_ms": 4270
+    }
+  ]
+}

@@ -240,29 +240,31 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.10: prompt accionable. Tip ENTREGA la frase exacta que el vendedor
-    // dirá al cliente (no describe situación). Formato fijo: VERBO + ":" +
-    // "frase entre comillas". Empático: validar/preguntar/reflejar/conectar.
-    // Nunca presionar/cerrar/vender.
-    let system_prompt = "Eres Maity. Coach del vendedor en TIEMPO REAL. NO describas la situación. ENTREGA el texto exacto que el vendedor debe decir AHORA al cliente.";
+    // v31.17: prompt iter 7 — 100% formato + tips MUY contextuales.
+    // 2 ejemplos formato (Pregunta + Valida) reducen sesgo a un solo verbo.
+    // Validado en scripts/eval_run_v31_17.log. Tips reales del eval:
+    //   - "Valida: \"Estoy frustrado por el servicio que no cumple, ¿podrías resolver esto?\""
+    //   - "Pregunta: \"¿Qué significa la integración en tu propuesta?\""
+    //   - "Reconoce: \"¡Qué bien que te haya gustado! ¿Te gustaría que te ayudara a integrarlo?\""
+    let system_prompt = "Eres coach del vendedor. El vendedor está hablando con el cliente. Te muestro el transcript y tú das UNA línea con lo que el vendedor debe decir AHORA.";
     let user_prompt = format!(
         "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
-         Formato OBLIGATORIO: VERBO + \":\" + \"frase entre comillas que el vendedor copia y dice TAL CUAL\".\n\n\
-         Ejemplos válidos:\n\
-         - Pregunta: \"¿Qué te haría sentir más tranquilo con esta decisión?\"\n\
-         - Refleja: \"Entiendo que el precio te preocupa, ¿cuánto sería razonable para ti?\"\n\
-         - Valida: \"Tiene todo el sentido que dudes después de la experiencia anterior.\"\n\
-         - Aclara: \"¿A qué te refieres con que el servicio es lento?\"\n\n\
-         Reglas:\n\
-         - Frase entre comillas: 5-15 palabras, decible TAL CUAL al cliente.\n\
-         - Si hay OBJECIÓN → pregunta de poder ('¿qué te haría sentir tranquilo?').\n\
-         - Si hay DUDA → validar + pregunta abierta.\n\
-         - Si hay FRUSTRACIÓN → reconocer emoción usando palabras del cliente.\n\
-         - Si hay INTERÉS CLARO → sugerir siguiente paso concreto y suave.\n\
-         - Verbos permitidos: Pregunta, Refleja, Valida, Reconoce, Aclara, Conecta, Profundiza, Escucha.\n\
-         - No inventes nombres, datos, cifras ni promesas. Verbos y frases de coaching genéricos sí están permitidos.\n\
-         - No cierres ni presiones antes de validar. NO describas la situación, ENTREGA el texto.\n\
-         - Si no hay base útil, responde EXACTAMENTE: SIN_TIP\n\n\
+         Reglas estrictas para tu respuesta:\n\
+         1. Empieza con UNA de estas palabras (sin comillas): Pregunta, Valida, Aclara, Refleja, Reconoce\n\
+         2. Después un dos puntos\n\
+         3. Después abre comillas dobles\n\
+         4. Adentro escribe lo que el vendedor dirá al cliente (8-15 palabras, refiriéndote a lo que el cliente dijo)\n\
+         5. Cierra comillas dobles\n\
+         6. Responde solo esa línea, nada más\n\n\
+         Ejemplos del FORMATO (no copies el contenido — invéntalo según el transcript):\n\
+         Pregunta: \"<frase de 8 a 15 palabras referida al transcript>\"\n\
+         Valida: \"<frase de 8 a 15 palabras referida al transcript>\"\n\n\
+         Elige el verbo así:\n\
+         - Cliente dice algo claro y debes profundizar → Pregunta\n\
+         - Cliente expresa molestia, frustración, miedo, duda fuerte → Valida\n\
+         - Cliente dijo algo confuso o vago → Aclara\n\
+         - Cliente expresó una emoción que merece eco → Refleja o Reconoce\n\n\
+         Si el transcript no permite un buen tip, responde solo: SIN_TIP\n\n\
          Tip:",
         window_capped
     );
