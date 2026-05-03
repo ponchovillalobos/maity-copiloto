@@ -1,12 +1,12 @@
 {
-  "passed": 34,
-  "rust_passed": 35,
+  "passed": 32,
+  "rust_passed": 32,
   "total": 36,
-  "avg_latency_ms": 5141,
+  "avg_latency_ms": 6855,
   "results": [
     {
-      "tip": "Pregunta: \"¿En qué sentido considera que el precio es excesivo?\"",
-      "word_count": 10,
+      "tip": "Pregunta: \"¿Cuál es el precio que ofrecen ustedes en lugar del paquete completo?\"",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -21,11 +21,11 @@
         "refleja",
         "valida"
       ],
-      "latency_ms": 4994
+      "latency_ms": 8167
     },
     {
-      "tip": "Valida: \"¿Qué tipo de servicio te gustaría cancelar y cuánto te gustaría pagar?\"",
-      "word_count": 13,
+      "tip": "Valida: \"¿Cuál es el costo de la cancelación y qué opciones tienes para reemplazar el servicio?\"",
+      "word_count": 16,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -40,11 +40,11 @@
         "reconoce",
         "refleja"
       ],
-      "latency_ms": 3944
+      "latency_ms": 9268
     },
     {
-      "tip": "Pregunta: \"¿En qué sentido tienes el caos?\"",
-      "word_count": 7,
+      "tip": "Pregunta: \"¿En qué sentido tienes el caos con los leads?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -60,11 +60,11 @@
         "explora",
         "indaga"
       ],
-      "latency_ms": 3578
+      "latency_ms": 7594
     },
     {
-      "tip": "Pregunta: \"¿En qué específico te genera dudas sobre la implementación?\"",
-      "word_count": 10,
+      "tip": "Valida: \"¿Cómo puedes estar tan preocupado cuando es una decisión que puede mejorar tu vida?\"",
+      "word_count": 15,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -79,11 +79,11 @@
         "pregunta",
         "reconoce"
       ],
-      "latency_ms": 3767
+      "latency_ms": 6170
     },
     {
-      "tip": "Pregunta: \"¿Cómo funciona la integración exactamente?\"",
-      "word_count": 6,
+      "tip": "Pregunta: \"¿Cómo funciona la integración de los sistemas mencionada en la propuesta?\"",
+      "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -98,11 +98,11 @@
         "pregunta",
         "profundiza"
       ],
-      "latency_ms": 3565
+      "latency_ms": 5653
     },
     {
-      "tip": "Pregunta: \"¿Qué te gustaría saber más sobre los beneficios que ofrecemos?\"",
-      "word_count": 11,
+      "tip": "Pregunta: \"¿Qué tipo de servicios o productos ofrecen específicamente?\"",
+      "word_count": 9,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -118,18 +118,18 @@
         "espera",
         "escucha"
       ],
-      "latency_ms": 3851
+      "latency_ms": 6313
     },
     {
-      "tip": "Reconoce: \"Entiendo que quieres comparar opciones. ¿Podrías compartir más detalles sobre qué te gustaría ver?\"",
-      "word_count": 15,
+      "tip": "Pregunta: ¿Cuál es la ventaja principal de HubSpot que te gustaría destacar?",
+      "word_count": 12,
       "verb_in_whitelist": true,
-      "verb_match_expected": false,
+      "verb_match_expected": true,
       "has_colon": true,
-      "has_quotes": true,
-      "rust_filter_pass": true,
+      "has_quotes": false,
+      "rust_filter_pass": false,
       "eval_pass": false,
-      "notes": "verbo no esperado (esperaba ['pregunta', 'profundiza', 'explora'])",
+      "notes": "sin comillas",
       "scenario": "Cliente menciona competencia directa",
       "category": "competencia",
       "expected_verbs": [
@@ -137,10 +137,10 @@
         "profundiza",
         "explora"
       ],
-      "latency_ms": 4168
+      "latency_ms": 5575
     },
     {
-      "tip": "Pregunta: \"¿Cuánto tiempo se necesitaría para triplificar los leads con esta estrategia?\"",
+      "tip": "Pregunta: \"¿Cómo podemos asegurar que la estrategia realmente genera los resultados prometidos?\"",
       "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
@@ -156,11 +156,11 @@
         "reconoce",
         "pregunta"
       ],
-      "latency_ms": 4256
+      "latency_ms": 5436
     },
     {
-      "tip": "Pregunta: \"¿En qué específico se le está afectando el mueble?\"",
-      "word_count": 10,
+      "tip": "Pregunta: \"¿En qué tipo de mueble se encuentra la afectación y qué síntomas presenta?\"",
+      "word_count": 14,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -175,11 +175,11 @@
         "pregunta",
         "profundiza"
       ],
-      "latency_ms": 4187
+      "latency_ms": 5457
     },
     {
-      "tip": "Pregunta: \"¿Cuándo te das cuenta de que el martes no es el día adecuado?\"",
-      "word_count": 14,
+      "tip": "Pregunta: \"¿Cuándo te gustaría cerrar el martes?\"",
+      "word_count": 7,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -194,11 +194,11 @@
         "pregunta",
         "reconoce"
       ],
-      "latency_ms": 4076
+      "latency_ms": 5073
     },
     {
-      "tip": "Reconoce: \"Me encantó la demo, ¿has visto cómo es fácil de usar?\"",
-      "word_count": 12,
+      "tip": "Pregunta: \"¿Qué aspecto del sistema te gustaría saber más detalles sobre?\"",
+      "word_count": 11,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -213,18 +213,18 @@
         "pregunta",
         "profundiza"
       ],
-      "latency_ms": 3981
+      "latency_ms": 5141
     },
     {
-      "tip": "Valida \"¿Cuánto tiempo se tarda en implementar?\"",
-      "word_count": 7,
+      "tip": "Pregunta: ¿Cuál es el plazo máximo que se puede acelerar para la implementación?",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
-      "has_colon": false,
-      "has_quotes": true,
+      "has_colon": true,
+      "has_quotes": false,
       "rust_filter_pass": false,
       "eval_pass": false,
-      "notes": "sin :",
+      "notes": "sin comillas",
       "scenario": "Objeción de tiempo de implementación",
       "category": "objecion_tiempo",
       "expected_verbs": [
@@ -232,11 +232,11 @@
         "pregunta",
         "valida"
       ],
-      "latency_ms": 3709
+      "latency_ms": 5574
     },
     {
-      "tip": "Pregunta: \"¿Tiene alguna duda sobre el tiempo de llegada o el embarque?\"",
-      "word_count": 12,
+      "tip": "Valida: \"¿Tiene algún problema con el horario o la conexión?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -253,11 +253,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5562
+      "latency_ms": 7155
     },
     {
-      "tip": "Pregunta: \"¿Cómo se envía la confirmación al correo?\"",
-      "word_count": 8,
+      "tip": "Pregunta: \"¿Qué debo hacer si recibo cualquier otra llamada o mensaje sospechoso?\"",
+      "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -274,11 +274,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5349
+      "latency_ms": 7239
     },
     {
-      "tip": "Pregunta: \"¿Te aseguras de que te llamaré antes de las cuatro?\"",
-      "word_count": 11,
+      "tip": "Pregunta: \"¿Qué tipo de ayuda necesitas para resolver tu caso de forma favorable?\"",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -295,18 +295,18 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5033
+      "latency_ms": 6561
     },
     {
-      "tip": "Pregunta: \"¿Es la nueva credencial con chip NFC que sirve como identificación oficial?\"",
-      "word_count": 13,
+      "tip": "Pregunta: ¿Es la nueva licencia digital la que vale como identificación oficial?",
+      "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
-      "has_quotes": true,
-      "rust_filter_pass": true,
-      "eval_pass": true,
-      "notes": "OK",
+      "has_quotes": false,
+      "rust_filter_pass": false,
+      "eval_pass": false,
+      "notes": "sin comillas",
       "scenario": "atencion_gobierno_tramite",
       "category": "real_atencion",
       "expected_verbs": [
@@ -316,18 +316,18 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 4825
+      "latency_ms": 6425
     },
     {
-      "tip": "Pregunta: \"¿Cuál es el número de teléfono que debemos usar para contactarle?\"",
-      "word_count": 12,
+      "tip": "Pregunta: ¿Cuál es el número de contacto que debe usar el vendedor para llamar al cliente?",
+      "word_count": 16,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
-      "has_quotes": true,
-      "rust_filter_pass": true,
-      "eval_pass": true,
-      "notes": "OK",
+      "has_quotes": false,
+      "rust_filter_pass": false,
+      "eval_pass": false,
+      "notes": "sin comillas",
       "scenario": "atencion_hospital_queja",
       "category": "real_atencion",
       "expected_verbs": [
@@ -337,11 +337,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5457
+      "latency_ms": 7080
     },
     {
-      "tip": "Pregunta: \"¿Te aseguras de que la app esté actualizada a la versión 5.4?\"",
-      "word_count": 13,
+      "tip": "Valida: \"¿Te gustaría que te lo repase en detalle antes de actualizar?\"",
+      "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -358,11 +358,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5460
+      "latency_ms": 6379
     },
     {
-      "tip": "Pregunta: \"¿Te gustaría que te ayude a entender mejor el enfoque que estamos usando?\"",
-      "word_count": 14,
+      "tip": "Pregunta: \"¿Cómo estás hoy? ¿Qué te gustaría que hiciéramos hoy?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -379,11 +379,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5148
+      "latency_ms": 6588
     },
     {
-      "tip": "Pregunta: \"¿Qué específicamente debo mejorar según lo que te dije?\"",
-      "word_count": 10,
+      "tip": "Valida: \"¿Qué medidas específicas crees que puedo tomar para mejorar mi desempeño en un mes?\"",
+      "word_count": 15,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -400,11 +400,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 8091
+      "latency_ms": 9957
     },
     {
-      "tip": "Pregunta: \"¿Qué te gustaría que hiciéramos para ayudarte?\"",
-      "word_count": 8,
+      "tip": "Valida: \"¿Cómo puedes decir que no hiciste nada si no has dado ninguna solución?\"",
+      "word_count": 14,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -421,11 +421,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 4782
+      "latency_ms": 6211
     },
     {
-      "tip": "Pregunta: \"¿Te gustaría que te ayudara a mejorar tu actitud durante el fundraising?\"",
-      "word_count": 13,
+      "tip": "Valida: \"¿Cómo te sientes al hablar de los rechazos consecutivos?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -442,11 +442,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5846
+      "latency_ms": 7546
     },
     {
-      "tip": "Pregunta: \"¿Te gustaría que te ayude a definir quién son esos dos personas que necesitas desarrollar?\"",
-      "word_count": 16,
+      "tip": "Pregunta: \"¿Cuál es el objetivo principal del plan de noventa días?\"",
+      "word_count": 11,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -463,11 +463,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5892
+      "latency_ms": 7142
     },
     {
-      "tip": "Pregunta: \"¿Cuántas personas se reducirán en la próxima semana?\"",
-      "word_count": 9,
+      "tip": "Pregunta: \"¿Cuál será el plan de cierre y los beneficios para los empleados?\"",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -484,11 +484,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 4937
+      "latency_ms": 6785
     },
     {
-      "tip": "Pregunta: \"¿Te gustaría que te asignara un buddy para ayudarte con la cultura del equipo?\"",
-      "word_count": 15,
+      "tip": "Pregunta: \"¿Tienen algún buddy program?",
+      "word_count": 5,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -505,10 +505,10 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6171
+      "latency_ms": 7493
     },
     {
-      "tip": "Pregunta: \"¿Hay algún tiempo límite para enviar la documentación antes del demo?\"",
+      "tip": "Pregunta: \"¿Cuál es el plazo para documentar los módulos en la wiki?\"",
       "word_count": 12,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
@@ -526,11 +526,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5614
+      "latency_ms": 7433
     },
     {
-      "tip": "Pregunta: \"¿Qué significa 'metadata' en este contexto?\"",
-      "word_count": 7,
+      "tip": "Valida: \"¿Qué es lo que usted quiere que IBM haga con sus datos?\"",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -547,11 +547,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6237
+      "latency_ms": 7908
     },
     {
-      "tip": "Pregunta: \"¿Cómo puedo ajustar el enganche para reducir la mensualidad?\"",
-      "word_count": 10,
+      "tip": "Valida: \"¿Tienen opciones de financiamiento con intereses menores?\"",
+      "word_count": 8,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -568,11 +568,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6082
+      "latency_ms": 7287
     },
     {
-      "tip": "Pregunta: \"¿Cuánto tiempo se tarda en certificar la empresa con la ISO veintisiete mil uno?\"",
-      "word_count": 15,
+      "tip": "Pregunta: \"¿Cuánto tiempo tarda en certificarse con ISO 27001?\"",
+      "word_count": 9,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -589,11 +589,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6470
+      "latency_ms": 7945
     },
     {
-      "tip": "Valida: \"¿Cuál es el tipo de servicio que quiere ofrecerle?\"",
-      "word_count": 10,
+      "tip": "Pregunta: \"¿Cuál es el costo del envío del equipo pequeño que se le ofrece?\"",
+      "word_count": 14,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -610,7 +610,7 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 4502
+      "latency_ms": 5893
     },
     {
       "tip": "Pregunta: \"¿Cuánto se paga al año por el predial de esta casa?\"",
@@ -631,11 +631,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 4738
+      "latency_ms": 5889
     },
     {
-      "tip": "Pregunta: \"¿Te gustaría que revisemos la consistencia de tu presencia visual antes de enfocarnos en generar pedidos?\"",
-      "word_count": 17,
+      "tip": "Pregunta: \"¿Cuál es la prioridad actual para tu negocio?\"",
+      "word_count": 9,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -652,11 +652,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6801
+      "latency_ms": 7403
     },
     {
-      "tip": "Pregunta: \"¿Tiene alguna otra pregunta sobre el seguro de robo total?\"",
-      "word_count": 11,
+      "tip": "Valida: \"¿Cuál es el costo del deducible reducido?\"",
+      "word_count": 8,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -673,11 +673,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6597
+      "latency_ms": 8103
     },
     {
-      "tip": "Pregunta: \"¿Qué tipo de reunión se espera para el miércoles?\"",
-      "word_count": 10,
+      "tip": "Pregunta: \"¿En qué puedo ayudarle hoy?\"",
+      "word_count": 6,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -694,11 +694,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 4683
+      "latency_ms": 5859
     },
     {
-      "tip": "Pregunta: \"¿Tienen ustedes integración con WhatsApp Business?\"",
-      "word_count": 7,
+      "tip": "Pregunta: \"¿Cuál es el beneficio de la integración con WhatsApp Business en Salesforce?\"",
+      "word_count": 13,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -715,11 +715,11 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 5957
+      "latency_ms": 7477
     },
     {
-      "tip": "Pregunta: \"¿Te gustaría que te envie un resumen de la propuesta con los precios para que lo puedas revisar?\"",
-      "word_count": 19,
+      "tip": "Pregunta: \"¿Qué precios específicos te interesa ver en el resumen?\"",
+      "word_count": 10,
       "verb_in_whitelist": true,
       "verb_match_expected": true,
       "has_colon": true,
@@ -736,7 +736,7 @@
         "refleja",
         "reconoce"
       ],
-      "latency_ms": 6801
+      "latency_ms": 7628
     }
   ]
 }
