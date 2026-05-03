@@ -709,11 +709,14 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         logger.warn(`[Coach v30] tick error: ${e}`);
       }
     };
-    // PRIMER tick a 5s (warm-up sidecar + tip inicial rápido)
+    // v31.9: PRIMER tick a 8s (warm-up sidecar). Interval 60s — cold-start
+    // qwen3:1.7b CPU dura 25-30s; 30s era demasiado agresivo y los ticks se
+    // pisaban (lock concurrente rechazaba). 60s da margen claro: tick A
+    // termina en <30s warm, tick B sale 30s después con sidecar listo.
     const firstTimer = setTimeout(() => {
       void tick();
-      intervalHandle = setInterval(() => void tick(), 30_000);
-    }, 5_000);
+      intervalHandle = setInterval(() => void tick(), 60_000);
+    }, 8_000);
     return () => {
       clearTimeout(firstTimer);
       if (intervalHandle) clearInterval(intervalHandle);

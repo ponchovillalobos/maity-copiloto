@@ -260,14 +260,15 @@ pub async fn coach_simple_tick(
         window_capped
     );
 
-    // v31.3: timeout 15→20s. qwen3:1.7b en CPU (sin GPU) puede tardar 12-15s
-    // por tip. El timeout previo cancelaba justo cuando el modelo estaba
-    // retornando, perdiendo tips. 20s da margen mientras sigue siendo aceptable
-    // para coaching cada 30s.
+    // v31.9: timeout 20→45s. CRITICAL FIX: con cold-start del sidecar
+    // (qwen3:1.7b carga ~10s + genera ~12-15s en CPU = ~25-30s primera vez).
+    // Timeout 20s mataba sidecar ANTES de responder → ciclo infinito spawn/kill
+    // sin un solo tip generado. 45s da margen para cold-start; ticks siguientes
+    // (sidecar warm) responden en <15s sin acercarse al límite.
     let cancel = tokio_util::sync::CancellationToken::new();
     let cancel_for_timeout = cancel.clone();
     let timeout_handle = tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(20)).await;
+        tokio::time::sleep(Duration::from_secs(45)).await;
         cancel_for_timeout.cancel();
     });
 
