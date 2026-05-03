@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Maity — Prompt Lab</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #0b0d12; color: #e7e9ee; font-family: 'SF Mono', Menlo, Consolas, monospace; margin: 0; padding: 20px; font-size: 13px; }
+    h1, h2, h3 { color: #6ea8fe; margin-top: 0; }
+    a { color: #6ea8fe; text-decoration: none; margin-right: 16px; }
+    a:hover { text-decoration: underline; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #1f2433; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .badge-pass { background: #14532d; color: #4ade80; }
+    .badge-fail { background: #7f1d1d; color: #fca5a5; }
+    .badge-info { background: #1e3a8a; color: #93c5fd; }
+    .panel { background: #11151c; border: 1px solid #1f2433; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    pre { background: #0a0d12; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #cbd5e1; max-height: 400px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #1a1e2a; padding: 8px; text-align: left; border-bottom: 2px solid #2a2f3d; color: #93c5fd; }
+    td { padding: 6px 8px; border-bottom: 1px solid #1a1e2a; vertical-align: top; }
+    tr:hover { background: #0d1015; }
+    .tip { font-style: italic; color: #f0fdf4; max-width: 500px; }
+    .fail-row { background: rgba(239, 68, 68, 0.06); }
+    .scenario-cell { font-weight: bold; color: #fbbf24; }
+    .meta { color: #9ca3af; font-size: 10px; }
+    .filters { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    select, button { background: #1a1e2a; color: #e7e9ee; border: 1px solid #2a2f3d; padding: 6px 12px; border-radius: 4px; font-family: inherit; cursor: pointer; }
+    button:hover { background: #2a2f3d; }
+    .stat { display: inline-block; margin-right: 24px; }
+    .stat-value { font-size: 20px; font-weight: bold; color: #4ade80; }
+    .stat-label { color: #9ca3af; font-size: 11px; text-transform: uppercase; }
+    details { margin: 4px 0; }
+    summary { cursor: pointer; color: #94a3b8; }
+    summary:hover { color: #e7e9ee; }
+    .transcript-mini { white-space: pre-wrap; max-width: 600px; color: #94a3b8; font-size: 11px; max-height: 100px; overflow-y: auto; padding: 4px; background: #0a0d12; border-radius: 4px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🧪 Maity Prompt Lab</h1>
+    <div>
+      <a href="/">📊 Dashboard</a>
+      <a href="/lab">🧪 Lab</a>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Prompt Activo</h2>
+    <div id="prompt-version" class="badge badge-info">cargando…</div>
+    <h3 style="margin-top:16px">System</h3>
+    <pre id="prompt-system">cargando…</pre>
+    <h3>User Template</h3>
+    <pre id="prompt-user">cargando…</pre>
+    <p class="meta">Fuente: <code>frontend/src-tauri/src/coach/commands.rs:246-265</code></p>
+  </div>
+
+  <div class="panel">
+    <h2>Runs Históricos</h2>
+    <div class="filters">
+      <label>Run:
+        <select id="run-select"><option value="">— último —</option></select>
+      </label>
+      <button onclick="loadRun()">🔄 Recargar</button>
+      <span class="meta">Para correr nuevo: <code>python -X utf8 scripts/prompt_lab_runner.py --fixtures 10 --max-windows 8</code></span>
+    </div>
+    <div id="run-stats"></div>
+    <p class="meta">Total runs: <span id="runs-count">—</span></p>
+  </div>
+
+  <div class="panel">
+    <h2>Tips Generados (scenario × ventana)</h2>
+    <div id="tips-table-wrap">cargando…</div>
+  </div>
+
+<script>
+async function loadPrompt() {
+  const r = await fetch('/api/prompt_current').then(r => r.json());
+  document.getElementById('prompt-version').textContent = r.version || 'unknown';
+  document.getElementById('prompt-system').textContent = r.system_prompt || '(no detectado)';
+  document.getElementById('prompt-user').textContent = r.user_prompt_template || '(no detectado)';
+}
+
+async function loadRunsList() {
+  const r = await fetch('/api/prompt_lab').then(r => r.json());
+  const sel = document.getElementById('run-select');
+  sel.innerHTML = '<option value="">— último —</option>' + r.runs.map(rn =>
+    `<option value="${rn.run_id}">${rn.run_id} (${rn.prompt_version}) ${rn.passed}/${rn.total} PASS · avg ${rn.avg_latency}ms · ${rn.started_at}</option>`
+  ).join('');
+  document.getElementById('runs-count').textContent = r.runs.length;
+  return r.runs;
+}
+
+async function loadRun() {
+  const sel = document.getElementById('run-select');
+  const runId = sel.value;
+  const url = runId ? `/api/prompt_lab?run_id=${encodeURIComponent(runId)}` : '/api/prompt_lab?limit=500';
+  const r = await fetch(url).then(r => r.json());
+  renderTable(r.rows);
+  renderStats(r.rows, runId);
+}
+
+function renderStats(rows, runId) {
+  if (!rows || !rows.length) {
+    document.getElementById('run-stats').innerHTML = '<p>Sin datos. Corre el lab primero.</p>';
+    return;
+  }
+  const total = rows.length;
+  const passed = rows.filter(r => r.passed).length;
+  const avgLatency = Math.round(rows.reduce((s, r) => s + (r.latency_ms || 0), 0) / total);
+  const verbCounts = {};
+  rows.forEach(r => { verbCounts[r.verb || '?'] = (verbCounts[r.verb || '?'] || 0) + 1; });
+  const verbStr = Object.entries(verbCounts).sort((a,b) => b[1] - a[1]).map(([v, c]) => `${v}:${c}`).join(' · ');
+  document.getElementById('run-stats').innerHTML = `
+    <div class="stat"><div class="stat-value">${passed}/${total}</div><div class="stat-label">PASS (${Math.round(passed*100/total)}%)</div></div>
+    <div class="stat"><div class="stat-value">${avgLatency}ms</div><div class="stat-label">avg latency</div></div>
+    <div class="stat"><div class="stat-value">${rows[0]?.prompt_version || '—'}</div><div class="stat-label">prompt</div></div>
+    <div class="stat"><div class="stat-value" style="font-size:14px">${verbStr}</div><div class="stat-label">verbos usados</div></div>
+  `;
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderTable(rows) {
+  if (!rows || !rows.length) {
+    document.getElementById('tips-table-wrap').innerHTML = '<p>Sin tips. Corre el lab primero.</p>';
+    return;
+  }
+  const html = `
+    <table>
+      <thead>
+        <tr>
+          <th style="width:140px">Scenario</th>
+          <th style="width:50px">w</th>
+          <th style="width:50px">seg</th>
+          <th>Tip generado</th>
+          <th style="width:60px">Verbo</th>
+          <th style="width:40px">w</th>
+          <th style="width:60px">ms</th>
+          <th style="width:50px">PASS</th>
+          <th>Notas</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr class="${r.passed ? '' : 'fail-row'}">
+            <td class="scenario-cell">
+              ${escapeHtml(r.fixture_name)}
+              <details><summary>transcript</summary><div class="transcript-mini">${escapeHtml(r.transcript_window)}</div></details>
+            </td>
+            <td>#${r.window_idx}</td>
+            <td>${r.window_seconds}s</td>
+            <td class="tip">${escapeHtml(r.tip_clean)}</td>
+            <td>${escapeHtml(r.verb)}</td>
+            <td>${r.word_count}</td>
+            <td>${r.latency_ms}</td>
+            <td><span class="badge ${r.passed ? 'badge-pass' : 'badge-fail'}">${r.passed ? 'PASS' : 'FAIL'}</span></td>
+            <td class="meta">${escapeHtml(r.notes)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  document.getElementById('tips-table-wrap').innerHTML = html;
+}
+
+(async () => {
+  await loadPrompt();
+  await loadRunsList();
+  await loadRun();
+})();
+</script>
+</body>
+</html>

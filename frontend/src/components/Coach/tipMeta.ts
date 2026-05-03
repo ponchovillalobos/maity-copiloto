@@ -12,6 +12,8 @@ export interface CategoryMeta {
   textClass: string;
   /** Background + border combinados para el panel. */
   bgClass: string;
+  /** Emoji/ícono visual del v32.0 (opcional para legacy). */
+  icon?: string;
 }
 
 export interface PriorityMeta {
@@ -26,6 +28,14 @@ export interface PriorityMeta {
 }
 
 export const CATEGORY_META: Record<string, CategoryMeta> = {
+  // v32.0: 6 categorías operativas con ícono + color del sistema MAITY.
+  RESPIRA:  { label: 'RESPIRA',  hex: '#FF4757', textClass: 'text-red-400',    bgClass: 'bg-red-500/10 border-red-500/40',     icon: '🫁' },
+  PAUSA:    { label: 'PAUSA',    hex: '#FFA502', textClass: 'text-amber-400',  bgClass: 'bg-amber-500/10 border-amber-500/40', icon: '✋' },
+  PREGUNTA: { label: 'PREGUNTA', hex: '#00C2FF', textClass: 'text-cyan-300',   bgClass: 'bg-cyan-500/10 border-cyan-500/40',   icon: '❓' },
+  ESCUCHA:  { label: 'ESCUCHA',  hex: '#8E44FF', textClass: 'text-purple-300', bgClass: 'bg-purple-500/10 border-purple-500/40', icon: '👂' },
+  VALIDA:   { label: 'VALIDA',   hex: '#1BEA9A', textClass: 'text-emerald-300', bgClass: 'bg-emerald-500/10 border-emerald-500/40', icon: '💚' },
+  AVANZA:   { label: 'AVANZA',   hex: '#FF0050', textClass: 'text-pink-400',   bgClass: 'bg-pink-500/10 border-pink-500/40',   icon: '➡️' },
+  // Legacy v31.x
   icebreaker:    { label: 'Romper hielo',  hex: '#fde047', textClass: 'text-yellow-300',  bgClass: 'bg-yellow-500/10 border-yellow-500/40' },
   discovery:     { label: 'Descubrir',     hex: '#67e8f9', textClass: 'text-cyan-300',    bgClass: 'bg-cyan-500/10 border-cyan-500/40' },
   question:      { label: 'Pregunta',      hex: '#93c5fd', textClass: 'text-blue-300',    bgClass: 'bg-blue-500/10 border-blue-500/40' },

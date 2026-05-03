@@ -240,22 +240,57 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.22: prompt simplificado del auditor + parser tolerante en código.
-    // Acepta `Verbo: "frase"`, `Verbo: frase`, `Verbo - frase` y normaliza.
-    let system_prompt = "/no_think\nEres Maity, coach en vivo del vendedor. Entrega una frase exacta para decir al cliente ahora.";
+    // v32.0: prompt por categoría operativa. 6 categorías humanas, max 8 palabras.
+    // Más simple y determinista. Format: `CATEGORIA: tip` (sin comillas).
+    let system_prompt = "/no_think\n\
+Eres Maity. Le hablas al oído al USUARIO mientras está en una conversación con el INTERLOCUTOR. Eres su coach humano susurrándole qué hacer ahora.\n\n\
+Lee el transcript y dale UN tip cortito, humano, directo. Como un amigo experto al lado.\n\n\
+Mira señales OBVIAS, no infieras de más:\n\
+- ¿Quién habla más? Si el USUARIO domina, hay que cederle turno al otro.\n\
+- ¿El INTERLOCUTOR usó palabras de molestia, duda, miedo o interés? Reconócelo.\n\
+- ¿Falta info importante para avanzar? Toca preguntar.\n\n\
+CATEGORÍAS (elige UNA):\n\n\
+RESPIRA — el USUARIO se aceleró, sonó defensivo o tenso.\n\
+PAUSA — el USUARIO lleva varios turnos seguidos sin que hable el INTERLOCUTOR.\n\
+PREGUNTA — falta información o el INTERLOCUTOR no ha participado lo suficiente.\n\
+ESCUCHA — el INTERLOCUTOR está hablando largo, desahogándose o explicando algo.\n\
+VALIDA — el INTERLOCUTOR mostró molestia, duda, miedo o desacuerdo.\n\
+AVANZA — el INTERLOCUTOR mostró interés claro o pidió siguientes pasos.\n\n\
+FORMATO:\n\
+CATEGORIA: tip\n\n\
+REGLAS:\n\
+- Máximo 8 palabras en el tip.\n\
+- Trato directo (tú), humano, cero corporativo.\n\
+- Puedes sugerir frases cortas tipo \"estoy de acuerdo\", \"tienes razón\", \"entiendo tu punto\" cuando aplique.\n\
+- Sin nombres, cifras ni promesas inventadas.\n\
+- Si el INTERLOCUTOR está molesto: prioriza VALIDA o ESCUCHA antes que cualquier otra.\n\
+- Si no hay señal clara: SIN_TIP\n\n\
+EJEMPLOS:\n\n\
+Transcript:\n\
+USUARIO: Tenemos esto, esto, esto y también esto otro\n\
+USUARIO: Y además incluye soporte y dashboard\n\
+→ PAUSA: Cédele el turno con una pregunta.\n\n\
+Transcript:\n\
+USUARIO: Pero no, no es así, déjame explicarte\n\
+→ RESPIRA: Bájale. No es contra ti.\n\n\
+Transcript:\n\
+INTERLOCUTOR: Esto no funciona como me prometieron\n\
+→ VALIDA: Dile \"tienes razón, déjame entender\".\n\n\
+Transcript:\n\
+INTERLOCUTOR: Estoy harto, llevamos meses así\n\
+→ VALIDA: Reconoce su molestia primero.\n\n\
+Transcript:\n\
+INTERLOCUTOR: La verdad llevamos años batallando con esto y nadie nos ha podido ayudar bien\n\
+→ ESCUCHA: No interrumpas. Déjalo terminar.\n\n\
+Transcript:\n\
+INTERLOCUTOR: No sé, depende de varias cosas\n\
+→ PREGUNTA: Pídele un ejemplo concreto.\n\n\
+Transcript:\n\
+INTERLOCUTOR: Me interesa, ¿cómo seguimos?\n\
+→ AVANZA: Agenda el siguiente paso ya.";
+
     let user_prompt = format!(
-        "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
-         Formato preferido:\n\
-         VERBO: \"frase breve\"\n\n\
-         Verbos: Pregunta, Refleja, Valida, Reconoce, Aclara, Conecta, Profundiza, Escucha.\n\n\
-         Reglas:\n\
-         - La frase debe tener 5 a 15 palabras.\n\
-         - Usa datos del transcript sólo si aparecen ahí.\n\
-         - No inventes nombres, cifras, promesas ni emociones extremas.\n\
-         - Si hay objeción, valida primero y haz pregunta abierta.\n\
-         - Si hay interés claro, sugiere un siguiente paso suave.\n\
-         - Si no hay base útil, responde: SIN_TIP\n\n\
-         Tip:",
+        "Transcript (USUARIO = nuestro comunicador; INTERLOCUTOR = la otra parte):\n{}\n\nTip:",
         window_capped
     );
 
@@ -282,9 +317,9 @@ pub async fn coach_simple_tick(
         &user_prompt,
         None,
         None,
-        Some(80),
-        Some(0.4), // temperatura baja → más determinismo, menos divagación
-        Some(0.9),
+        Some(35),  // v32.0: tip 8 palabras + categoría → ~15 tokens, margen para safety
+        Some(0.3), // v32.0: más determinista
+        Some(0.85),
         Some(&app_data_dir),
         Some(&cancel),
     )
@@ -299,96 +334,19 @@ pub async fn coach_simple_tick(
         }
     };
 
-    // v31.22: strip <think>...</think> de Qwen3 ANTES de parsear.
-    // Sin esto, el primer token podría ser "<think>" → tip rechazado por filtro.
+    // v32.0: parser simple por categoría. raw → strip thinking → parse_tip → (cat, text).
     let raw_clean = strip_qwen3_thinking(&raw);
-    let mut tip_text = raw_clean.trim().to_string();
-    // Quitar markdown fences si existen
-    tip_text = tip_text.trim_start_matches("```json").trim_start_matches("```").to_string();
-    tip_text = tip_text.trim_end_matches("```").trim().to_string();
-    // Si parece JSON con un campo "tip", extraerlo
-    if tip_text.starts_with('{') {
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&tip_text) {
-            if let Some(t) = v.get("tip").and_then(|x| x.as_str()) {
-                tip_text = t.to_string();
-            } else if let Some(t) = v.get("text").and_then(|x| x.as_str()) {
-                tip_text = t.to_string();
-            } else if let Some(t) = v.get("response").and_then(|x| x.as_str()) {
-                tip_text = t.to_string();
-            }
+    let parsed = match parse_tip(&raw_clean) {
+        Some(p) => p,
+        None => {
+            log::info!("[coach_simple_tick] tip rechazado por parser: \"{}\"", raw_clean.chars().take(120).collect::<String>());
+            return Ok(None);
         }
-    }
-    tip_text = tip_text.trim().to_string();
-    // Quitar prefijos comunes
-    for prefix in &["Tip:", "TIP:", "tip:", "Consejo:", "Sugerencia:"] {
-        if let Some(rest) = tip_text.strip_prefix(prefix) {
-            tip_text = rest.trim().to_string();
-            break;
-        }
-    }
-    // v31.22: normalizar formato. Acepta "VERBO: frase", "VERBO - frase",
-    // "VERBO: \"frase\"" y deja siempre como `Verbo: "frase"`.
-    tip_text = normalize_tip_format(&tip_text);
-    if tip_text.is_empty() {
-        return Ok(None);
-    }
-    // v30.1: filtro mínimo de calidad. Rechaza outputs basura del modelo.
-    let word_count = tip_text.split_whitespace().count();
-    if word_count < 5 {
-        log::info!("[coach_simple_tick] tip rechazado: {} palabras < 5 (\"{}\")", word_count, tip_text);
-        return Ok(None);
-    }
-    // v31.10: cap 22 palabras (verbo + ":" + "5-15 palabras frase" + puntuación).
-    // No truncar agresivo: rechazar si excede mucho, mejor pedir nuevo tip.
-    if word_count > 22 {
-        log::info!("[coach_simple_tick] tip rechazado: {} palabras > 22 (formato pide 5-15 dentro de comillas)", word_count);
-        return Ok(None);
-    }
-    // v30.3: filtro backend que exige verbo imperativo al inicio. Rechaza
-    // descripciones tipo "Bien hecho:", "La inteligencia es…", "Es importante…"
-    // que no son consejos accionables.
-    let primera_palabra = tip_text
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .trim_end_matches(|c: char| !c.is_alphabetic())
-        .to_lowercase();
-    // v31.6: solo verbos empáticos. Quitados "cierra", "propón", "vende" que
-    // sugieren presión. El coach SIEMPRE invita a escuchar/conectar/entender.
-    let verbos_validos = [
-        // Conectar
-        "refleja", "espeja", "mirror", "etiqueta", "valida", "reconoce",
-        "acompaña", "acompana", "acepta", "abraza", "asiente", "concede",
-        "empatiza", "comprende", "humaniza", "personaliza", "conecta",
-        // Entender
-        "pregunta", "preguntá", "indaga", "explora", "aclara", "profundiza",
-        "cuestiona", "verifica", "confirma", "escucha", "anota",
-        // Calmar / desactivar
-        "respira", "calma", "tranquiliza", "espera", "silencio",
-        // Reformular sin presionar
-        "reformula", "reformúlale", "reformulale", "devuelve", "resume",
-        "cita", "menciona", "señala",
-    ];
-    if !verbos_validos.contains(&primera_palabra.as_str()) {
-        log::info!("[coach_simple_tick] tip rechazado: no empieza con verbo imperativo (\"{}\")", primera_palabra);
-        return Ok(None);
-    }
-    // v31.10: exigir formato accionable VERBO + ":" + frase entre comillas.
-    // Sin esto, el modelo describe situación ("Refleja: El cliente expresa
-    // preocupación...") en lugar de dar texto decible al cliente.
-    let has_colon = tip_text.contains(':');
-    let has_quotes = tip_text.contains('"') || tip_text.contains('\u{201C}') || tip_text.contains('\u{201D}');
-    if !has_colon || !has_quotes {
-        log::info!("[coach_simple_tick] tip rechazado: sin formato accionable VERBO:\"frase\" (\"{}\")", tip_text);
-        return Ok(None);
-    }
-    // v31.1: rechaza el flag SIN_TIP que el modelo emite cuando no hay base
-    // para coachear, y tips con contenido vulgar/ofensivo (anti-alucinación).
+    };
+    let (category, tip_text) = parsed;
+
+    // v32.0: filtro vulgar (mantener anti-alucinación).
     let lower_full = tip_text.to_lowercase();
-    if lower_full.contains("sin_tip") || lower_full == "sin tip" {
-        log::info!("[coach_simple_tick] modelo respondió SIN_TIP — sin base para coachear");
-        return Ok(None);
-    }
     let palabras_prohibidas = [
         "caca", "pipí", "pipi", "mierda", "puta", "pendej", "carajo",
         "inútil", "estúpido", "idiota", "imbécil", "tonto", "imbecil",
@@ -397,31 +355,24 @@ pub async fn coach_simple_tick(
         log::warn!("[coach_simple_tick] tip rechazado: contenido vulgar/ofensivo (\"{}\")", tip_text);
         return Ok(None);
     }
-    // Rechaza preguntas vacías genéricas
-    let lower = tip_text.to_lowercase();
-    let basura = [
-        "¿qué?", "qué?", "¿qué es?", "qué es?", "¿cómo?", "cómo?",
-        "explica el futuro", "explicación del futuro", "explica la importancia",
-    ];
-    if basura.iter().any(|b| lower.trim().trim_end_matches('?').trim() == b.trim_end_matches('?').trim()
-        || lower == *b) {
-        log::info!("[coach_simple_tick] tip rechazado: basura genérica (\"{}\")", tip_text);
-        return Ok(None);
-    }
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
 
+    // v32.0: priority derivado de la categoría (urgencia visual).
+    let priority_str = category.priority();
+    let category_str = category.as_str();
+
     let suggestion = CoachSuggestion {
         tip: tip_text.clone(),
-        category: "general".to_string(),
+        category: category_str.to_string(),
         subcategory: None,
         technique: None,
-        priority: "soft".to_string(),
+        priority: priority_str.to_string(),
         confidence: 0.7,
-        tip_type: "observation".to_string(),
+        tip_type: "category_v1".to_string(),
         timestamp,
         model: model.clone(),
         latency_ms: 0,
@@ -472,10 +423,12 @@ pub async fn coach_simple_tick(
 
     sqlx::query(
         "INSERT INTO coach_tips_log (meeting_id, tip, category, priority, tip_type, confidence, model, trigger_signal)
-         VALUES (?, ?, 'general', 'soft', 'observation', 0.7, ?, 'simple_tick')",
+         VALUES (?, ?, ?, ?, 'category_v1', 0.7, ?, 'simple_tick')",
     )
     .bind(&resolved_meeting_id)
     .bind(&tip_text)
+    .bind(category_str)
+    .bind(priority_str)
     .bind(&model)
     .execute(pool)
     .await
@@ -698,79 +651,151 @@ fn strip_qwen3_thinking(raw: &str) -> String {
     out.trim().to_string()
 }
 
-/// v31.22: normaliza formato del tip. Acepta:
-///   - `Verbo: "frase"`         → ya OK
-///   - `Verbo: frase`            → agrega comillas
-///   - `Verbo - frase`           → cambia a `:` y agrega comillas
-///   - `Verbo. frase`            → cambia a `:` y agrega comillas
-/// Si no encuentra patrón Verbo+separador, devuelve string original.
-fn normalize_tip_format(input: &str) -> String {
-    const VERBOS: &[&str] = &[
-        "Pregunta", "Valida", "Aclara", "Refleja", "Reconoce",
-        "Conecta", "Profundiza", "Escucha", "Indaga", "Explora",
-    ];
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return String::new();
-    }
-    // Detectar verbo al inicio (case-insensitive en match, capitalización canonical en output).
-    for verbo in VERBOS {
-        let lower_trim = trimmed.to_lowercase();
-        let lower_verbo = verbo.to_lowercase();
-        if lower_trim.starts_with(&lower_verbo) {
-            let rest = &trimmed[verbo.len()..];
-            // Buscar separador: ":", "-", "."
-            let after_sep = rest
-                .trim_start()
-                .strip_prefix(':')
-                .or_else(|| rest.trim_start().strip_prefix('-'))
-                .or_else(|| rest.trim_start().strip_prefix('.'))
-                .unwrap_or_else(|| rest.trim_start())
-                .trim();
-            // Si la frase ya tiene comillas, dejar como está pero canonical
-            let phrase = if after_sep.starts_with('"') && after_sep.ends_with('"') && after_sep.len() > 1 {
-                after_sep.to_string()
-            } else if after_sep.starts_with('\u{201C}') {
-                // Comillas curvas → reemplazar por dobles
-                after_sep.replace('\u{201C}', "\"").replace('\u{201D}', "\"")
-            } else {
-                // Sin comillas: envolver
-                format!("\"{}\"", after_sep)
-            };
-            return format!("{}: {}", verbo, phrase);
+/// v32.0: 6 categorías operativas para tips por categoría.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Category {
+    Respira,
+    Pausa,
+    Pregunta,
+    Escucha,
+    Valida,
+    Avanza,
+}
+
+impl Category {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.trim().to_uppercase().as_str() {
+            "RESPIRA"  => Some(Self::Respira),
+            "PAUSA"    => Some(Self::Pausa),
+            "PREGUNTA" => Some(Self::Pregunta),
+            "ESCUCHA"  => Some(Self::Escucha),
+            "VALIDA"   => Some(Self::Valida),
+            "AVANZA"   => Some(Self::Avanza),
+            _          => None,
         }
     }
-    trimmed.to_string()
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Respira  => "RESPIRA",
+            Self::Pausa    => "PAUSA",
+            Self::Pregunta => "PREGUNTA",
+            Self::Escucha  => "ESCUCHA",
+            Self::Valida   => "VALIDA",
+            Self::Avanza   => "AVANZA",
+        }
+    }
+
+    /// Mapea categoría → priority (urgencia visual).
+    pub fn priority(&self) -> &'static str {
+        match self {
+            Self::Respira | Self::Valida => "high",
+            Self::Pregunta | Self::Avanza => "medium",
+            Self::Pausa | Self::Escucha => "low",
+        }
+    }
+}
+
+/// v32.0: parser único para output del modelo. Espera `CATEGORIA: tip`.
+/// - Strip qwen3 thinking primero.
+/// - Strip markdown fences/prefijos comunes.
+/// - Si == "SIN_TIP" o vacío → None.
+/// - Split por primer `:`. Categoría debe matchear enum. Texto 1..=8 palabras.
+/// Devuelve (Category, texto_limpio).
+pub fn parse_tip(raw: &str) -> Option<(Category, String)> {
+    let mut t = strip_qwen3_thinking(raw);
+    t = t.trim_start_matches("```json").trim_start_matches("```").to_string();
+    t = t.trim_end_matches("```").trim().to_string();
+    // Quitar prefijos comunes
+    for prefix in &["Tip:", "TIP:", "tip:", "Consejo:", "Sugerencia:", "→", "->"] {
+        if let Some(rest) = t.strip_prefix(prefix) {
+            t = rest.trim().to_string();
+            break;
+        }
+    }
+    // Primera línea no vacía (modelo a veces emite múltiples)
+    let first_line = t
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("")
+        .trim()
+        .trim_start_matches('→')
+        .trim_start_matches("->")
+        .trim();
+    if first_line.is_empty() {
+        return None;
+    }
+    let upper = first_line.to_uppercase();
+    if upper == "SIN_TIP" || upper == "SIN TIP" {
+        return None;
+    }
+    let (cat_part, tip_part) = first_line.split_once(':')?;
+    let category = Category::from_str(cat_part)?;
+    let text = tip_part.trim().trim_matches('"').trim().to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let word_count = text.split_whitespace().count();
+    if word_count == 0 || word_count > 8 {
+        return None;
+    }
+    Some((category, text))
 }
 
 #[cfg(test)]
-mod normalize_tests {
+mod category_tests {
     use super::*;
 
     #[test]
-    fn test_normalize_with_quotes_ok() {
-        let r = normalize_tip_format("Pregunta: \"¿cómo te sientes?\"");
-        assert_eq!(r, "Pregunta: \"¿cómo te sientes?\"");
+    fn test_parse_tip_respira_ok() {
+        let r = parse_tip("RESPIRA: Bájale. No es contra ti.");
+        assert_eq!(r, Some((Category::Respira, "Bájale. No es contra ti.".to_string())));
     }
     #[test]
-    fn test_normalize_no_quotes() {
-        let r = normalize_tip_format("Pregunta: ¿cómo te sientes?");
-        assert_eq!(r, "Pregunta: \"¿cómo te sientes?\"");
+    fn test_parse_tip_lowercase_valida() {
+        let r = parse_tip("valida: tienes razón");
+        assert_eq!(r, Some((Category::Valida, "tienes razón".to_string())));
     }
     #[test]
-    fn test_normalize_dash_separator() {
-        let r = normalize_tip_format("Valida - entiendo tu preocupación");
-        assert_eq!(r, "Valida: \"entiendo tu preocupación\"");
+    fn test_parse_tip_sin_tip() {
+        assert_eq!(parse_tip("SIN_TIP"), None);
+        assert_eq!(parse_tip("sin tip"), None);
     }
     #[test]
-    fn test_strip_thinking() {
-        let r = strip_qwen3_thinking("<think>razonamiento</think>\nPregunta: \"hola\"");
-        assert_eq!(r, "Pregunta: \"hola\"");
+    fn test_parse_tip_no_colon() {
+        assert_eq!(parse_tip("PAUSA Cédele turno"), None);
     }
     #[test]
-    fn test_strip_thinking_unclosed() {
-        let r = strip_qwen3_thinking("<think>razonamiento sin cierre");
-        assert_eq!(r, "");
+    fn test_parse_tip_categoria_invalida() {
+        assert_eq!(parse_tip("XXX: foo"), None);
+    }
+    #[test]
+    fn test_parse_tip_texto_vacio() {
+        assert_eq!(parse_tip("RESPIRA:    "), None);
+    }
+    #[test]
+    fn test_parse_tip_excede_8_palabras() {
+        let r = parse_tip("PREGUNTA: una dos tres cuatro cinco seis siete ocho nueve");
+        assert_eq!(r, None);
+    }
+    #[test]
+    fn test_parse_tip_strip_thinking_y_arrow() {
+        let r = parse_tip("<think>razonamiento</think>\n→ AVANZA: Agenda el siguiente paso ya.");
+        assert_eq!(r, Some((Category::Avanza, "Agenda el siguiente paso ya.".to_string())));
+    }
+    #[test]
+    fn test_category_priority_mapping() {
+        assert_eq!(Category::Respira.priority(), "high");
+        assert_eq!(Category::Valida.priority(), "high");
+        assert_eq!(Category::Pregunta.priority(), "medium");
+        assert_eq!(Category::Avanza.priority(), "medium");
+        assert_eq!(Category::Pausa.priority(), "low");
+        assert_eq!(Category::Escucha.priority(), "low");
+    }
+    #[test]
+    fn test_strip_thinking_existente() {
+        let r = strip_qwen3_thinking("<think>foo</think>\nPAUSA: cede turno");
+        assert_eq!(r, "PAUSA: cede turno");
     }
 }
 

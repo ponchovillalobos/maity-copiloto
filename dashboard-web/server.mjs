@@ -67,6 +67,59 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // /lab: pagina dedicada Prompt Lab
+  if (url.pathname === '/lab') {
+    const labHtmlPath = path.join(__dirname, 'lab.html');
+    if (fs.existsSync(labHtmlPath)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(fs.readFileSync(labHtmlPath, 'utf-8'));
+      return;
+    }
+  }
+
+  // /api/prompt_current: lee prompt activo desde commands.rs
+  if (url.pathname === '/api/prompt_current') {
+    const commandsPath = path.join(__dirname, '..', 'frontend', 'src-tauri', 'src', 'coach', 'commands.rs');
+    try {
+      const content = fs.readFileSync(commandsPath, 'utf-8');
+      const sysMatch = content.match(/let system_prompt = "([^"]+)"/);
+      const userBlock = content.match(/let user_prompt = format!\(\s*"([\s\S]*?)",\s*window_capped/);
+      const versionMatch = content.match(/v31\.\d+:?\s+prompt/);
+      jsonReply(res, {
+        version: versionMatch ? versionMatch[0] : 'unknown',
+        system_prompt: sysMatch ? sysMatch[1].replace(/\\n/g, '\n') : null,
+        user_prompt_template: userBlock ? userBlock[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : null,
+      });
+    } catch (e) {
+      jsonReply(res, { error: e.message });
+    }
+    return;
+  }
+
+  // /api/prompt_lab: runs del lab
+  if (url.pathname === '/api/prompt_lab') {
+    const limit = Math.min(2000, Number(url.searchParams.get('limit')) || 500);
+    const runId = url.searchParams.get('run_id');
+    const rows = runId
+      ? safeRows(
+          `SELECT * FROM prompt_lab_runs WHERE run_id = ? ORDER BY fixture_name, window_idx LIMIT ?`,
+          [runId, limit]
+        )
+      : safeRows(
+          `SELECT * FROM prompt_lab_runs ORDER BY created_at DESC LIMIT ?`,
+          [limit]
+        );
+    // Lista de runs unicos
+    const runs = safeRows(
+      `SELECT run_id, prompt_version, COUNT(*) as total, SUM(passed) as passed,
+              MIN(created_at) as started_at,
+              ROUND(AVG(latency_ms)) as avg_latency
+       FROM prompt_lab_runs GROUP BY run_id ORDER BY started_at DESC LIMIT 50`
+    );
+    jsonReply(res, { rows, runs });
+    return;
+  }
+
   if (url.pathname === '/api/iterations') {
     const limit = Math.min(500, Number(url.searchParams.get('limit')) || 100);
     const rows = safeRows(

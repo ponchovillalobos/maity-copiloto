@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { listen, emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import {
-  X, Minimize2, Maximize2, Sparkles, AlertTriangle,
+  X, Minimize2, Maximize2, Sparkles,
   MessageCircle, Activity, Timer, ChevronLeft, ChevronRight, HelpCircle, Zap,
 } from 'lucide-react';
 import { categoryMeta, priorityMeta } from '@/components/Coach/tipMeta';
@@ -466,32 +466,31 @@ export default function FloatingPage() {
               </div>
             ) : (
               tipsHistory.map((t, idx) => {
-                const tprio = priorityMeta(t.priority);
+                // v32.0: color y label vienen de la CATEGORÍA (no priority). Border
+                // grueso a la izquierda + ícono grande + categoría destacada.
                 const tcat = categoryMeta(t.category);
-                const tcolor = tprio.hex;
+                const tcolor = tcat.hex;
                 const isLatest = idx === 0;
+                const icon = tcat.icon ?? '💡';
                 return (
                   <div
                     key={`${t.tip}-${idx}`}
-                    className="rounded-md border p-2"
+                    className="tip-card-v32 rounded-md p-3"
                     style={{
-                      background: `linear-gradient(135deg, ${tcolor}1a 0%, rgba(255,255,255,0.04) 100%)`,
-                      borderColor: `${tcolor}55`,
-                      borderWidth: isLatest ? '2px' : '1px',
+                      background: `linear-gradient(135deg, ${tcolor}14 0%, rgba(10,10,15,0.6) 100%)`,
+                      borderLeft: `5px solid ${tcolor}`,
+                      borderTop: '1px solid rgba(255,255,255,0.04)',
+                      borderRight: '1px solid rgba(255,255,255,0.04)',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      animation: isLatest ? 'tipSlideIn 200ms ease-out' : undefined,
+                      boxShadow: isLatest ? `0 4px 20px ${tcolor}33` : undefined,
                     }}
                   >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      {tprio.label === 'Crítico'
-                        ? <AlertTriangle className="w-3 h-3" style={{ color: tcolor }} />
-                        : <Sparkles className="w-3 h-3" style={{ color: tcolor }} />}
-                      <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: tcolor }}>
-                        {tprio.label}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span style={{ fontSize: '24px', lineHeight: 1 }}>{icon}</span>
+                      <span style={{ color: tcolor, fontSize: '15px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                        {tcat.label}
                       </span>
-                      {t.category && (
-                        <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/10 text-white/60 font-semibold">
-                          {tcat.label}
-                        </span>
-                      )}
                       {isLatest && (
                         <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold ml-auto">
                           NUEVO
@@ -501,7 +500,7 @@ export default function FloatingPage() {
                         #{tipsHistory.length - idx}
                       </span>
                     </div>
-                    <div className="text-[12px] text-white/95 leading-snug font-medium">
+                    <div className="text-[13px] text-white leading-snug">
                       {t.tip}
                     </div>
                   </div>
@@ -576,6 +575,12 @@ export default function FloatingPage() {
           )}
         </div>
       )}
+      <style>{`
+        @keyframes tipSlideIn {
+          from { opacity: 0; transform: translateX(20px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 }
