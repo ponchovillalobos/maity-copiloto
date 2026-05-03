@@ -1,0 +1,7 @@
+{
+  "name": "Cliente pesimista sobre resultados",
+  "category": "escepticismo",
+  "expected_intent": "validar escepticismo + pregunta abierta",
+  "expected_verbs": ["valida", "reconoce", "pregunta"],
+  "transcript": "USUARIO: Con esta estrategia podemos triplicar tus leads en 3 meses.\nINTERLOCUTOR: Sí, eso me han dicho varias agencias y nada.\nUSUARIO: Pero nosotros sí cumplimos.\nINTERLOCUTOR: Todos dicen lo mismo. Ya no creo en promesas."
+}

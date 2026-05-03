@@ -15,7 +15,7 @@ import { logger } from '@/lib/logger';
  * modelos, sin botones técnicos). Solo un spinner mientras todo queda listo.
  */
 
-const COACH_MODEL = 'qwen3:0.6b';
+const COACH_MODEL = 'qwen3:1.7b';
 const TRANSCRIPT_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 
 export function AutoModelSetupStep() {

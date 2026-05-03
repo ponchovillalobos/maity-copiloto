@@ -1,0 +1,7 @@
+{
+  "name": "Cliente indeciso al cerrar",
+  "category": "indecision",
+  "expected_intent": "validar duda + pregunta abierta",
+  "expected_verbs": ["valida", "pregunta", "reconoce"],
+  "transcript": "USUARIO: Entonces Lucía, ¿avanzamos con la implementación esta semana?\nINTERLOCUTOR: Mmm... no sé, déjame pensarlo.\nUSUARIO: Claro, ¿qué te genera dudas?\nINTERLOCUTOR: Es que es una decisión grande, no quiero equivocarme. Es mucho dinero."
+}

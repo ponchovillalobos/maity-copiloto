@@ -1,0 +1,7 @@
+{
+  "name": "Cliente hace pregunta técnica vaga",
+  "category": "aclaracion",
+  "expected_intent": "pedir aclaración específica",
+  "expected_verbs": ["aclara", "pregunta", "profundiza"],
+  "transcript": "USUARIO: ¿Hay algo más que te gustaría revisar de la propuesta?\nINTERLOCUTOR: Sí, tengo una duda con la integración.\nUSUARIO: Cuéntame.\nINTERLOCUTOR: Es que no me queda claro cómo funciona eso, parece complicado."
+}

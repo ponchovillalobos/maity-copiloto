@@ -22,6 +22,7 @@ pub mod prompt;
 pub mod prompts;
 pub mod prospecting;
 pub mod retry;
+pub mod tip_eval;
 pub mod types;
 pub mod wer;
 

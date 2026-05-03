@@ -1,0 +1,7 @@
+{
+  "name": "Objeción de tiempo de implementación",
+  "category": "objecion_tiempo",
+  "expected_intent": "aclarar restricción de tiempo + adaptar",
+  "expected_verbs": ["aclara", "pregunta", "valida"],
+  "transcript": "USUARIO: La implementación toma 8 semanas en promedio.\nINTERLOCUTOR: Uy no, necesito algo para el próximo mes.\nUSUARIO: Entiendo, podemos acelerar.\nINTERLOCUTOR: Pero ¿realmente puedes? No quiero que prometan y luego no cumplan."
+}

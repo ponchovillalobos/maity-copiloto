@@ -10,7 +10,7 @@ interface ModelStatus {
   parakeet: { name: string; ready: boolean };
 }
 
-const COACH_MODEL = 'qwen3:0.6b';
+const COACH_MODEL = 'qwen3:1.7b';
 const EVAL_MODEL = 'qwen3:1.7b';
 const PARAKEET_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 

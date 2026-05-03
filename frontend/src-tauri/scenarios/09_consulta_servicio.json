@@ -1,0 +1,7 @@
+{
+  "name": "Servicio al cliente — afectación general",
+  "category": "servicio",
+  "expected_intent": "aclarar problema específico antes de proponer solución",
+  "expected_verbs": ["aclara", "pregunta", "profundiza"],
+  "transcript": "USUARIO: Buenas tardes, soporte técnico, ¿en qué puedo ayudarle?\nINTERLOCUTOR: Hola, mire, tengo una afectación general en el mueble.\nUSUARIO: ¿El mueble del baño?\nINTERLOCUTOR: No, en general, todo me falla."
+}

@@ -1,0 +1,7 @@
+{
+  "name": "Cliente expresa entusiasmo",
+  "category": "entusiasmo",
+  "expected_intent": "reconocer entusiasmo + ampliar visión",
+  "expected_verbs": ["reconoce", "pregunta", "profundiza"],
+  "transcript": "USUARIO: ¿Qué te pareció la demo?\nINTERLOCUTOR: ¡Me encantó! Es justo lo que estaba buscando, más simple de lo que pensé.\nUSUARIO: Qué bueno.\nINTERLOCUTOR: Y se ve que mi equipo lo va a usar fácil, no como el sistema actual."
+}

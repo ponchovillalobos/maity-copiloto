@@ -8,7 +8,7 @@ export function PromptsSummary() {
       name: 'Coach tips (live)',
       version: 'v3-lite',
       file: 'coach/prompt.rs',
-      model: 'qwen3:0.6b',
+      model: 'qwen3:1.7b',
       desc: 'Tips ultra-rápidos durante grabación. ChatML + /no_think prefilled.',
     },
     {

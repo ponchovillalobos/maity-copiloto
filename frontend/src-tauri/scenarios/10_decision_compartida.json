@@ -1,0 +1,7 @@
+{
+  "name": "Cliente necesita consultar con socio",
+  "category": "consulta_externa",
+  "expected_intent": "validar necesidad de consulta + facilitar próximo paso",
+  "expected_verbs": ["valida", "pregunta", "reconoce"],
+  "transcript": "USUARIO: Entonces, ¿cerramos el martes?\nINTERLOCUTOR: Antes de cerrar tengo que platicar con mi socio.\nUSUARIO: Claro, ¿cuándo lo ves?\nINTERLOCUTOR: Lo veo mañana en la junta. Pero él es el que decide al final."
+}

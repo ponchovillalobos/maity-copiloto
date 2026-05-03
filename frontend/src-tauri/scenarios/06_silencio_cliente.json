@@ -1,0 +1,7 @@
+{
+  "name": "Cliente queda en silencio largo",
+  "category": "silencio",
+  "expected_intent": "respetar silencio o pregunta abierta suave",
+  "expected_verbs": ["pregunta", "respira", "espera", "escucha"],
+  "transcript": "USUARIO: Y eso es básicamente lo que ofrecemos. ¿Qué opinas?\nINTERLOCUTOR: ...\nUSUARIO: ¿Hola? ¿Sigues ahí?\nINTERLOCUTOR: Sí sí, estoy pensando.\nUSUARIO: Tómate tu tiempo.\nINTERLOCUTOR: ..."
+}

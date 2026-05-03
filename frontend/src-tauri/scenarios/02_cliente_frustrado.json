@@ -1,0 +1,7 @@
+{
+  "name": "Cliente frustrado por mal servicio anterior",
+  "category": "frustracion",
+  "expected_intent": "validar emoción con sus palabras",
+  "expected_verbs": ["valida", "reconoce", "refleja"],
+  "transcript": "USUARIO: Hola Marisol, gracias por la llamada. ¿Cómo puedo ayudarte?\nINTERLOCUTOR: Mira, ya me cansé. Llevo tres meses con el internet fallando, prometen y no cumplen, ya hablé con tres asesores.\nUSUARIO: Entiendo, déjame revisar tu cuenta.\nINTERLOCUTOR: No quiero que revises nada, quiero una solución ya. Estoy harta, voy a cancelar el servicio."
+}

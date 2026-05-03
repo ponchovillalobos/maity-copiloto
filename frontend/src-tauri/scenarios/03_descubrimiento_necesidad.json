@@ -1,0 +1,7 @@
+{
+  "name": "Descubrimiento de necesidad real",
+  "category": "discovery",
+  "expected_intent": "pregunta abierta de profundización",
+  "expected_verbs": ["pregunta", "profundiza", "explora", "indaga"],
+  "transcript": "USUARIO: Cuéntame Roberto, ¿qué te trae a buscar un CRM?\nINTERLOCUTOR: Pues nada, que tenemos un caos con los leads.\nUSUARIO: ¿Caos en qué sentido?\nINTERLOCUTOR: Se nos pierden. El equipo no sabe cuál atender primero, las cotizaciones se quedan a medias."
+}

@@ -1003,9 +1003,9 @@ pub fn run() {
                     use tauri::Manager;
                     // Esperar 4s para que la UI termine de montar antes de iniciar la descarga.
                     tokio::time::sleep(std::time::Duration::from_secs(4)).await;
-                    // Auto-descarga: Qwen 2.5 1.5B (1 GB, ~30 tok/s CPU, calidad JSON OK).
-                    // Gemma 3n E2B se descarga lazy en primera evaluación post-meeting.
-                    let target_model = "qwen3:0.6b";
+                    // v31.10: modelo unificado qwen3:1.7b (~1.1GB GGUF, 8-12s tip CPU).
+                    // Coach + chat + eval usan el mismo modelo (un solo binario en disco).
+                    let target_model = "qwen3:1.7b";
                     let app_data_dir = match app_handle_for_dl.path().app_data_dir() {
                         Ok(d) => d,
                         Err(e) => { log::warn!("[auto-dl] No app_data_dir: {}", e); return; }
@@ -1368,6 +1368,8 @@ pub fn run() {
             audio::import_audio::dev_import_two_audios,
             audio::import_audio::dev_list_batch_scenarios,
             audio::import_audio::check_autorun_batch_flag,
+            coach::tip_eval::dev_eval_scenarios,
+            coach::tip_eval::dev_list_scenarios,
             observability::iteration_log::dashboard_list_iterations,
             observability::iteration_log::dashboard_get_iteration_detail,
             observability::iteration_log::dashboard_get_summary,

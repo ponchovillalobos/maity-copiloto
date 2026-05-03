@@ -1,0 +1,7 @@
+{
+  "name": "Cliente menciona competencia directa",
+  "category": "competencia",
+  "expected_intent": "pregunta para entender por qué considera competencia",
+  "expected_verbs": ["pregunta", "profundiza", "explora"],
+  "transcript": "USUARIO: ¿Has evaluado otras opciones?\nINTERLOCUTOR: Sí, estoy viendo HubSpot también.\nUSUARIO: Ya veo. Bueno, nosotros tenemos varias ventajas.\nINTERLOCUTOR: Pero HubSpot ya lo conozco, mi cuñado lo usa y le va bien."
+}

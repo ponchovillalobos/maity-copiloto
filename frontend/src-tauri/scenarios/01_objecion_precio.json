@@ -1,0 +1,7 @@
+{
+  "name": "Objeción de precio",
+  "category": "objecion_precio",
+  "expected_intent": "convertir objeción en pregunta de poder",
+  "expected_verbs": ["pregunta", "refleja", "valida"],
+  "transcript": "USUARIO: Buenas tardes señor Martínez, le agradezco que me reciba. Le quiero presentar nuestra propuesta de servicios contables.\nINTERLOCUTOR: A ver, dígame el precio.\nUSUARIO: El paquete completo son 8500 pesos al mes con asesoría incluida.\nINTERLOCUTOR: Está muy caro, otros me ofrecen lo mismo en 4000.\nUSUARIO: Bueno, nosotros incluimos el respaldo de un equipo certificado y respuesta en 24 horas.\nINTERLOCUTOR: Sí pero el precio es excesivo, no me cuadra."
+}

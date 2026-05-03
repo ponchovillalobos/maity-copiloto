@@ -240,22 +240,29 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.6: prompt empático puro. Foco: ESCUCHAR sin juzgar, ENTENDER al
-    // otro, CONECTAR con su emoción. NUNCA presionar/cerrar. El tip siempre
-    // es para conectar, validar, profundizar comprensión, o desactivar
-    // objeción con curiosidad genuina.
-    let system_prompt = "Eres Maity. Coach del vendedor. Tu único objetivo: ayudarlo a ESCUCHAR, ENTENDER y CONECTAR con el cliente. Nunca presionar.";
+    // v31.10: prompt accionable. Tip ENTREGA la frase exacta que el vendedor
+    // dirá al cliente (no describe situación). Formato fijo: VERBO + ":" +
+    // "frase entre comillas". Empático: validar/preguntar/reflejar/conectar.
+    // Nunca presionar/cerrar/vender.
+    let system_prompt = "Eres Maity. Coach del vendedor en TIEMPO REAL. NO describas la situación. ENTREGA el texto exacto que el vendedor debe decir AHORA al cliente.";
     let user_prompt = format!(
         "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
-         Da UN tip corto (5-15 palabras) que ayude al vendedor a:\n\
-         - CONECTAR con la emoción del cliente sin juzgar.\n\
-         - ENTENDER más profundo lo que el cliente dice o calla.\n\
-         - VALIDAR su preocupación con sus propias palabras.\n\
-         - Si hay OBJECIÓN: convertirla en pregunta de poder ('¿qué te haría sentir tranquilo?').\n\
-         - Si hay duda: REFLEJAR y dejar silencio.\n\
-         Verbo imperativo al inicio: Refleja, Reconoce, Valida, Pregunta, Aclara, Conecta, Profundiza, Escucha.\n\
-         PROHIBIDO: cerrar, presionar, vender, proponer producto, dar consejo unilateral.\n\
-         Solo usa palabras del transcript. Si no hay base, responde EXACTAMENTE: SIN_TIP\n\n\
+         Formato OBLIGATORIO: VERBO + \":\" + \"frase entre comillas que el vendedor copia y dice TAL CUAL\".\n\n\
+         Ejemplos válidos:\n\
+         - Pregunta: \"¿Qué te haría sentir más tranquilo con esta decisión?\"\n\
+         - Refleja: \"Entiendo que el precio te preocupa, ¿cuánto sería razonable para ti?\"\n\
+         - Valida: \"Tiene todo el sentido que dudes después de la experiencia anterior.\"\n\
+         - Aclara: \"¿A qué te refieres con que el servicio es lento?\"\n\n\
+         Reglas:\n\
+         - Frase entre comillas: 5-15 palabras, decible TAL CUAL al cliente.\n\
+         - Si hay OBJECIÓN → pregunta de poder ('¿qué te haría sentir tranquilo?').\n\
+         - Si hay DUDA → validar + pregunta abierta.\n\
+         - Si hay FRUSTRACIÓN → reconocer emoción usando palabras del cliente.\n\
+         - Si hay INTERÉS CLARO → sugerir siguiente paso concreto y suave.\n\
+         - Verbos permitidos: Pregunta, Refleja, Valida, Reconoce, Aclara, Conecta, Profundiza, Escucha.\n\
+         - No inventes nombres, datos, cifras ni promesas. Verbos y frases de coaching genéricos sí están permitidos.\n\
+         - No cierres ni presiones antes de validar. NO describas la situación, ENTREGA el texto.\n\
+         - Si no hay base útil, responde EXACTAMENTE: SIN_TIP\n\n\
          Tip:",
         window_capped
     );
@@ -338,11 +345,11 @@ pub async fn coach_simple_tick(
         log::info!("[coach_simple_tick] tip rechazado: {} palabras < 5 (\"{}\")", word_count, tip_text);
         return Ok(None);
     }
-    // v31.8: alineado con prompt (5-15 palabras). Tip más largo se trunca a 15.
-    if word_count > 15 {
-        log::info!("[coach_simple_tick] tip truncado: {} palabras > 15", word_count);
-        let truncado: String = tip_text.split_whitespace().take(15).collect::<Vec<_>>().join(" ");
-        tip_text = truncado;
+    // v31.10: cap 22 palabras (verbo + ":" + "5-15 palabras frase" + puntuación).
+    // No truncar agresivo: rechazar si excede mucho, mejor pedir nuevo tip.
+    if word_count > 22 {
+        log::info!("[coach_simple_tick] tip rechazado: {} palabras > 22 (formato pide 5-15 dentro de comillas)", word_count);
+        return Ok(None);
     }
     // v30.3: filtro backend que exige verbo imperativo al inicio. Rechaza
     // descripciones tipo "Bien hecho:", "La inteligencia es…", "Es importante…"
@@ -371,6 +378,15 @@ pub async fn coach_simple_tick(
     ];
     if !verbos_validos.contains(&primera_palabra.as_str()) {
         log::info!("[coach_simple_tick] tip rechazado: no empieza con verbo imperativo (\"{}\")", primera_palabra);
+        return Ok(None);
+    }
+    // v31.10: exigir formato accionable VERBO + ":" + frase entre comillas.
+    // Sin esto, el modelo describe situación ("Refleja: El cliente expresa
+    // preocupación...") en lugar de dar texto decible al cliente.
+    let has_colon = tip_text.contains(':');
+    let has_quotes = tip_text.contains('"') || tip_text.contains('\u{201C}') || tip_text.contains('\u{201D}');
+    if !has_colon || !has_quotes {
+        log::info!("[coach_simple_tick] tip rechazado: sin formato accionable VERBO:\"frase\" (\"{}\")", tip_text);
         return Ok(None);
     }
     // v31.1: rechaza el flag SIN_TIP que el modelo emite cuando no hay base
