@@ -240,31 +240,21 @@ pub async fn coach_simple_tick(
         .app_data_dir()
         .map_err(|e| format!("No app_data_dir: {}", e))?;
 
-    // v31.21: prompt iter 11 GANADOR — 97% PASS, 97% formato sobre 36 scenarios
-    // (12 sintéticos + 24 reales). Estructura caracteres explícita: ":" + comillas
-    // dobles obligatorias. Validado en scripts/eval_run_v31_21_real.log.
-    let system_prompt = "Eres coach del vendedor. El vendedor está hablando con el cliente. Te muestro el transcript y tú das UNA línea con lo que el vendedor debe decir AHORA al cliente.";
+    // v31.22: prompt simplificado del auditor + parser tolerante en código.
+    // Acepta `Verbo: "frase"`, `Verbo: frase`, `Verbo - frase` y normaliza.
+    let system_prompt = "/no_think\nEres Maity, coach en vivo del vendedor. Entrega una frase exacta para decir al cliente ahora.";
     let user_prompt = format!(
         "Transcript (USUARIO = vendedor; INTERLOCUTOR = cliente):\n\n{}\n\n\
-         Da UN tip CORTO que el vendedor diga AHORA al cliente.\n\n\
-         Formato OBLIGATORIO (UNA sola línea, exactamente esta estructura):\n\
-         Verbo: \"frase entre comillas dobles\"\n\n\
-         donde:\n\
-         - Verbo es UNA de estas palabras: Pregunta, Valida, Aclara, Refleja, Reconoce\n\
-         - Después del verbo va siempre el carácter dos puntos \":\"\n\
-         - Después del \":\" va siempre el carácter comilla doble \" (de apertura)\n\
-         - Adentro va la frase de 6 a 14 palabras que el vendedor dirá\n\
-         - Cierra con comilla doble \"\n\n\
-         Estos tres caracteres son OBLIGATORIOS: \":\" + \" (apertura) + \" (cierre).\n\n\
-         Cómo elegir el verbo:\n\
-         - Cliente claro pero falta info → Pregunta\n\
-         - Cliente molesto, frustrado, triste, escéptico, con miedo o duda fuerte → Valida\n\
-         - Cliente vago o confuso → Aclara\n\
-         - Cliente con emoción fuerte que merece eco → Refleja o Reconoce\n\n\
-         Ejemplo del FORMATO exacto (no copies el contenido, invéntalo según el transcript):\n\
-         Pregunta: \"<frase de 6 a 14 palabras referida al transcript>\"\n\n\
-         Si la frase te sale con 15 o más palabras, vuelve a escribirla con menos.\n\
-         Si el transcript no permite un buen tip, responde solo: SIN_TIP\n\n\
+         Formato preferido:\n\
+         VERBO: \"frase breve\"\n\n\
+         Verbos: Pregunta, Refleja, Valida, Reconoce, Aclara, Conecta, Profundiza, Escucha.\n\n\
+         Reglas:\n\
+         - La frase debe tener 5 a 15 palabras.\n\
+         - Usa datos del transcript sólo si aparecen ahí.\n\
+         - No inventes nombres, cifras, promesas ni emociones extremas.\n\
+         - Si hay objeción, valida primero y haz pregunta abierta.\n\
+         - Si hay interés claro, sugiere un siguiente paso suave.\n\
+         - Si no hay base útil, responde: SIN_TIP\n\n\
          Tip:",
         window_capped
     );
@@ -281,13 +271,10 @@ pub async fn coach_simple_tick(
         cancel_for_timeout.cancel();
     });
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(25))
-        .build()
-        .map_err(|e| format!("HTTP client: {}", e))?;
-
+    // v31.22: BuiltInAI ignora el HTTP client. Usamos el SHARED_CLIENT global
+    // para no crear una instancia nueva por tick (sobra memoria + sockets).
     let raw_result = generate_summary(
-        &client,
+        &SHARED_CLIENT,
         &LLMProvider::BuiltInAI,
         &model,
         "",
@@ -312,9 +299,10 @@ pub async fn coach_simple_tick(
         }
     };
 
-    // El modelo a veces ignora "sin JSON" y devuelve {"tip":"..."}.
-    // Extraemos el contenido si detectamos ese patrón.
-    let mut tip_text = raw.trim().to_string();
+    // v31.22: strip <think>...</think> de Qwen3 ANTES de parsear.
+    // Sin esto, el primer token podría ser "<think>" → tip rechazado por filtro.
+    let raw_clean = strip_qwen3_thinking(&raw);
+    let mut tip_text = raw_clean.trim().to_string();
     // Quitar markdown fences si existen
     tip_text = tip_text.trim_start_matches("```json").trim_start_matches("```").to_string();
     tip_text = tip_text.trim_end_matches("```").trim().to_string();
@@ -330,7 +318,7 @@ pub async fn coach_simple_tick(
             }
         }
     }
-    tip_text = tip_text.trim().trim_matches('"').to_string();
+    tip_text = tip_text.trim().to_string();
     // Quitar prefijos comunes
     for prefix in &["Tip:", "TIP:", "tip:", "Consejo:", "Sugerencia:"] {
         if let Some(rest) = tip_text.strip_prefix(prefix) {
@@ -338,6 +326,9 @@ pub async fn coach_simple_tick(
             break;
         }
     }
+    // v31.22: normalizar formato. Acepta "VERBO: frase", "VERBO - frase",
+    // "VERBO: \"frase\"" y deja siempre como `Verbo: "frase"`.
+    tip_text = normalize_tip_format(&tip_text);
     if tip_text.is_empty() {
         return Ok(None);
     }
@@ -687,7 +678,103 @@ pub fn coach_set_model_for_purpose(purpose: String, model: String) -> Result<(),
     Ok(())
 }
 
-/// Devuelve el estado del coach: modelo activo, Ollama corriendo, última latencia.
+/// v31.22: strip <think>...</think> tags de Qwen3. Si Qwen emite razonamiento
+/// antes del tip, sin esto el primer token rompe el filtro.
+fn strip_qwen3_thinking(raw: &str) -> String {
+    let mut out = raw.to_string();
+    while let (Some(start), Some(end)) = (out.find("<think>"), out.find("</think>")) {
+        if start < end {
+            let before = &out[..start];
+            let after = &out[end + "</think>".len()..];
+            out = format!("{}{}", before, after);
+        } else {
+            break;
+        }
+    }
+    // Si quedó <think> sin cierre, recortar desde ahí (modelo truncado mid-thinking).
+    if let Some(idx) = out.find("<think>") {
+        out = out[..idx].to_string();
+    }
+    out.trim().to_string()
+}
+
+/// v31.22: normaliza formato del tip. Acepta:
+///   - `Verbo: "frase"`         → ya OK
+///   - `Verbo: frase`            → agrega comillas
+///   - `Verbo - frase`           → cambia a `:` y agrega comillas
+///   - `Verbo. frase`            → cambia a `:` y agrega comillas
+/// Si no encuentra patrón Verbo+separador, devuelve string original.
+fn normalize_tip_format(input: &str) -> String {
+    const VERBOS: &[&str] = &[
+        "Pregunta", "Valida", "Aclara", "Refleja", "Reconoce",
+        "Conecta", "Profundiza", "Escucha", "Indaga", "Explora",
+    ];
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    // Detectar verbo al inicio (case-insensitive en match, capitalización canonical en output).
+    for verbo in VERBOS {
+        let lower_trim = trimmed.to_lowercase();
+        let lower_verbo = verbo.to_lowercase();
+        if lower_trim.starts_with(&lower_verbo) {
+            let rest = &trimmed[verbo.len()..];
+            // Buscar separador: ":", "-", "."
+            let after_sep = rest
+                .trim_start()
+                .strip_prefix(':')
+                .or_else(|| rest.trim_start().strip_prefix('-'))
+                .or_else(|| rest.trim_start().strip_prefix('.'))
+                .unwrap_or_else(|| rest.trim_start())
+                .trim();
+            // Si la frase ya tiene comillas, dejar como está pero canonical
+            let phrase = if after_sep.starts_with('"') && after_sep.ends_with('"') && after_sep.len() > 1 {
+                after_sep.to_string()
+            } else if after_sep.starts_with('\u{201C}') {
+                // Comillas curvas → reemplazar por dobles
+                after_sep.replace('\u{201C}', "\"").replace('\u{201D}', "\"")
+            } else {
+                // Sin comillas: envolver
+                format!("\"{}\"", after_sep)
+            };
+            return format!("{}: {}", verbo, phrase);
+        }
+    }
+    trimmed.to_string()
+}
+
+#[cfg(test)]
+mod normalize_tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_with_quotes_ok() {
+        let r = normalize_tip_format("Pregunta: \"¿cómo te sientes?\"");
+        assert_eq!(r, "Pregunta: \"¿cómo te sientes?\"");
+    }
+    #[test]
+    fn test_normalize_no_quotes() {
+        let r = normalize_tip_format("Pregunta: ¿cómo te sientes?");
+        assert_eq!(r, "Pregunta: \"¿cómo te sientes?\"");
+    }
+    #[test]
+    fn test_normalize_dash_separator() {
+        let r = normalize_tip_format("Valida - entiendo tu preocupación");
+        assert_eq!(r, "Valida: \"entiendo tu preocupación\"");
+    }
+    #[test]
+    fn test_strip_thinking() {
+        let r = strip_qwen3_thinking("<think>razonamiento</think>\nPregunta: \"hola\"");
+        assert_eq!(r, "Pregunta: \"hola\"");
+    }
+    #[test]
+    fn test_strip_thinking_unclosed() {
+        let r = strip_qwen3_thinking("<think>razonamiento sin cierre");
+        assert_eq!(r, "");
+    }
+}
+
+/// Devuelve el estado del coach: modelo activo, runtime IA listo, última latencia.
 #[tauri::command]
 pub async fn coach_get_status() -> Result<CoachStatus, String> {
     let model = CURRENT_MODEL

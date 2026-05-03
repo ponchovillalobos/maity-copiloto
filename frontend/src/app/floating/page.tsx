@@ -133,7 +133,10 @@ export default function FloatingPage() {
         // leer el meeting_id escrito por TranscriptContext en sessionStorage.
         // Ahora consultamos el AppState compartido vía comando Rust.
         const activeMeetingId = await invoke<string | null>('get_active_meeting_id').catch(() => null);
-        if (!activeMeetingId) return;
+        if (!activeMeetingId) {
+          if (initial) console.warn('[floating] active_meeting_id es null — burbuja vacía hasta iniciar grabación');
+          return;
+        }
         const recent = await invoke<(CoachTip & { id?: number })[]>('coach_get_recent_tips', {
           meetingId: activeMeetingId,
           limit: 50,
@@ -448,7 +451,20 @@ export default function FloatingPage() {
               <div className="text-white/55 text-xs italic text-center py-6">
                 Sin tips aún. Empezá grabación o presioná "Pedir tip ahora".
               </div>
-            ) : tipsHistory.length === 0 ? null : (
+            ) : tipsHistory.length === 0 ? (
+              <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3 text-center">
+                <div className="text-[11px] text-blue-300/90 font-semibold mb-1">
+                  Esperando primer tip…
+                </div>
+                <div className="text-[10px] text-white/60 leading-tight">
+                  Los tips se generan automáticamente cada ~60s durante la grabación,
+                  o pulsa <span className="font-bold text-white">"Pedir tip ahora"</span> abajo.
+                </div>
+                <div className="text-[9px] text-white/40 mt-2">
+                  Si no aparecen, verifica que la grabación esté activa.
+                </div>
+              </div>
+            ) : (
               tipsHistory.map((t, idx) => {
                 const tprio = priorityMeta(t.priority);
                 const tcat = categoryMeta(t.category);

@@ -1,7 +1,6 @@
-//! Gestión del estado de modelos Ollama y cliente HTTP compartido.
+//! Gestión del estado de modelos del runtime local integrado (BuiltInAI sidecar).
 //!
-//! Mantiene tres modelos configurables: tips, evaluación y chat.
-//! Proporciona cliente HTTP reutilizable para evitar cold-start por request.
+//! v31.22: modelo unificado qwen3:1.7b para tips/eval/chat. Sin defaults gemma.
 
 use crate::coach::prompt::DEFAULT_MODEL;
 use reqwest::Client;
@@ -9,32 +8,29 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
-/// Modelo activo (mutable, defaulteado a Phi-3.5).
+/// Modelo activo para tips coach (qwen3:1.7b).
 pub static CURRENT_MODEL: LazyLock<Mutex<String>> =
     LazyLock::new(|| Mutex::new(DEFAULT_MODEL.to_string()));
 
-/// Modelo activo para evaluación post-meeting (configurable por usuario).
-/// Default `gemma3:4b` para compatibilidad con laptops 8GB RAM.
+/// Modelo activo para evaluación post-meeting. v31.22: unificado a qwen3:1.7b.
 pub static EVALUATION_MODEL: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new("gemma3:4b".to_string()));
+    LazyLock::new(|| Mutex::new(DEFAULT_MODEL.to_string()));
 
-/// Modelo activo para chat con reuniones (configurable por usuario).
+/// Modelo activo para chat con reuniones. v31.22: unificado a qwen3:1.7b.
 pub static CHAT_MODEL: LazyLock<Mutex<String>> =
-    LazyLock::new(|| Mutex::new("gemma3:4b".to_string()));
+    LazyLock::new(|| Mutex::new(DEFAULT_MODEL.to_string()));
 
 /// Latencia del último request (ms). 0 = aún no medido.
 pub static LAST_LATENCY_MS: AtomicU64 = AtomicU64::new(0);
 
-/// Shared HTTP client for Ollama requests (eliminates cold-start per-request overhead).
-/// HTTP client compartido entre coach_suggest y coach_chat.
-/// Timeout 60s para chat (respuestas más largas); pool reutiliza conexiones TCP
-/// a localhost:11434 → elimina 20-50ms de setup por request.
+/// HTTP client compartido — usado por coach_chat. coach_simple_tick (BuiltInAI)
+/// lo ignora pero el shared pool evita cold-start si otro path lo usa.
 pub static SHARED_CLIENT: LazyLock<Client> = LazyLock::new(|| {
     Client::builder()
         .timeout(Duration::from_secs(60))
         .pool_max_idle_per_host(4)
         .build()
-        .expect("Failed to create shared HTTP client for Ollama")
+        .expect("Failed to create shared HTTP client")
 });
 
 /// Get current model without locking (for startup warm-up).
@@ -45,18 +41,15 @@ pub fn get_current_model() -> Result<String, String> {
         .map_err(|e| format!("Failed to get current model: {}", e))
 }
 
-/// Health check rápido a Ollama (timeout 2s).
+/// Health check del runtime local integrado. Renombrado v31.22 a `ai_ready`.
+/// Mantiene alias `check_ollama_running` para compat con imports existentes.
+pub async fn ai_ready() -> bool {
+    crate::summary::summary_engine::is_sidecar_healthy().await
+}
+
+/// Compat alias — eliminar después de actualizar todos los callers.
 pub async fn check_ollama_running() -> bool {
-    let client = match Client::builder().timeout(Duration::from_secs(2)).build() {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-    client
-        .get("http://localhost:11434/api/tags")
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
+    ai_ready().await
 }
 
 #[cfg(test)]

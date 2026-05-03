@@ -8,7 +8,7 @@ import { useOnboarding } from '@/contexts/OnboardingContext';
  * Setup Overview Step - 100% Local, 100% Privado
  *
  * Transcripción: Parakeet ONNX (CPU-optimizado, ~670 MB).
- * Resúmenes + Coach IA: Ollama local (gemma4:latest).
+ * Coach IA + Resúmenes: modelo local integrado Qwen3 1.7B (~1.1 GB).
  * Ninguna llamada a cloud APIs.
  */
 export function SetupOverviewStep() {
@@ -37,7 +37,7 @@ export function SetupOverviewStep() {
     {
       icon: <FileText className="w-5 h-5 text-[#16bb7b]" />,
       title: 'Coach IA + Resúmenes',
-      description: 'Modelo Gemma 3n E2B local',
+      description: 'Modelo local integrado Qwen3 1.7B',
     },
     {
       icon: <Zap className="w-5 h-5 text-[#3a4ac3]" />,
@@ -86,8 +86,8 @@ export function SetupOverviewStep() {
         {/* Model Download Note */}
         <div className="w-full max-w-md bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-sm text-blue-800 text-center">
-            El modelo Parakeet (~670 MB) se descargará la primera vez que grabes.
-            Para el Coach IA necesitas Ollama con gemma4:latest instalado.
+            El modelo Parakeet (~670 MB) y Qwen3 1.7B (~1.1 GB) se descargarán
+            la primera vez. Todo corre localmente, sin cloud ni API keys.
           </p>
         </div>
 
