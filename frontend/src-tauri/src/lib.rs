@@ -859,24 +859,35 @@ pub fn run() {
                                 );
                                 if is_cloud {
                                     log::info!(
-                                        "🔒 Migrating summary provider from '{}' to 'ollama' (privacidad)",
+                                        "🔒 Migrating summary provider from '{}' to 'builtin-ai' (privacidad)",
                                         provider
                                     );
                                     if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
-                                        pool, "ollama", "qwen3:1.7b", "small", None
+                                        pool, "builtin-ai", "qwen3:1.7b", "small", None
                                     ).await {
                                         log::error!("Failed to migrate summary provider: {}", e);
                                     } else {
-                                        log::info!("✅ Migrated summary provider to ollama+qwen3:1.7b (v31.6)");
+                                        log::info!("✅ Migrated summary provider to builtin-ai+qwen3:1.7b");
                                     }
                                 }
-                                // v31.6: migración legacy gemma → qwen3:1.7b (modelo unificado)
+                                // v31.23: migrar provider 'ollama' a 'builtin-ai' — runtime real
+                                // es llama-helper sidecar, no Ollama. Sin esto, UI bloquea
+                                // generación porque busca modelos Ollama inexistentes.
+                                if provider == "ollama" {
+                                    log::info!("🧹 v31.23: migrando provider 'ollama' → 'builtin-ai'");
+                                    if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
+                                        pool, "builtin-ai", "qwen3:1.7b", "small", None
+                                    ).await {
+                                        log::error!("Failed to migrate provider to builtin-ai: {}", e);
+                                    }
+                                }
+                                // v31.6: migración legacy gemma → qwen3:1.7b
                                 let model = config.model.as_str();
                                 let is_legacy_gemma = model.starts_with("gemma3:") || model.starts_with("gemma4");
                                 if is_legacy_gemma {
                                     log::info!("🧹 v31.6: migrando modelo legacy '{}' → qwen3:1.7b", model);
                                     if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
-                                        pool, "ollama", "qwen3:1.7b", "small", None
+                                        pool, "builtin-ai", "qwen3:1.7b", "small", None
                                     ).await {
                                         log::error!("Failed to migrate legacy model: {}", e);
                                     }

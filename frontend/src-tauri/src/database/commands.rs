@@ -211,9 +211,9 @@ pub async fn initialize_fresh_database(app: AppHandle) -> Result<(), String> {
     // simplifica memoria, descarga, y limpia DB residual.
     if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
         pool,
-        "ollama",
+        "builtin-ai",
         "qwen3:1.7b",
-        "large-v3",       // Default whisper model (unused for Ollama but required)
+        "large-v3",       // Whisper model (unused, required by signature)
         None,
     ).await {
         error!("Failed to set default summary model config: {}", e);

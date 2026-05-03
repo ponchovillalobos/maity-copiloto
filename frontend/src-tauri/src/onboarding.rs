@@ -180,7 +180,7 @@ pub async fn complete_onboarding<R: Runtime>(
     // 1.79GB RAM apto laptops 8GB. Reemplaza gemma4:latest.
     if let Err(e) = SettingsRepository::save_model_config(
         pool,
-        "ollama",
+        "builtin-ai",
         "qwen3:1.7b",
         "small",  // Whisper model for summary model config (not actively used)
         None,
