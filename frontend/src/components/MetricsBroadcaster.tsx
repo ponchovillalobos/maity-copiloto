@@ -80,18 +80,39 @@ export function MetricsBroadcaster() {
       return;
     }
 
-    const tick = () => {
+    // v32.3: gate por burbuja flotante abierta. Si no hay ventana
+    // `coach-floating` montada, no tiene sentido emitir métricas — nadie
+    // escucha. Ahorra 30 emits/min de CPU + JSON serialization cuando el
+    // usuario no usa la burbuja. Cache simple con TTL 4s para no preguntar
+    // a Tauri en cada tick (getAllWebviewWindows es relativamente caro).
+    let floatingCachedOpen = false;
+    let floatingCheckedAt = 0;
+    const isFloatingOpen = async (): Promise<boolean> => {
+      const now = Date.now();
+      if (now - floatingCheckedAt < 4000) return floatingCachedOpen;
+      try {
+        const wins = await getAllWebviewWindows();
+        floatingCachedOpen = wins.some((w) => w.label === 'coach-floating');
+      } catch {
+        floatingCachedOpen = false;
+      }
+      floatingCheckedAt = now;
+      return floatingCachedOpen;
+    };
+
+    const tick = async () => {
+      // v32.3: skip si burbuja cerrada (nadie escucha el evento).
+      if (!(await isFloatingOpen())) return;
       const durationSec = Math.max(0, (activeDuration ?? 0));
       const minutes = Math.max(0.05, durationSec / 60);
 
       const { userWords, interlocutorWords, userSegmentSec, interlocutorSegmentSec } = aggregates;
-      // WPM contextual: si el usuario casi no habla (escucha conferencia/audiencia)
-      // mostramos el WPM del interlocutor para que la métrica siga teniendo valor.
-      // Si ambos hablan, mostramos el del usuario (rendimiento propio).
+      // v32.2: WPM siempre del USUARIO (vendor / quien usa la app).
+      // El propósito es saber cuándo recomendar al usuario que respire o pause —
+      // mostrar el WPM del interlocutor confunde la señal. Si el usuario no habla,
+      // el WPM se queda en 0 (correcto: significa que está escuchando).
       const userIsListening = userWords < 20 && interlocutorWords > userWords * 3;
-      const wpm = userIsListening
-        ? interlocutorWords / minutes
-        : userWords / minutes;
+      const wpm = userWords / minutes;
 
       // Tiempo hablado por persona (segundos): preferir audio_*_time si existe,
       // sino fallback en suma de palabras→segundos (~0.4s/palabra).

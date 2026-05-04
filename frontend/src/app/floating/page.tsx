@@ -5,7 +5,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import {
   X, Minimize2, Maximize2, Sparkles,
-  MessageCircle, Activity, Timer, ChevronLeft, ChevronRight, HelpCircle, Zap,
+  Activity, Timer, HelpCircle, Zap,
 } from 'lucide-react';
 import { categoryMeta, priorityMeta } from '@/components/Coach/tipMeta';
 
@@ -56,51 +56,124 @@ function healthColor(score: number): string {
   return '#ff0050';
 }
 
-function HealthGauge({ score }: { score: number }) {
-  const radius = 38;
-  const stroke = 8;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-  const color = healthColor(score);
-  return (
-    <div className="relative w-24 h-24 flex-shrink-0" data-tauri-drag-region>
-      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} fill="none" />
-        <circle
-          cx="50"
-          cy="50"
-          r={radius}
-          stroke={color}
-          strokeWidth={stroke}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 0.5s ease' }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <div className="text-2xl font-bold tabular-nums" style={{ color }}>
-          {Math.round(score)}
-        </div>
-        <div className="text-[9px] uppercase tracking-wider text-white/60 -mt-0.5">Salud</div>
-      </div>
-    </div>
-  );
+/** v32.3: zonas semáforo del WPM USUARIO. Verde/ámbar/rojo según ritmo de habla.
+ *  - 0           → "Escuchando" (gris)
+ *  - 1-139       → "Bien" (verde)
+ *  - 140-179     → "Acelera" (ámbar)
+ *  - 180+        → "Lento" (rojo, dispara warn=true para pulso visual). */
+function wpmZone(wpm: number): { label: string; color: string; warn: boolean } {
+  if (wpm <= 0) return { label: 'Escuchando', color: 'rgba(255,255,255,0.45)', warn: false };
+  if (wpm < 140) return { label: 'Bien',       color: '#1bea9a',                warn: false };
+  if (wpm < 180) return { label: 'Acelera',    color: '#f59e0b',                warn: false };
+  return         { label: 'Lento',             color: '#ff0050',                warn: true };
 }
 
-function MetricCard({ label, value, color, icon }: { label: string; value: string; color: string; icon: React.ReactNode }) {
+function trendArrow(trend?: string): string {
+  if (trend === 'rising' || trend === 'up') return '▲';
+  if (trend === 'falling' || trend === 'down') return '▼';
+  return '·';
+}
+
+/** v32.3: panel "Pulso conversacional" — fusiona Salud + WPM + Tiempo + barra
+ *  dual de tiempo de palabra en UN solo widget. Reemplaza el HealthGauge SVG
+ *  + 2 MetricCards + barra suelta de v32.2. Lectura de un vistazo: 4 datos
+ *  clave en una sola pasada de ojos. */
+function PulsoPanel({
+  health,
+  wpm,
+  duration,
+  userTalkPct,
+  trend,
+}: {
+  health: number;
+  wpm: number;
+  duration: number;
+  userTalkPct: number;
+  trend?: string;
+}) {
+  const hColor = healthColor(health);
+  const zone = wpmZone(wpm);
+  const arrow = trendArrow(trend);
   return (
     <div
-      className="flex flex-col rounded-lg bg-white/5 border border-white/8 p-2 min-w-0"
+      className="rounded-xl border border-white/12 bg-white/4 px-3 py-2.5 mb-3 flex-shrink-0"
       data-tauri-drag-region
+      style={{ backdropFilter: 'blur(6px)' }}
     >
-      <div className="flex items-center gap-1 text-[9px] uppercase tracking-wider text-white/55">
-        {icon}
-        <span>{label}</span>
+      {/* TOP ROW — 3 chips: Salud · WPM · Tiempo */}
+      <div className="flex items-center justify-between gap-2 mb-2" data-tauri-drag-region>
+        {/* SALUD */}
+        <div className="flex flex-col items-center min-w-0 flex-1" data-tauri-drag-region>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[28px] font-bold tabular-nums leading-none" style={{ color: hColor }}>
+              {Math.round(health)}
+            </span>
+            <span className="text-[12px] font-bold leading-none" style={{ color: hColor }} title={`Tendencia: ${trend ?? 'estable'}`}>
+              {arrow}
+            </span>
+          </div>
+          <div className="text-[9px] uppercase tracking-wider text-white/55 mt-0.5">Salud</div>
+        </div>
+        {/* separador vertical */}
+        <div className="w-px h-10 bg-white/10" />
+        {/* WPM USUARIO */}
+        <div
+          className="flex flex-col items-center min-w-0 flex-1 relative"
+          data-tauri-drag-region
+          style={zone.warn ? { animation: 'wpmPulse 800ms ease-in-out infinite' } : undefined}
+        >
+          <div className="flex items-baseline gap-1">
+            <Activity className="w-3 h-3" style={{ color: zone.color }} />
+            <span className="text-[28px] font-bold tabular-nums leading-none" style={{ color: zone.color }}>
+              {Math.round(wpm)}
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: zone.color }}>
+              wpm
+            </span>
+          </div>
+          <div className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: zone.color }}>
+            {zone.label}
+          </div>
+        </div>
+        {/* separador vertical */}
+        <div className="w-px h-10 bg-white/10" />
+        {/* TIEMPO TOTAL */}
+        <div className="flex flex-col items-center min-w-0 flex-1" data-tauri-drag-region>
+          <div className="flex items-baseline gap-1">
+            <Timer className="w-3 h-3 text-[#a8b3ff]" />
+            <span className="text-[22px] font-bold tabular-nums leading-none text-[#a8b3ff]">
+              {formatDuration(duration)}
+            </span>
+          </div>
+          <div className="text-[9px] uppercase tracking-wider text-white/55 mt-0.5">Sesión</div>
+        </div>
       </div>
-      <div className="text-base font-bold mt-0.5 tabular-nums" style={{ color }}>
-        {value}
+      {/* BOTTOM ROW — barra dual de tiempo de palabra integrada */}
+      <div data-tauri-drag-region>
+        <div
+          className="flex h-3.5 rounded-full overflow-hidden border border-white/10"
+          style={{ background: 'rgba(255,255,255,0.05)' }}
+          data-tauri-drag-region
+        >
+          <div
+            className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
+            style={{
+              width: `${Math.max(0, Math.min(100, userTalkPct))}%`,
+              background: '#485df4',
+            }}
+          >
+            {userTalkPct > 18 ? `Tú ${Math.round(userTalkPct)}%` : ''}
+          </div>
+          <div
+            className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
+            style={{
+              width: `${Math.max(0, Math.min(100, 100 - userTalkPct))}%`,
+              background: '#1bea9a',
+            }}
+          >
+            {100 - userTalkPct > 18 ? `Otro ${Math.round(100 - userTalkPct)}%` : ''}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -108,11 +181,23 @@ function MetricCard({ label, value, color, icon }: { label: string; value: strin
 
 export default function FloatingPage() {
   const [compact, setCompact] = useState(false);
+  // v32.2: opacidad ajustable de la burbuja (persistida en localStorage).
+  const [bgOpacity, setBgOpacity] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0.92;
+    const v = parseFloat(window.localStorage.getItem('maity_floating_opacity') || '');
+    return Number.isFinite(v) && v >= 0.3 && v <= 1.0 ? v : 0.92;
+  });
+  const updateOpacity = (v: number) => {
+    setBgOpacity(v);
+    try { window.localStorage.setItem('maity_floating_opacity', String(v)); } catch {}
+  };
   const [tipsHistory, setTipsHistory] = useState<CoachTip[]>([]);
   const [tipIndex, setTipIndex] = useState(0); // 0 = most recent
   const [metrics, setMetrics] = useState<MeetingMetrics>({});
   const [section, setSection] = useState<Section>('tip');
   const [requestingTip, setRequestingTip] = useState(false);
+  // v32.2: feedback efímero del botón "Pedir tip ahora" (None del backend, error, etc.).
+  const [tipRequestStatus, setTipRequestStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const unlisteners: Array<() => void> = [];
@@ -231,6 +316,9 @@ export default function FloatingPage() {
   const goPrev = () => canPrev && setTipIndex((i) => i + 1);
   const goNext = () => canNext && setTipIndex((i) => i - 1);
 
+  // Las métricas vienen vía evento `meeting-metrics` del MetricsBroadcaster
+  // (ver components/MetricsBroadcaster.tsx). Los campos son: health, wpm,
+  // userTalkPct, userTalkSec, interlocutorTalkSec, durationSec.
   const health = metrics.health ?? metrics.connectionScore ?? 50;
   const wpm = metrics.wpm ?? 0;
   const duration = metrics.durationSec ?? 0;
@@ -289,7 +377,7 @@ export default function FloatingPage() {
       onMouseDown={handleDragMouseDown}
       className="h-screen w-screen flex flex-col p-3 select-none text-white overflow-hidden"
       style={{
-        background: 'rgba(15, 16, 24, 0.92)',
+        background: `rgba(15, 16, 24, ${bgOpacity})`,
         backdropFilter: 'blur(22px) saturate(180%)',
         WebkitBackdropFilter: 'blur(22px) saturate(180%)',
         border: '1px solid rgba(255,255,255,0.14)',
@@ -314,6 +402,21 @@ export default function FloatingPage() {
           )}
         </div>
         <div className="flex items-center gap-1">
+          {/* v32.2: slider opacidad */}
+          <div className="flex items-center gap-1 px-1.5 rounded bg-white/5" title="Opacidad de la burbuja">
+            <span className="text-[9px] text-white/50">◔</span>
+            <input
+              type="range"
+              min={0.3}
+              max={1.0}
+              step={0.05}
+              value={bgOpacity}
+              onChange={(e) => updateOpacity(parseFloat(e.target.value))}
+              className="w-12 h-1 cursor-pointer accent-[#485df4]"
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            <span className="text-[9px] text-white/50">●</span>
+          </div>
           <button
             onClick={handleToggleCompact}
             className="p-1 hover:bg-white/15 rounded text-white/70 transition"
@@ -331,54 +434,17 @@ export default function FloatingPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-3 flex-shrink-0" data-tauri-drag-region>
-        <HealthGauge score={health} />
-        <div className="flex-1 grid grid-cols-2 gap-1.5 min-w-0" data-tauri-drag-region>
-          <MetricCard
-            label="WPM"
-            value={Math.round(wpm).toString()}
-            color={wpm > 180 ? '#f59e0b' : wpm > 0 ? '#a8b3ff' : 'rgba(255,255,255,0.4)'}
-            icon={<Activity className="w-2.5 h-2.5" />}
-          />
-          <MetricCard
-            label="Tiempo"
-            value={formatDuration(duration)}
-            color="#a8b3ff"
-            icon={<Timer className="w-2.5 h-2.5" />}
-          />
-        </div>
-      </div>
-
-<div className="mb-3 flex-shrink-0" data-tauri-drag-region>
-        <div className="flex items-center justify-between text-[9px] uppercase tracking-wider text-white/55 mb-1" data-tauri-drag-region>
-          <span>Tiempo de palabra</span>
-          <span className="text-white/70 tabular-nums">
-            {formatDuration(metrics.userTalkSec ?? 0)} · {formatDuration(metrics.interlocutorTalkSec ?? 0)}
-          </span>
-        </div>
-        <div className="flex h-3 rounded-full overflow-hidden bg-white/8" data-tauri-drag-region>
-          <div
-            className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
-            style={{
-              width: `${Math.max(0, Math.min(100, metrics.userTalkPct ?? 0))}%`,
-              background: '#485df4',
-            }}
-          >
-            {(metrics.userTalkPct ?? 0) > 18 ? `Tú ${Math.round(metrics.userTalkPct ?? 0)}%` : ''}
-          </div>
-          <div
-            className="flex items-center justify-center text-[9px] font-bold text-white transition-all duration-300"
-            style={{
-              width: `${Math.max(0, Math.min(100, 100 - (metrics.userTalkPct ?? 0)))}%`,
-              background: '#1bea9a',
-            }}
-          >
-            {100 - (metrics.userTalkPct ?? 0) > 18
-              ? `Otro ${Math.round(100 - (metrics.userTalkPct ?? 0))}%`
-              : ''}
-          </div>
-        </div>
-      </div>
+      {/* v32.3: Panel "Pulso conversacional" — Salud + WPM USUARIO + Tiempo
+          + barra dual de tiempo de palabra fusionados en un solo widget para
+          lectura "de un vistazo". Reemplaza HealthGauge SVG + 2 MetricCards
+          + barra suelta de v32.2. */}
+      <PulsoPanel
+        health={health}
+        wpm={wpm}
+        duration={duration}
+        userTalkPct={metrics.userTalkPct ?? 0}
+        trend={metrics.connectionTrend}
+      />
 
       {/* SECCIÓN SELECTORA: TIP / PREGUNTAS */}
       <div className="flex gap-1 mb-2 flex-shrink-0">
@@ -466,8 +532,8 @@ export default function FloatingPage() {
               </div>
             ) : (
               tipsHistory.map((t, idx) => {
-                // v32.0: color y label vienen de la CATEGORÍA (no priority). Border
-                // grueso a la izquierda + ícono grande + categoría destacada.
+                // v32.2: tarjetas opacas (rgba alpha 0.95) — antes 0.6 las hacía
+                // ilegibles sobre fondo claro. Border 5px izquierdo color categoría.
                 const tcat = categoryMeta(t.category);
                 const tcolor = tcat.hex;
                 const isLatest = idx === 0;
@@ -477,13 +543,13 @@ export default function FloatingPage() {
                     key={`${t.tip}-${idx}`}
                     className="tip-card-v32 rounded-md p-3"
                     style={{
-                      background: `linear-gradient(135deg, ${tcolor}14 0%, rgba(10,10,15,0.6) 100%)`,
+                      background: `linear-gradient(135deg, ${tcolor}25 0%, rgba(10,10,15,0.95) 100%)`,
                       borderLeft: `5px solid ${tcolor}`,
-                      borderTop: '1px solid rgba(255,255,255,0.04)',
-                      borderRight: '1px solid rgba(255,255,255,0.04)',
-                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      borderTop: '1px solid rgba(255,255,255,0.08)',
+                      borderRight: '1px solid rgba(255,255,255,0.08)',
+                      borderBottom: '1px solid rgba(255,255,255,0.08)',
                       animation: isLatest ? 'tipSlideIn 200ms ease-out' : undefined,
-                      boxShadow: isLatest ? `0 4px 20px ${tcolor}33` : undefined,
+                      boxShadow: isLatest ? `0 4px 20px ${tcolor}55` : undefined,
                     }}
                   >
                     <div className="flex items-center gap-2 mb-1.5">
@@ -511,12 +577,27 @@ export default function FloatingPage() {
           {/* Botón "Pedir tip ahora" — invoca directamente coach_request_simple_tip
               que ejecuta coach_simple_tick en backend. El tip aparece via polling
               de coach_get_recent_tips (próximo ciclo 3s). v31: una sola ruta. */}
+{/* v32.2: el botón ahora ESPERA la respuesta del backend y muestra el
+              motivo si devolvió None (sin transcript / dedup / parser rechazó).
+              El polling cada 3s lo actualiza igual cuando entra un tip OK. */}
           <button
-            onClick={() => {
+            onClick={async () => {
               setRequestingTip(true);
-              void invoke('coach_request_simple_tip', {})
-                .catch((e) => console.warn('[floating] coach_request_simple_tip failed:', e))
-                .finally(() => setTimeout(() => setRequestingTip(false), 15000));
+              setTipRequestStatus(null);
+              try {
+                const res = await invoke<unknown>('coach_request_simple_tip', {});
+                if (res === null || res === undefined) {
+                  setTipRequestStatus('Sin tip ahora — espera 30s o habla más.');
+                } else {
+                  setTipRequestStatus('Tip generado ✓');
+                }
+              } catch (e) {
+                console.warn('[floating] coach_request_simple_tip failed:', e);
+                setTipRequestStatus(`Error: ${String(e).slice(0, 80)}`);
+              } finally {
+                setRequestingTip(false);
+                setTimeout(() => setTipRequestStatus(null), 6000);
+              }
             }}
             disabled={requestingTip}
             className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-[#485df4]/40 hover:bg-[#485df4]/60 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold uppercase tracking-wider transition active:scale-[0.98] flex-shrink-0"
@@ -533,6 +614,11 @@ export default function FloatingPage() {
               </>
             )}
           </button>
+          {tipRequestStatus && (
+            <div className="mt-1 text-[10px] text-center text-white/70 italic flex-shrink-0">
+              {tipRequestStatus}
+            </div>
+          )}
         </div>
       )}
 
@@ -579,6 +665,12 @@ export default function FloatingPage() {
         @keyframes tipSlideIn {
           from { opacity: 0; transform: translateX(20px); }
           to   { opacity: 1; transform: translateX(0); }
+        }
+        /* v32.3: pulso suave del chip WPM cuando entra zona "Lento" (>180 wpm).
+           No invasivo: solo opacidad varía 0.7→1.0. */
+        @keyframes wpmPulse {
+          0%, 100% { opacity: 1; }
+          50%      { opacity: 0.7; }
         }
       `}</style>
     </div>

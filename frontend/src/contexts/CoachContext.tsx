@@ -227,6 +227,12 @@ export interface CoachMetrics {
   userWpm: number;
   /** Monólogo más largo del usuario en segundos. */
   longestUserMonologueSec: number;
+  /** Segundos estimados que habló el usuario (≈ userWords / 2.5 wps). */
+  userTalkSec: number;
+  /** Segundos estimados que habló el interlocutor. */
+  interlocutorTalkSec: number;
+  /** Porcentaje de tiempo de palabra del usuario (0–100). */
+  userTalkPct: number;
   /** Historial de preguntas detectadas */
   questionHistory: QuestionEntry[];
   /** Modo conversacional inferido de las métricas (afecta qué tips se muestran). */
@@ -320,11 +326,37 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     connectionTrend: 'stable',
     userWpm: 0,
     longestUserMonologueSec: 0,
+    userTalkSec: 0,
+    interlocutorTalkSec: 0,
+    userTalkPct: 0,
     questionHistory: [],
     conversationMode: 'starting',
   });
   const sessionStartRef = useRef<number | null>(null);
   const scoreHistoryRef = useRef<number[]>([]);
+  // v32.3: acumuladores incrementales para computeMetrics. Antes recorríamos
+  // TODOS los transcripts cada 5s (O(n)); ahora solo procesamos los nuevos
+  // desde el último tick (O(Δ), típicamente <5 elementos). En reuniones >30
+  // min con 1000+ turnos, esto baja el costo del tick de ~5ms a <1ms.
+  // Reset en cambio de meeting_id o al iniciar nueva grabación.
+  const metricsAccRef = useRef({
+    userWords: 0,
+    interlocutorWords: 0,
+    userQuestions: 0,
+    interlocutorQuestions: 0,
+    nameUsedCount: 0,
+    empathyPhrases: 0,
+    longestUserRun: 0,
+    currentUserRun: 0,
+    userFrustrationCount: 0,
+    interlocutorSatisfactionCount: 0,
+    userEmpathyCount: 0,
+    turnChanges: 0,
+    userProfanityCount: 0,
+    prevSource: '',
+    questionEntries: [] as QuestionEntry[],
+    lastIdx: 0,
+  });
   const suggestionsRef = useRef<CoachSuggestion[]>([]);
   useEffect(() => {
     suggestionsRef.current = suggestions;
@@ -775,37 +807,25 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     if (!isRecording) return;
     const computeMetrics = () => {
       const all = transcriptsRef.current ?? [];
-      let userWords = 0;
-      let interlocutorWords = 0;
-      let userQuestions = 0;
-      let interlocutorQuestions = 0;
-      let nameUsedCount = 0;
-      let empathyPhrases = 0;
-      let longestUserRun = 0;
-      let currentUserRun = 0;
-      let userFrustrationCount = 0;
-      let interlocutorSatisfactionCount = 0;
-      let userEmpathyCount = 0;
-      let turnChanges = 0;
-      let userProfanityCount = 0;
-      let prevSource = '';
-      const questionEntries: QuestionEntry[] = [];
+      const acc = metricsAccRef.current;
       const nowMs = Date.now();
       const sessionStartMs = sessionStartRef.current;
 
-      // Loop ÚNICO O(n) — fusión de 3 pasadas previas (metrics + turnChanges + profanity).
-      // Reduce 60% el costo de computeMetrics en reuniones largas (>1000 turnos).
-      for (const t of all) {
+      // v32.3: incremental — solo procesa transcripts NUEVOS desde el último
+      // tick. Los acumuladores viven en metricsAccRef.current entre ticks.
+      // En reuniones largas (1000+ turnos) cada tick procesa <5 elementos
+      // en lugar de 1000+. Reset al cambiar meeting_id (ver Effect 6).
+      for (let i = acc.lastIdx; i < all.length; i++) {
+        const t = all[i];
         const raw = (t as any).text ?? '';
         const text = raw.trim();
         if (!text) continue;
         const isInt = (t as any).source_type === 'interlocutor';
 
-        // Speaker switches (turnChanges) — antes era loop separado.
         const src = (t as any).source_type ?? '';
-        if (src && src !== prevSource) {
-          turnChanges++;
-          prevSource = src;
+        if (src && src !== acc.prevSource) {
+          acc.turnChanges++;
+          acc.prevSource = src;
         }
 
         const wordCount = text.split(/\s+/).filter(Boolean).length;
@@ -814,48 +834,62 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         if (questionCount > 0 || text.includes('?')) {
           const speaker = isInt ? 'interlocutor' as const : 'user' as const;
           const ts = sessionStartMs ? (nowMs - sessionStartMs) : 0;
-          questionEntries.push({ text: text.substring(0, 200), speaker, timestamp: ts });
+          acc.questionEntries.push({ text: text.substring(0, 200), speaker, timestamp: ts });
+          // Cap memoria: solo retenemos las últimas 100 (UI muestra 50).
+          if (acc.questionEntries.length > 100) {
+            acc.questionEntries.splice(0, acc.questionEntries.length - 100);
+          }
         }
 
-        // Frustración del interlocutor es NEUTRAL (oportunidad, no falla),
-        // por eso solo trackeamos la del usuario.
-        if (!isInt && FRUSTRATION_REGEX.test(text)) {
-          userFrustrationCount++;
-        }
-        if (isInt && SATISFACTION_REGEX.test(text)) {
-          interlocutorSatisfactionCount++;
-        }
+        if (!isInt && FRUSTRATION_REGEX.test(text)) acc.userFrustrationCount++;
+        if (isInt && SATISFACTION_REGEX.test(text)) acc.interlocutorSatisfactionCount++;
 
         if (isInt) {
-          interlocutorWords += wordCount;
-          interlocutorQuestions += questionCount;
-          if (currentUserRun > longestUserRun) longestUserRun = currentUserRun;
-          currentUserRun = 0;
+          acc.interlocutorWords += wordCount;
+          acc.interlocutorQuestions += questionCount;
+          if (acc.currentUserRun > acc.longestUserRun) acc.longestUserRun = acc.currentUserRun;
+          acc.currentUserRun = 0;
         } else {
-          userWords += wordCount;
-          userQuestions += questionCount;
-          currentUserRun += wordCount;
+          acc.userWords += wordCount;
+          acc.userQuestions += questionCount;
+          acc.currentUserRun += wordCount;
 
-          // Profanity user (antes era loop separado).
           const profanityMatches = raw.match(PROFANITY_REGEX_GLOBAL);
-          if (profanityMatches) userProfanityCount += profanityMatches.length;
+          if (profanityMatches) acc.userProfanityCount += profanityMatches.length;
 
           const empathyMatch = text.toLowerCase().match(EMPATHY_REGEX);
           if (empathyMatch) {
-            empathyPhrases += empathyMatch.length;
-            userEmpathyCount += empathyMatch.length;
+            acc.empathyPhrases += empathyMatch.length;
+            acc.userEmpathyCount += empathyMatch.length;
           }
 
           const words = text.split(/\s+/);
-          for (let i = 1; i < words.length; i++) {
-            const w = words[i];
+          for (let j = 1; j < words.length; j++) {
+            const w = words[j];
             if (w.length >= 3 && CAPITALIZED_NAME_REGEX.test(w)) {
-              nameUsedCount++;
+              acc.nameUsedCount++;
             }
           }
         }
       }
-      if (currentUserRun > longestUserRun) longestUserRun = currentUserRun;
+      acc.lastIdx = all.length;
+
+      // Snapshot inmutable de los contadores para el cálculo del score.
+      const userWords = acc.userWords;
+      const interlocutorWords = acc.interlocutorWords;
+      const userQuestions = acc.userQuestions;
+      const interlocutorQuestions = acc.interlocutorQuestions;
+      const nameUsedCount = acc.nameUsedCount;
+      const empathyPhrases = acc.empathyPhrases;
+      const userFrustrationCount = acc.userFrustrationCount;
+      const interlocutorSatisfactionCount = acc.interlocutorSatisfactionCount;
+      const userEmpathyCount = acc.userEmpathyCount;
+      const turnChanges = acc.turnChanges;
+      const userProfanityCount = acc.userProfanityCount;
+      // longestUserRun debe considerar también el run en curso al momento del tick
+      // (sin mutarlo: si el USUARIO sigue hablando, su run actual puede ser > el anterior).
+      const longestUserRun = Math.max(acc.longestUserRun, acc.currentUserRun);
+
       const totalWords = userWords + interlocutorWords;
       const userTalkRatio = totalWords > 0 ? userWords / totalWords : 0;
       const durationSec = sessionStartMs
@@ -865,6 +899,11 @@ export function CoachProvider({ children }: { children: ReactNode }) {
       const minutesElapsed = Math.max(0.5, durationSec / 60);
       const userWpm = Math.round(userWords / minutesElapsed);
       const longestUserMonologueSec = Math.round(longestUserRun / 2.5);
+      // v32.2: tiempo de palabra estimado (~2.5 wps habla normal en español).
+      // Se usa para la barra "Tiempo de palabra" en la burbuja flotante.
+      const userTalkSec = Math.round(userWords / 2.5);
+      const interlocutorTalkSec = Math.round(interlocutorWords / 2.5);
+      const userTalkPct = totalWords > 0 ? Math.round(userTalkRatio * 100) : 0;
 
       // Detectar modo conversacional para suprimir tips inadecuados.
       const mode = detectConversationMode({
@@ -956,7 +995,10 @@ export function CoachProvider({ children }: { children: ReactNode }) {
         connectionTrend: trend,
         userWpm,
         longestUserMonologueSec,
-        questionHistory: questionEntries.slice(-50),
+        userTalkSec,
+        interlocutorTalkSec,
+        userTalkPct,
+        questionHistory: acc.questionEntries.slice(-50),
         conversationMode: mode,
       });
     };
@@ -988,6 +1030,26 @@ export function CoachProvider({ children }: { children: ReactNode }) {
     if (isRecording) {
       invoke('coach_clear_meeting_type_cache').catch(() => {});
       scoreHistoryRef.current = [];
+      // v32.3: reset acumulador incremental al iniciar nueva grabación.
+      // Sin esto, los contadores quedarían sumándose entre meetings.
+      metricsAccRef.current = {
+        userWords: 0,
+        interlocutorWords: 0,
+        userQuestions: 0,
+        interlocutorQuestions: 0,
+        nameUsedCount: 0,
+        empathyPhrases: 0,
+        longestUserRun: 0,
+        currentUserRun: 0,
+        userFrustrationCount: 0,
+        interlocutorSatisfactionCount: 0,
+        userEmpathyCount: 0,
+        turnChanges: 0,
+        userProfanityCount: 0,
+        prevSource: '',
+        questionEntries: [],
+        lastIdx: 0,
+      };
       setMeetingTypeState('auto');
       setMeetingTypeAutoDetected(false);
       lastTipTimestampRef.current = 0;

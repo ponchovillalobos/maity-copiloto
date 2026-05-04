@@ -300,7 +300,9 @@ INTERLOCUTOR: Me interesa, ¿cómo seguimos?\n\
     let cancel = tokio_util::sync::CancellationToken::new();
     let cancel_for_timeout = cancel.clone();
     let timeout_handle = tokio::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(45)).await;
+        // v32.2: 45s→60s. Prompt v32 es más largo (descripciones + 7 ejemplos),
+        // cold-start del sidecar con prompt grande necesita más margen.
+        tokio::time::sleep(Duration::from_secs(60)).await;
         cancel_for_timeout.cancel();
     });
 
@@ -315,8 +317,8 @@ INTERLOCUTOR: Me interesa, ¿cómo seguimos?\n\
         &user_prompt,
         None,
         None,
-        Some(35),  // v32.0: tip 8 palabras + categoría → ~15 tokens, margen para safety
-        Some(0.3), // v32.0: más determinista
+        Some(60),  // v32.2: 35→60. Más margen para que modelo emita tip + finalice cleanly.
+        Some(0.3),
         Some(0.85),
         Some(&app_data_dir),
         Some(&cancel),

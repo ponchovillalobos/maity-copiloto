@@ -912,97 +912,91 @@ pub fn run() {
                     }
                 }
 
-                // Always initialize Parakeet engine unconditionally
-                log::info!("Initializing Parakeet engine (always-on local transcription)");
-                if let Err(e) = parakeet_engine::commands::parakeet_init().await {
-                    log::error!("Failed to initialize Parakeet engine: {}", e);
-                } else {
-                    // Pre-load Parakeet ONNX model for instant recording start
-                    log::info!("Pre-loading Parakeet ONNX model for instant recording...");
-                    let preload_start = std::time::Instant::now();
-                    match parakeet_engine::commands::parakeet_validate_model_ready().await {
-                        Ok(model_name) => {
-                            let elapsed = preload_start.elapsed();
-                            log::info!("Parakeet model '{}' pre-loaded in {:.2}s", model_name, elapsed.as_secs_f64());
-                            // FAST PATH flag: evita I/O a SQLite en cada start_recording.
-                            crate::audio::transcription::engine::mark_preloaded("parakeet", &model_name);
-                            let _ = app_handle_for_config.emit("transcription-model-ready",
-                                serde_json::json!({ "provider": "parakeet", "model": model_name }));
-                        }
-                        Err(e) => {
-                            log::warn!("Failed to pre-load Parakeet model: {} (will load on first recording)", e);
-                        }
-                    }
-                }
-
-                // Initialize Canary engine if configured as the transcript provider
-                {
-                    let state = app_handle_for_config.try_state::<crate::state::AppState>();
-                    let should_init_canary = if let Some(app_state) = state {
-                        let pool = app_state.db_manager.pool();
-                        match crate::database::repositories::setting::SettingsRepository::get_transcript_config(pool).await {
-                            Ok(Some(config)) if config.provider == "canary" => true,
-                            _ => false,
-                        }
+                // v32.3: TODO el bloque pesado de inicialización (Parakeet +
+                // Canary opcional + ModelManager + preload de modelos ONNX) se
+                // mueve a un tokio::spawn para NO bloquear el setup de Tauri.
+                // Antes esto añadía 2-4s al cold start de la UI; ahora la UI
+                // se monta inmediatamente y los engines se cargan en paralelo.
+                //
+                // Riesgo controlado: si el usuario inicia grabación antes de
+                // que Parakeet termine, `start_recording` ya tiene un check
+                // `is_loaded()` que esperará el preload. El frontend además
+                // escucha el evento `transcription-model-ready` para
+                // habilitar UI dependiente.
+                let app_handle_for_engines = app_handle_for_config.clone();
+                tauri::async_runtime::spawn(async move {
+                    // Always initialize Parakeet engine unconditionally
+                    log::info!("[startup-bg] Initializing Parakeet engine (always-on local transcription)");
+                    if let Err(e) = parakeet_engine::commands::parakeet_init().await {
+                        log::error!("[startup-bg] Failed to initialize Parakeet engine: {}", e);
                     } else {
-                        false
-                    };
-
-                    if should_init_canary {
-                        log::info!("Initializing Canary engine (configured as transcript provider)");
-                        if let Err(e) = canary_engine::commands::canary_init().await {
-                            log::error!("Failed to initialize Canary engine: {}", e);
-                        } else {
-                            // Pre-load Canary ONNX model for instant recording start
-                            log::info!("Pre-loading Canary ONNX model for instant recording...");
-                            let preload_start = std::time::Instant::now();
-                            match canary_engine::commands::canary_validate_model_ready().await {
-                                Ok(model_name) => {
-                                    let elapsed = preload_start.elapsed();
-                                    log::info!("Canary model '{}' pre-loaded in {:.2}s", model_name, elapsed.as_secs_f64());
-                                    // Canary gana prioridad en FAST PATH flag si es el provider configurado.
-                                    crate::audio::transcription::engine::mark_preloaded("canary", &model_name);
-                                    let _ = app_handle_for_config.emit("transcription-model-ready",
-                                        serde_json::json!({ "provider": "canary", "model": model_name }));
-                                }
-                                Err(e) => {
-                                    log::warn!("Failed to pre-load Canary model: {} (will load on first recording)", e);
-                                }
+                        // Pre-load Parakeet ONNX model for instant recording start
+                        log::info!("[startup-bg] Pre-loading Parakeet ONNX model for instant recording...");
+                        let preload_start = std::time::Instant::now();
+                        match parakeet_engine::commands::parakeet_validate_model_ready().await {
+                            Ok(model_name) => {
+                                let elapsed = preload_start.elapsed();
+                                log::info!("[startup-bg] Parakeet model '{}' pre-loaded in {:.2}s", model_name, elapsed.as_secs_f64());
+                                // FAST PATH flag: evita I/O a SQLite en cada start_recording.
+                                crate::audio::transcription::engine::mark_preloaded("parakeet", &model_name);
+                                let _ = app_handle_for_engines.emit("transcription-model-ready",
+                                    serde_json::json!({ "provider": "parakeet", "model": model_name }));
                             }
-                        }
-                    }
-                }
-
-                // Read summary provider from database
-                let summary_provider = {
-                    let state = app_handle_for_config.try_state::<crate::state::AppState>();
-                    if let Some(app_state) = state {
-                        let pool = app_state.db_manager.pool();
-                        match crate::database::repositories::setting::SettingsRepository::get_model_config(pool).await {
-                            Ok(Some(config)) => config.provider,
-                            Ok(None) => "custom-openai".to_string(),
                             Err(e) => {
-                                log::warn!("Failed to read model config: {}, defaulting to custom-openai", e);
-                                "custom-openai".to_string()
+                                log::warn!("[startup-bg] Failed to pre-load Parakeet model: {} (will load on first recording)", e);
                             }
                         }
-                    } else {
-                        log::warn!("AppState not available, defaulting to custom-openai");
-                        "custom-openai".to_string()
                     }
-                };
 
-                // Maity es 100% local — SIEMPRE inicializar ModelManager.
-                // Antes solo si provider=builtin-ai pero DB legacy (ollama) bloqueaba.
-                let _ = summary_provider; // ignored, always builtin
-                log::info!("Initializing Summary ModelManager (always — Maity es local)");
-                match summary::summary_engine::commands::init_model_manager_at_startup(&app_handle_for_config).await {
-                    Ok(_) => log::info!("ModelManager initialized successfully"),
-                    Err(e) => {
-                        log::warn!("Failed to initialize ModelManager: {}", e);
-                        log::warn!("ModelManager will be lazy-initialized on first use");
+                    // Initialize Canary engine if configured as the transcript provider
+                    {
+                        let state = app_handle_for_engines.try_state::<crate::state::AppState>();
+                        let should_init_canary = if let Some(app_state) = state {
+                            let pool = app_state.db_manager.pool();
+                            match crate::database::repositories::setting::SettingsRepository::get_transcript_config(pool).await {
+                                Ok(Some(config)) if config.provider == "canary" => true,
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        };
+
+                        if should_init_canary {
+                            log::info!("[startup-bg] Initializing Canary engine (configured as transcript provider)");
+                            if let Err(e) = canary_engine::commands::canary_init().await {
+                                log::error!("[startup-bg] Failed to initialize Canary engine: {}", e);
+                            } else {
+                                // Pre-load Canary ONNX model for instant recording start
+                                log::info!("[startup-bg] Pre-loading Canary ONNX model for instant recording...");
+                                let preload_start = std::time::Instant::now();
+                                match canary_engine::commands::canary_validate_model_ready().await {
+                                    Ok(model_name) => {
+                                        let elapsed = preload_start.elapsed();
+                                        log::info!("[startup-bg] Canary model '{}' pre-loaded in {:.2}s", model_name, elapsed.as_secs_f64());
+                                        // Canary gana prioridad en FAST PATH flag si es el provider configurado.
+                                        crate::audio::transcription::engine::mark_preloaded("canary", &model_name);
+                                        let _ = app_handle_for_engines.emit("transcription-model-ready",
+                                            serde_json::json!({ "provider": "canary", "model": model_name }));
+                                    }
+                                    Err(e) => {
+                                        log::warn!("[startup-bg] Failed to pre-load Canary model: {} (will load on first recording)", e);
+                                    }
+                                }
+                            }
+                        }
                     }
-                }
+
+                    // Maity es 100% local — SIEMPRE inicializar ModelManager.
+                    log::info!("[startup-bg] Initializing Summary ModelManager (always — Maity es local)");
+                    match summary::summary_engine::commands::init_model_manager_at_startup(&app_handle_for_engines).await {
+                        Ok(_) => log::info!("[startup-bg] ModelManager initialized successfully"),
+                        Err(e) => {
+                            log::warn!("[startup-bg] Failed to initialize ModelManager: {}", e);
+                            log::warn!("[startup-bg] ModelManager will be lazy-initialized on first use");
+                        }
+                    }
+                    log::info!("[startup-bg] Background engine initialization complete");
+                });
 
                 // Auto-descarga del modelo Gemma 3 4B GGUF si no está presente.
                 // Crítico: garantiza que el coach IA funcione SIN intervención del
