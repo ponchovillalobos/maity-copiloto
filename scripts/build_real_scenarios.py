@@ -16,7 +16,8 @@ import re
 import sys
 from pathlib import Path
 
-SOURCE = Path(r"D:\Poncho\Videos\Edicion-Claude\output")
+import os
+SOURCE = Path(os.environ.get("SCENARIOS_SOURCE", r"D:\Poncho\Videos\Edicion-Claude\output"))
 OUT_DIR = Path(__file__).parent.parent / "frontend" / "src-tauri" / "scenarios"
 
 # Verbos amplios — cualquier verbo del coach es valido para scenarios reales,
