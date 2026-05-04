@@ -1399,6 +1399,7 @@ pub fn run() {
             // Coach floating window
             coach::floating::open_floating_coach,
             coach::floating::close_floating_coach,
+            coach::floating::recenter_floating_coach,
             coach::floating::floating_toggle_compact,
             // Coach chat con reunión específica (semantic search + Gemma 4)
             coach::meeting_chat::chat_with_meeting,

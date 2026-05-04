@@ -418,6 +418,13 @@ export default function FloatingPage() {
             <span className="text-[9px] text-white/50">●</span>
           </div>
           <button
+            onClick={() => invoke('recenter_floating_coach').catch(console.error)}
+            className="p-1 hover:bg-white/15 rounded text-white/70 transition"
+            title="Recentrar ventana"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+          <button
             onClick={handleToggleCompact}
             className="p-1 hover:bg-white/15 rounded text-white/70 transition"
             title="Modo compacto"

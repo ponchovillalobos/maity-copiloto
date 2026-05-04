@@ -40,13 +40,17 @@ pub async fn open_floating_coach<R: Runtime>(app: AppHandle<R>) -> Result<(), St
         .build()
         .map_err(|e| format!("No se pudo crear ventana flotante: {}", e))?;
 
-    if let Some(monitor) = window.primary_monitor().ok().flatten() {
+    // Centra primero para garantizar que la ventana esté en un monitor visible,
+    // luego reubica al top-right del monitor actual (evita multi-monitor bug).
+    let _ = window.center();
+    if let Some(monitor) = window.current_monitor().ok().flatten() {
         let scale = monitor.scale_factor();
+        let pos = monitor.position();
         let size = monitor.size();
+        let mon_x = pos.x as f64 / scale;
         let mon_w = size.width as f64 / scale;
-        let mon_h = size.height as f64 / scale;
-        let target_x = (mon_w - DEFAULT_WIDTH - 32.0).max(0.0);
-        let target_y = 80.0_f64.min((mon_h - DEFAULT_HEIGHT - 32.0).max(0.0));
+        let target_x = (mon_x + mon_w - DEFAULT_WIDTH - 32.0).max(mon_x);
+        let target_y = 80.0_f64;
         window
             .set_position(LogicalPosition::new(target_x, target_y))
             .map_err(|e| e.to_string())?;
@@ -55,6 +59,18 @@ pub async fn open_floating_coach<R: Runtime>(app: AppHandle<R>) -> Result<(), St
             .map_err(|e| e.to_string())?;
     }
 
+    Ok(())
+}
+
+/// Recentra la ventana flotante en el monitor actual. Útil cuando se pierde de pantalla.
+#[tauri::command]
+pub async fn recenter_floating_coach<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let window = app
+        .get_webview_window(FLOATING_LABEL)
+        .ok_or_else(|| "Ventana flotante no abierta".to_string())?;
+    window.center().map_err(|e| e.to_string())?;
+    window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
     Ok(())
 }
 
