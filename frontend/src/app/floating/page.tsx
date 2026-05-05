@@ -78,15 +78,52 @@ function trendArrow(trend?: string): string {
  *  dual de tiempo de palabra en UN solo widget. Reemplaza el HealthGauge SVG
  *  + 2 MetricCards + barra suelta de v32.2. Lectura de un vistazo: 4 datos
  *  clave en una sola pasada de ojos. */
+/** Mini sparkline SVG del historial de WPM. Últimos N valores, línea suave. */
+function WpmSparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return null;
+  const W = 68, H = 16;
+  const maxV = Math.max(...values, 160);
+  const pts = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * W;
+      const y = H - (v / maxV) * H;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <svg width={W} height={H} style={{ display: 'block', overflow: 'visible', marginTop: 2 }}>
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.75}
+      />
+      {/* punto final — valor actual */}
+      <circle
+        cx={(((values.length - 1) / (values.length - 1)) * W).toFixed(1)}
+        cy={(H - (values[values.length - 1] / maxV) * H).toFixed(1)}
+        r={2.5}
+        fill={color}
+        opacity={0.95}
+      />
+    </svg>
+  );
+}
+
 function PulsoPanel({
   health,
   wpm,
+  wpmHistory,
   duration,
   userTalkPct,
   trend,
 }: {
   health: number;
   wpm: number;
+  wpmHistory: number[];
   duration: number;
   userTalkPct: number;
   trend?: string;
@@ -131,9 +168,10 @@ function PulsoPanel({
               wpm
             </span>
           </div>
-          <div className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: zone.color }}>
-            {zone.label}
-          </div>
+          {wpmHistory.length >= 2
+            ? <WpmSparkline values={wpmHistory} color={zone.color} />
+            : <div className="text-[9px] uppercase tracking-wider mt-0.5" style={{ color: zone.color }}>{zone.label}</div>
+          }
         </div>
         {/* separador vertical */}
         <div className="w-px h-10 bg-white/10" />
@@ -194,6 +232,7 @@ export default function FloatingPage() {
   const [tipsHistory, setTipsHistory] = useState<CoachTip[]>([]);
   const [tipIndex, setTipIndex] = useState(0); // 0 = most recent
   const [metrics, setMetrics] = useState<MeetingMetrics>({});
+  const [wpmHistory, setWpmHistory] = useState<number[]>([]);
   const [section, setSection] = useState<Section>('tip');
   const [requestingTip, setRequestingTip] = useState(false);
   // v32.2: feedback efímero del botón "Pedir tip ahora" (None del backend, error, etc.).
@@ -274,7 +313,12 @@ export default function FloatingPage() {
       lastSeenId = 0;
     }).then((u) => unlisteners.push(u));
 
-    listen<MeetingMetrics>('meeting-metrics', (e) => setMetrics(e.payload)).then((u) => unlisteners.push(u));
+    listen<MeetingMetrics>('meeting-metrics', (e) => {
+      setMetrics(e.payload);
+      if (typeof e.payload.wpm === 'number' && e.payload.wpm > 0) {
+        setWpmHistory((prev) => [...prev.slice(-29), e.payload.wpm!]);
+      }
+    }).then((u) => unlisteners.push(u));
 
     return () => {
       if (pollTimer) clearInterval(pollTimer);
@@ -448,6 +492,7 @@ export default function FloatingPage() {
       <PulsoPanel
         health={health}
         wpm={wpm}
+        wpmHistory={wpmHistory}
         duration={duration}
         userTalkPct={metrics.userTalkPct ?? 0}
         trend={metrics.connectionTrend}
