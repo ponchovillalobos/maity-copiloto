@@ -1239,15 +1239,29 @@ pub async fn attempt_device_reconnect(
         }
     } // Release lock
 
-    // Spawn blocking task to handle the async reconnection
+    // Spawn blocking task to handle the async reconnection.
+    // Uses mem::take to drop the global lock BEFORE the .await, preventing
+    // RECORDING_MANAGER from being held across an async yield point.
     let result = tokio::task::spawn_blocking(move || {
         tokio::runtime::Handle::current().block_on(async {
-            let mut manager_guard = RECORDING_MANAGER.lock().map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
-            if let Some(manager) = manager_guard.as_mut() {
-                manager.attempt_device_reconnect(&device_name, monitor_type).await
-            } else {
-                Err(anyhow::anyhow!("Recording not active"))
+            // Take manager out of global state so the lock is released before .await.
+            let mut taken_manager = {
+                let mut guard = RECORDING_MANAGER
+                    .lock()
+                    .map_err(|e| anyhow::anyhow!("Lock poisoned: {}", e))?;
+                guard.take().ok_or_else(|| anyhow::anyhow!("Recording not active"))?
+            }; // guard drops here — lock is free during reconnect
+
+            let result = taken_manager
+                .attempt_device_reconnect(&device_name, monitor_type)
+                .await;
+
+            // Restore manager to global state.
+            if let Ok(mut guard) = RECORDING_MANAGER.lock() {
+                *guard = Some(taken_manager);
             }
+
+            result
         })
     })
     .await

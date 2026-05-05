@@ -88,7 +88,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     totalMb: 0,
     speedMbps: 0,
   });
-  const [selectedSummaryModel, setSelectedSummaryModel] = useState<string>('gemma3:1b');
+  const [selectedSummaryModel, setSelectedSummaryModel] = useState<string>('');
   const [databaseExists, setDatabaseExists] = useState(false);
   const [isBackgroundDownloading, setIsBackgroundDownloading] = useState(false);
 
@@ -119,7 +119,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
         logger.debug('[OnboardingContext] Set recommended model:', recommendedModel);
       } catch (error) {
         console.error('[OnboardingContext] Failed to get recommended model:', error);
-        // Keep default gemma3:1b
+        // Backend will set model via builtin_ai_get_recommended_model
       }
     };
     fetchRecommendation();

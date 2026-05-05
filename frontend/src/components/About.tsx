@@ -25,7 +25,7 @@ export function About() {
 
     const handleContactClick = async () => {
         try {
-            await invoke('open_external_url', { url: 'https://maity.zackriya.com/#about' });
+            await invoke('open_external_url', { url: 'https://github.com/ponchovillalobos/maity-copiloto' });
         } catch (error) {
             console.error('Failed to open link:', error);
         }
@@ -135,14 +135,14 @@ export function About() {
                     onClick={handleContactClick}
                     className="inline-flex items-center px-4 py-2 bg-[#3a4ac3] hover:bg-[#2b3892] text-white text-sm font-medium rounded transition-colors duration-200 shadow-sm hover:shadow-md"
                 >
-                    Habla con el equipo de Zackriya
+                    Visita el repositorio del proyecto
                 </button>
             </div>
 
             {/* Footer - Compact */}
             <div className="pt-2 border-t border-[#e7e7e9] dark:border-gray-700 text-center">
                 <p className="text-xs text-[#8a8a8d] dark:text-gray-500">
-                    Creado por Zackriya Solutions
+                    Maity Copiloto
                 </p>
             </div>
             {/* Diagnostics Section */}
