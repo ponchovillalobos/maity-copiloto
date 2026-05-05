@@ -85,7 +85,7 @@ fn evaluate_tip(tip: &str, expected_verbs: &[String]) -> (bool, bool, usize, boo
         || tip.contains('\'');
     let word_count = tip.split_whitespace().count();
     let has_colon = lower.contains(':');
-    let passed = verb_match && has_quoted_phrase && has_colon && word_count >= 5 && word_count <= 25;
+    let passed = verb_match && has_quoted_phrase && has_colon && (5..=25).contains(&word_count);
     (verb_match, has_quoted_phrase, word_count, passed)
 }
 

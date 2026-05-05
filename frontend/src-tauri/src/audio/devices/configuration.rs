@@ -14,7 +14,9 @@ lazy_static! {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[derive(Default)]
 pub enum AudioTranscriptionEngine {
+    #[default]
     Parakeet,
     Canary,
 }
@@ -28,11 +30,6 @@ impl fmt::Display for AudioTranscriptionEngine {
     }
 }
 
-impl Default for AudioTranscriptionEngine {
-    fn default() -> Self {
-        AudioTranscriptionEngine::Parakeet
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct DeviceControl {
@@ -107,7 +104,7 @@ pub async fn get_device_and_config(
 ) -> Result<(cpal::Device, cpal::SupportedStreamConfig)> {
     #[cfg(target_os = "windows")]
     {
-        return super::platform::get_windows_device(audio_device);
+        super::platform::get_windows_device(audio_device)
     }
 
     #[cfg(not(target_os = "windows"))]

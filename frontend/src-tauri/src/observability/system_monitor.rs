@@ -70,7 +70,7 @@ pub async fn run_system_monitor<R: Runtime>(app: AppHandle<R>) {
         // v26: buscar llama-helper sidecar para medir RAM del modelo.
         let mut model_ram_mb = 0u64;
         let mut model_cpu_pct = 0.0f32;
-        for (_pid_, proc) in sys.processes() {
+        for proc in sys.processes().values() {
             let name = proc.name().to_string_lossy().to_lowercase();
             if name.contains("llama-helper") {
                 model_ram_mb += proc.memory() / (1024 * 1024);

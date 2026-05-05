@@ -56,7 +56,7 @@ unsafe fn redirect_std_to_console() {
         ptr::null(),
     );
 
-    if handle != INVALID_HANDLE_VALUE && handle != ptr::null_mut() {
+    if handle != INVALID_HANDLE_VALUE && !handle.is_null() {
         SetStdHandle(STD_OUTPUT_HANDLE, handle);
         SetStdHandle(STD_ERROR_HANDLE, handle);
     }
@@ -67,7 +67,7 @@ pub fn show_console() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     unsafe {
         let console_window = GetConsoleWindow();
-        if console_window == ptr::null_mut() {
+        if console_window.is_null() {
             // If no console exists, allocate one
             if AllocConsole() == 0 {
                 return Err("Failed to allocate console".to_string());
@@ -113,7 +113,7 @@ pub fn hide_console() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     unsafe {
         let console_window = GetConsoleWindow();
-        if console_window != ptr::null_mut() {
+        if !console_window.is_null() {
             ShowWindow(console_window, SW_HIDE);
             Ok("Console hidden".to_string())
         } else {
@@ -154,7 +154,7 @@ pub fn toggle_console() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     unsafe {
         let console_window = GetConsoleWindow();
-        if console_window == ptr::null_mut() {
+        if console_window.is_null() {
             show_console()
         } else {
             // Check if window is visible (this is a simplified approach)

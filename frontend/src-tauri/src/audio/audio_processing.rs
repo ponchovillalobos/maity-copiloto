@@ -6,7 +6,7 @@ use realfft::RealFftPlanner;
 use rubato::{
     Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use nnnoiseless::DenoiseState;
 
 use super::encode::encode_single_audio; // Correct path to encode module
@@ -33,7 +33,7 @@ pub fn sanitize_filename(name: &str) -> String {
 /// * `meeting_name` - Name of the meeting
 /// * `create_checkpoints_dir` - Whether to create .checkpoints/ subdirectory (only needed when auto_save is true)
 pub fn create_meeting_folder(
-    base_path: &PathBuf,
+    base_path: &Path,
     meeting_name: &str,
     create_checkpoints_dir: bool,
 ) -> Result<PathBuf> {
@@ -591,7 +591,7 @@ pub fn resample(input: &[f32], from_sample_rate: u32, to_sample_rate: u32) -> Re
     debug!("Resampling complete: {} samples → {} samples",
            input.len(), waves_out[0].len());
 
-    Ok(waves_out.into_iter().next().ok_or_else(|| anyhow::anyhow!("No resampler output"))?)
+    waves_out.into_iter().next().ok_or_else(|| anyhow::anyhow!("No resampler output"))
 }
 
 // Alias for compatibility with existing code
@@ -618,7 +618,7 @@ pub fn write_audio_to_file(
 pub fn write_audio_to_file_with_meeting_name(
     audio: &[f32],
     sample_rate: u32,
-    output_path: &PathBuf,
+    output_path: &Path,
     device: &str,
     skip_encoding: bool,
     meeting_name: Option<&str>,
@@ -638,7 +638,7 @@ pub fn write_audio_to_file_with_meeting_name(
 
         meeting_folder
     } else {
-        output_path.clone()
+        output_path.to_path_buf()
     };
 
     let file_path = final_output_path
@@ -653,7 +653,7 @@ pub fn write_audio_to_file_with_meeting_name(
             bytemuck::cast_slice(audio),
             sample_rate,
             1,
-            &file_path.into(),
+            Path::new(&file_path),
         )?;
     }
     Ok(file_path_clone)
@@ -662,7 +662,7 @@ pub fn write_audio_to_file_with_meeting_name(
 /// Write transcript text to a file alongside the recording (legacy plain text format)
 pub fn write_transcript_to_file(
     transcript_text: &str,
-    output_path: &PathBuf,
+    output_path: &Path,
     meeting_name: Option<&str>,
 ) -> Result<String> {
     let timestamp = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
@@ -679,7 +679,7 @@ pub fn write_transcript_to_file(
 
         meeting_folder
     } else {
-        output_path.clone()
+        output_path.to_path_buf()
     };
 
     let file_path = final_output_path.join(format!("transcript_{}.txt", timestamp));
@@ -693,7 +693,7 @@ pub fn write_transcript_to_file(
 /// Write structured transcript with timestamps to JSON file
 pub fn write_transcript_json_to_file(
     segments: &[super::recording_saver::TranscriptSegment],
-    output_path: &PathBuf,
+    output_path: &Path,
     meeting_name: Option<&str>,
     audio_filename: &str,
     recording_duration: f64,
@@ -713,7 +713,7 @@ pub fn write_transcript_json_to_file(
 
         meeting_folder
     } else {
-        output_path.clone()
+        output_path.to_path_buf()
     };
 
     let file_path = final_output_path.join(format!("transcript_{}.json", timestamp));

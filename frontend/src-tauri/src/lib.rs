@@ -278,7 +278,7 @@ fn detect_system_language() -> String {
 /// Examples: "es_MX.UTF-8" → "es", "en-US" → "en", "pt_BR" → "pt"
 fn extract_language_code(locale: &str) -> String {
     locale
-        .split(|c: char| c == '_' || c == '-' || c == '.')
+        .split(['_', '-', '.'])
         .next()
         .unwrap_or("es")
         .to_lowercase()
@@ -772,7 +772,7 @@ pub fn run() {
             // Initialize database FIRST (handles first launch detection and conditional setup)
             // This must happen before engine initialization so we can read config
             match tauri::async_runtime::block_on(async {
-                database::setup::initialize_database_on_startup(&_app.handle()).await
+                database::setup::initialize_database_on_startup(_app.handle()).await
             }) {
                 Ok(()) => {
                     log::info!("Database initialized successfully");
@@ -798,8 +798,8 @@ pub fn run() {
             }
 
             // Set models directories (always set, even if engines won't be initialized)
-            parakeet_engine::commands::set_models_directory(&_app.handle());
-            canary_engine::commands::set_models_directory(&_app.handle());
+            parakeet_engine::commands::set_models_directory(_app.handle());
+            canary_engine::commands::set_models_directory(_app.handle());
 
             // Dashboard observability: muestra CPU/RAM live cada 1s + seed botones
             let app_handle_obs = _app.handle().clone();
@@ -850,50 +850,47 @@ pub fn run() {
                         }
 
                         // Migración 2: summary cloud → ollama+gemma4 (privacidad)
-                        match crate::database::repositories::setting::SettingsRepository::get_model_config(pool).await {
-                            Ok(Some(config)) => {
-                                let provider = config.provider.as_str();
-                                let is_cloud = matches!(
-                                    provider,
-                                    "openai" | "claude" | "groq" | "openrouter" | "custom-openai"
+                        if let Ok(Some(config)) = crate::database::repositories::setting::SettingsRepository::get_model_config(pool).await {
+                            let provider = config.provider.as_str();
+                            let is_cloud = matches!(
+                                provider,
+                                "openai" | "claude" | "groq" | "openrouter" | "custom-openai"
+                            );
+                            if is_cloud {
+                                log::info!(
+                                    "🔒 Migrating summary provider from '{}' to 'builtin-ai' (privacidad)",
+                                    provider
                                 );
-                                if is_cloud {
-                                    log::info!(
-                                        "🔒 Migrating summary provider from '{}' to 'builtin-ai' (privacidad)",
-                                        provider
-                                    );
-                                    if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
-                                        pool, "builtin-ai", "qwen3:1.7b", "small", None
-                                    ).await {
-                                        log::error!("Failed to migrate summary provider: {}", e);
-                                    } else {
-                                        log::info!("✅ Migrated summary provider to builtin-ai+qwen3:1.7b");
-                                    }
-                                }
-                                // v31.23: migrar provider 'ollama' a 'builtin-ai' — runtime real
-                                // es llama-helper sidecar, no Ollama. Sin esto, UI bloquea
-                                // generación porque busca modelos Ollama inexistentes.
-                                if provider == "ollama" {
-                                    log::info!("🧹 v31.23: migrando provider 'ollama' → 'builtin-ai'");
-                                    if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
-                                        pool, "builtin-ai", "qwen3:1.7b", "small", None
-                                    ).await {
-                                        log::error!("Failed to migrate provider to builtin-ai: {}", e);
-                                    }
-                                }
-                                // v31.6: migración legacy gemma → qwen3:1.7b
-                                let model = config.model.as_str();
-                                let is_legacy_gemma = model.starts_with("gemma3:") || model.starts_with("gemma4");
-                                if is_legacy_gemma {
-                                    log::info!("🧹 v31.6: migrando modelo legacy '{}' → qwen3:1.7b", model);
-                                    if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
-                                        pool, "builtin-ai", "qwen3:1.7b", "small", None
-                                    ).await {
-                                        log::error!("Failed to migrate legacy model: {}", e);
-                                    }
+                                if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
+                                    pool, "builtin-ai", "qwen3:1.7b", "small", None
+                                ).await {
+                                    log::error!("Failed to migrate summary provider: {}", e);
+                                } else {
+                                    log::info!("✅ Migrated summary provider to builtin-ai+qwen3:1.7b");
                                 }
                             }
-                            _ => {}
+                            // v31.23: migrar provider 'ollama' a 'builtin-ai' — runtime real
+                            // es llama-helper sidecar, no Ollama. Sin esto, UI bloquea
+                            // generación porque busca modelos Ollama inexistentes.
+                            if provider == "ollama" {
+                                log::info!("🧹 v31.23: migrando provider 'ollama' → 'builtin-ai'");
+                                if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
+                                    pool, "builtin-ai", "qwen3:1.7b", "small", None
+                                ).await {
+                                    log::error!("Failed to migrate provider to builtin-ai: {}", e);
+                                }
+                            }
+                            // v31.6: migración legacy gemma → qwen3:1.7b
+                            let model = config.model.as_str();
+                            let is_legacy_gemma = model.starts_with("gemma3:") || model.starts_with("gemma4");
+                            if is_legacy_gemma {
+                                log::info!("🧹 v31.6: migrando modelo legacy '{}' → qwen3:1.7b", model);
+                                if let Err(e) = crate::database::repositories::setting::SettingsRepository::save_model_config(
+                                    pool, "builtin-ai", "qwen3:1.7b", "small", None
+                                ).await {
+                                    log::error!("Failed to migrate legacy model: {}", e);
+                                }
+                            }
                         }
 
                         // v31.7: migración tabla coach_settings (tabla separada de settings)

@@ -85,7 +85,7 @@ pub fn list_log_files() -> anyhow::Result<Vec<PathBuf>> {
     for entry in std::fs::read_dir(&log_dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_file() && path.extension().map_or(false, |ext| ext == "log") {
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "log") {
             files.push(path);
         }
     }

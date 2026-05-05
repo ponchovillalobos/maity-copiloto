@@ -239,29 +239,16 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         group: 'Navegación',
         action: () => router.push('/dashboard'),
       },
-      {
-        id: 'open-dev',
+      ...(process.env.NODE_ENV === 'development' ? [{
+        id: 'open-dev' as CommandId,
         slash: '/dev',
         label: 'Página de pruebas /dev',
         description: 'Importar audios y testear pipeline',
         icon: <ChevronRight className="w-4 h-4" />,
         keywords: ['test', 'audio', 'qa', 'import'],
-        group: 'Navegación',
+        group: 'Navegación' as const,
         action: () => router.push('/dev'),
-      },
-      {
-        id: 'run-batch-iterations',
-        slash: '/batch',
-        label: 'Iniciar batch automático (todos los audios)',
-        description: 'Procesa toda la carpeta D:\\Poncho\\Videos\\Edicion-Claude\\output con WER',
-        icon: <ChevronRight className="w-4 h-4" />,
-        keywords: ['batch', 'auto', 'iter', 'todos', 'run'],
-        group: 'Sistema',
-        action: () => {
-          const folder = encodeURIComponent('D:\\Poncho\\Videos\\Edicion-Claude\\output');
-          router.push(`/dev?mode=batch&autorun=1&folder=${folder}`);
-        },
-      },
+      }] : []),
       {
         id: 'open-settings',
         slash: '/settings',

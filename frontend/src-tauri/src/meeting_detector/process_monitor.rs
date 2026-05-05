@@ -255,7 +255,7 @@ impl ProcessMonitor {
 
         let patterns = get_process_patterns();
 
-        for (_pid, process) in self.system.processes() {
+        for process in self.system.processes().values() {
             let process_name = process.name().to_string_lossy().to_lowercase();
 
             for pattern in &patterns {

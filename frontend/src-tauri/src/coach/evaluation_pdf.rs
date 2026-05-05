@@ -136,7 +136,7 @@ pub fn generate_evaluation_pdf(eval_data: &EvaluationPdfData) -> Result<Vec<u8>,
         let mut line = String::new();
         for word in words {
             if line.len() + word.len() > 75 {
-                layer.use_text(&format!("  {}", line), 9.0, left_margin, y_position, &font);
+                layer.use_text(format!("  {}", line), 9.0, left_margin, y_position, &font);
                 y_position -= line_height;
                 line = word.to_string();
             } else {
@@ -147,7 +147,7 @@ pub fn generate_evaluation_pdf(eval_data: &EvaluationPdfData) -> Result<Vec<u8>,
             }
         }
         if !line.is_empty() {
-            layer.use_text(&format!("  {}", line), 9.0, left_margin, y_position, &font);
+            layer.use_text(format!("  {}", line), 9.0, left_margin, y_position, &font);
             y_position -= line_height;
         }
         y_position -= Mm(3.0);
@@ -161,7 +161,7 @@ pub fn generate_evaluation_pdf(eval_data: &EvaluationPdfData) -> Result<Vec<u8>,
         let mut line = String::new();
         for word in words {
             if line.len() + word.len() > 75 {
-                layer.use_text(&format!("  {}", line), 9.0, left_margin, y_position, &font);
+                layer.use_text(format!("  {}", line), 9.0, left_margin, y_position, &font);
                 y_position -= line_height;
                 line = word.to_string();
             } else {
@@ -172,7 +172,7 @@ pub fn generate_evaluation_pdf(eval_data: &EvaluationPdfData) -> Result<Vec<u8>,
             }
         }
         if !line.is_empty() {
-            layer.use_text(&format!("  {}", line), 9.0, left_margin, y_position, &font);
+            layer.use_text(format!("  {}", line), 9.0, left_margin, y_position, &font);
             y_position -= line_height;
         }
         y_position -= Mm(3.0);
@@ -205,7 +205,7 @@ pub fn generate_evaluation_pdf(eval_data: &EvaluationPdfData) -> Result<Vec<u8>,
         let mut line = String::new();
         for word in words {
             if line.len() + word.len() > 75 {
-                layer.use_text(&format!("  {}", line), 8.0, left_margin, y_position, &font);
+                layer.use_text(format!("  {}", line), 8.0, left_margin, y_position, &font);
                 y_position -= Mm(4.0);
                 line = word.to_string();
             } else {
@@ -216,7 +216,7 @@ pub fn generate_evaluation_pdf(eval_data: &EvaluationPdfData) -> Result<Vec<u8>,
             }
         }
         if !line.is_empty() {
-            layer.use_text(&format!("  {}", line), 8.0, left_margin, y_position, &font);
+            layer.use_text(format!("  {}", line), 8.0, left_margin, y_position, &font);
             y_position -= Mm(4.0);
         }
         y_position -= Mm(2.0);

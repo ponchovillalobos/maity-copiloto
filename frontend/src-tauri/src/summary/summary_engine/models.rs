@@ -3,7 +3,7 @@
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 // ============================================================================
 // Model Definitions
@@ -155,7 +155,7 @@ pub fn get_model_path(app_data_dir: &PathBuf, model_name: &str) -> Result<PathBu
 }
 
 /// Get the models directory path for built-in AI
-pub fn get_models_directory(app_data_dir: &PathBuf) -> PathBuf {
+pub fn get_models_directory(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("models").join("summary")
 }
 

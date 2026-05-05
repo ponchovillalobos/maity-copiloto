@@ -95,11 +95,11 @@ pub fn export_as_csv(
         let audio_start_str = exported
             .audio_start
             .map(|v| v.to_string())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_default();
         let audio_end_str = exported
             .audio_end
             .map(|v| v.to_string())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_default();
 
         csv_output.push_str(&format!(
             "{},{},{},{},{}\n",
@@ -165,7 +165,7 @@ pub fn export_as_pdf(
     y_position -= heading_line_height * 1.5;
 
     current_layer.use_text(
-        &format!("Fecha: {}", created_at),
+        format!("Fecha: {}", created_at),
         10.0,
         left_margin,
         y_position,
@@ -174,7 +174,7 @@ pub fn export_as_pdf(
     y_position -= line_height;
 
     current_layer.use_text(
-        &format!("Total de transcripciones: {}", transcripts.len()),
+        format!("Total de transcripciones: {}", transcripts.len()),
         10.0,
         left_margin,
         y_position,

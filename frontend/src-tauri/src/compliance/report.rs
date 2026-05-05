@@ -45,10 +45,8 @@ pub async fn build_compliance_data(
                 if !local.contains(&ep.to_string()) {
                     local.push(ep.to_string());
                 }
-            } else {
-                if !external.contains(&ep.to_string()) {
-                    external.push(ep.to_string());
-                }
+            } else if !external.contains(&ep.to_string()) {
+                external.push(ep.to_string());
             }
         }
     }

@@ -312,7 +312,7 @@ pub async fn dev_import_audio_file<R: Runtime>(
 
     if is_stereo {
         let (left, right) = deinterleave_stereo(&samples);
-        let chunks_per_channel = (left.len() + CHUNK_SAMPLES - 1) / CHUNK_SAMPLES;
+        let chunks_per_channel = left.len().div_ceil(CHUNK_SAMPLES);
         let total_chunks_global = chunks_per_channel * 2;
 
         let _ = app.emit(
@@ -341,7 +341,7 @@ pub async fn dev_import_audio_file<R: Runtime>(
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
     } else {
-        let chunks_count = (samples.len() + CHUNK_SAMPLES - 1) / CHUNK_SAMPLES;
+        let chunks_count = samples.len().div_ceil(CHUNK_SAMPLES);
         let _ = app.emit(
             "dev-import-progress",
             DevImportProgress {
@@ -530,8 +530,8 @@ pub async fn dev_import_two_audios<R: Runtime>(
     let max_frames = user_samples.len().max(inter_samples.len());
     let total_duration = max_frames as f64 / TARGET_SAMPLE_RATE as f64;
 
-    let user_chunks_count = (user_samples.len() + CHUNK_SAMPLES - 1) / CHUNK_SAMPLES;
-    let inter_chunks_count = (inter_samples.len() + CHUNK_SAMPLES - 1) / CHUNK_SAMPLES;
+    let user_chunks_count = user_samples.len().div_ceil(CHUNK_SAMPLES);
+    let inter_chunks_count = inter_samples.len().div_ceil(CHUNK_SAMPLES);
     let total_chunks_global = user_chunks_count + inter_chunks_count;
 
     let _ = app.emit(

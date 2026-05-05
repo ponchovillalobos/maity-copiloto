@@ -127,9 +127,9 @@ export function About() {
 
             {/* CTA Section - Compact */}
             <div className="text-center space-y-2">
-                <h3 className="text-medium font-semibold text-[#1a1a1a] dark:text-white">¿Listo para llevar tu negocio más lejos?</h3>
+                <h3 className="text-medium font-semibold text-[#1a1a1a] dark:text-white">Asistente de reuniones 100% local</h3>
                 <p className="text-s text-gray-200 dark:text-gray-300">
-                    Si planeas construir agentes de IA personalizados con privacidad primero o un producto totalmente adaptado para tu <span className="font-bold">negocio</span>, podemos ayudarte a construirlo.
+                    Transcripción, resumen y coach de ventas en tiempo real. Todo procesa en tu máquina — sin servidores, sin suscripción, sin salida de datos.
                 </p>
                 <button
                     onClick={handleContactClick}

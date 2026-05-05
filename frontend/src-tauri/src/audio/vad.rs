@@ -146,7 +146,7 @@ impl ContinuousVadProcessor {
         let filter_size = std::cmp::max(1, std::cmp::min(filter_size, 5)); // Limit filter size
         
         for i in 0..samples.len() {
-            let start = if i >= filter_size { i - filter_size } else { 0 };
+            let start = i.saturating_sub(filter_size);
             let end = std::cmp::min(i + filter_size + 1, samples.len());
             let sum: f32 = samples[start..end].iter().sum();
             filtered_samples.push(sum / (end - start) as f32);

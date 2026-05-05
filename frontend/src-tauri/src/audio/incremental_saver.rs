@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
 use log::{info, warn, error};
 use super::encode::encode_single_audio;
@@ -153,7 +153,7 @@ impl IncrementalAudioSaver {
 
     /// Merge all checkpoint files into final audio.mp4 using FFmpeg concat
     /// Uses concat demuxer for fast merging without re-encoding
-    async fn merge_checkpoints(&self, output: &PathBuf) -> Result<()> {
+    async fn merge_checkpoints(&self, output: &Path) -> Result<()> {
         info!("Merging {} checkpoints into final audio file...", self.checkpoint_count);
 
         // Create concat list file for FFmpeg
@@ -185,7 +185,7 @@ impl IncrementalAudioSaver {
         
         let mut command = std::process::Command::new(ffmpeg_path);
         
-        command.args(&[
+        command.args([
             "-f", "concat",          // Use concat demuxer
             "-safe", "0",            // Allow absolute paths
             "-i", list_file.to_str().ok_or_else(|| anyhow!("Invalid UTF-8 in concat list path"))?,
@@ -319,7 +319,7 @@ pub async fn recover_audio_from_checkpoints(
 
     let mut command = std::process::Command::new(ffmpeg_path);
 
-    command.args(&[
+    command.args([
         "-f", "concat",
         "-safe", "0",
         "-i", concat_file_path.to_str().ok_or_else(|| "Invalid UTF-8 in concat file path".to_string())?,

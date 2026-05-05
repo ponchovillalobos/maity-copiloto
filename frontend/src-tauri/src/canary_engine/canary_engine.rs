@@ -2,7 +2,7 @@ use crate::canary_engine::model::CanaryModel;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::fs;
@@ -116,7 +116,7 @@ impl CanaryEngine {
                 current_dir.join("models").join("canary")
             } else {
                 dirs::data_dir()
-                    .or_else(|| dirs::home_dir())
+                    .or_else(dirs::home_dir)
                     .ok_or_else(|| anyhow!("Could not find system data directory"))?
                     .join("Maity")
                     .join("models")
@@ -221,7 +221,7 @@ impl CanaryEngine {
         Ok(models)
     }
 
-    async fn validate_model_directory(&self, model_dir: &PathBuf, model_name: &str) -> Result<()> {
+    async fn validate_model_directory(&self, model_dir: &Path, model_name: &str) -> Result<()> {
         let expected_sizes: Vec<(&str, u64)> = match model_name {
             "canary-180m-flash-int8" => vec![
                 ("encoder-model.int8.onnx", 100_000_000), // ~128 MB, min 100 MB

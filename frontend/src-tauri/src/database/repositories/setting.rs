@@ -83,14 +83,14 @@ impl SettingsRepository {
         match provider {
             // Cloud summary providers (openai, claude, groq, openrouter) no longer store API keys
             // They are legacy and no longer supported for cloud-based summaries
-            "openai" | "claude" | "ollama" | "groq" | "openrouter" => return Ok(()),
-            "builtin-ai" => return Ok(()), // No API key needed
+            "openai" | "claude" | "ollama" | "groq" | "openrouter" => Ok(()),
+            "builtin-ai" => Ok(()), // No API key needed
             _ => {
-                return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
+                Err(sqlx::Error::Protocol(
+                    format!("Invalid provider: {}", provider),
                 ))
             }
-        };
+        }
     }
 
     pub async fn get_api_key(
@@ -106,14 +106,14 @@ impl SettingsRepository {
         // Validate provider and handle early returns
         match provider {
             // Cloud summary providers (openai, claude, groq, openrouter, ollama) no longer store API keys
-            "openai" | "ollama" | "groq" | "claude" | "openrouter" => return Ok(None),
-            "builtin-ai" => return Ok(None), // No API key needed
+            "openai" | "ollama" | "groq" | "claude" | "openrouter" => Ok(None),
+            "builtin-ai" => Ok(None), // No API key needed
             _ => {
-                return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
+                Err(sqlx::Error::Protocol(
+                    format!("Invalid provider: {}", provider),
                 ))
             }
-        };
+        }
     }
 
     pub async fn get_transcript_config(
@@ -161,7 +161,7 @@ impl SettingsRepository {
             "elevenLabs" | "groq" | "openai" => {},
             _ => {
                 return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
+                    format!("Invalid provider: {}", provider),
                 ))
             }
         };
@@ -200,7 +200,7 @@ impl SettingsRepository {
             "elevenLabs" | "groq" | "openai" => {},
             _ => {
                 return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
+                    format!("Invalid provider: {}", provider),
                 ))
             }
         };
@@ -230,14 +230,14 @@ impl SettingsRepository {
         // Validate provider and handle early returns
         match provider {
             // Cloud summary providers (openai, claude, groq, openrouter, ollama) no longer store API keys
-            "openai" | "ollama" | "groq" | "claude" | "openrouter" => return Ok(()),
-            "builtin-ai" => return Ok(()), // No API key needed
+            "openai" | "ollama" | "groq" | "claude" | "openrouter" => Ok(()),
+            "builtin-ai" => Ok(()), // No API key needed
             _ => {
-                return Err(sqlx::Error::Protocol(
-                    format!("Invalid provider: {}", provider).into(),
+                Err(sqlx::Error::Protocol(
+                    format!("Invalid provider: {}", provider),
                 ))
             }
-        };
+        }
     }
 
     // ===== CUSTOM OPENAI CONFIG METHODS =====
@@ -272,7 +272,7 @@ impl SettingsRepository {
                     // Parse JSON into CustomOpenAIConfig
                     let config: CustomOpenAIConfig = serde_json::from_str(&json)
                         .map_err(|e| sqlx::Error::Protocol(
-                            format!("Invalid JSON in customOpenAIConfig: {}", e).into()
+                            format!("Invalid JSON in customOpenAIConfig: {}", e)
                         ))?;
 
                     Ok(Some(config))
@@ -300,7 +300,7 @@ impl SettingsRepository {
         // Serialize config to JSON
         let config_json = serde_json::to_string(config)
             .map_err(|e| sqlx::Error::Protocol(
-                format!("Failed to serialize config to JSON: {}", e).into()
+                format!("Failed to serialize config to JSON: {}", e)
             ))?;
 
         // Upsert into settings table

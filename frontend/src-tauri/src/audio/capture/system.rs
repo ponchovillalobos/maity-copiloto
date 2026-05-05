@@ -147,11 +147,10 @@ impl SystemAudioCapture {
                     match stream.next().await {
                         Some(sample) => {
                             buffer.push(sample);
-                            if buffer.len() >= chunk_size {
-                                if tx.unbounded_send(std::mem::take(&mut buffer)).is_err() {
+                            if buffer.len() >= chunk_size
+                                && tx.unbounded_send(std::mem::take(&mut buffer)).is_err() {
                                     break;
                                 }
-                            }
                         }
                         None => break,
                     }
@@ -183,10 +182,7 @@ impl SystemAudioCapture {
 
     pub fn check_system_audio_permissions() -> bool {
         // Check if we can enumerate audio devices
-        match cpal::default_host().output_devices() {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        cpal::default_host().output_devices().is_ok()
     }
 }
 
