@@ -431,7 +431,7 @@ export function useSummaryGeneration({
 
         if (!models || models.length === 0) {
           toast.error(
-            'No se encontraron modelos Ollama. Por favor descarga gemma3:1b desde Configuración de Modelo.',
+            'No se encontraron modelos Ollama. Configura un modelo en Configuración de Modelo.',
             { duration: 5000 }
           );
           return;

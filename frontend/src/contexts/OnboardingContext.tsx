@@ -450,10 +450,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
 
       // Start Gemma download after a delay to prioritize Parakeet bandwidth
-      if (includeGemma && !summaryModelDownloaded) {
+      if (includeGemma && !summaryModelDownloaded && selectedSummaryModel) {
         setTimeout(() => {
-          logger.debug('[OnboardingContext] Starting Gemma download (delayed to prioritize Parakeet)');
-          invoke('builtin_ai_download_model', { modelName: selectedSummaryModel || 'gemma3:1b' })
+          logger.debug('[OnboardingContext] Starting model download (delayed to prioritize Parakeet)');
+          invoke('builtin_ai_download_model', { modelName: selectedSummaryModel })
             .catch(err => console.error('[OnboardingContext] Gemma download failed:', err));
         }, 3000); // 3 second delay to give Parakeet priority
       }
